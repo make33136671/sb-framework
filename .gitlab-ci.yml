@@ -81,7 +81,8 @@ publish:nuget:
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
   script:
-    - dotnet nuget add source "$CI_API_V4_URL/groups/$SAIBO_FRAMEWORK_GROUP_ID/-/packages/nuget/index.json"
+    # GitLab Group-level NuGet feed 只读，push 必须用 Project-level URL
+    - dotnet nuget add source "$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/nuget/index.json"
         --name gitlab
         --username gitlab-ci-token
         --password "$CI_JOB_TOKEN"

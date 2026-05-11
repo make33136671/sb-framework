@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>SB.Framework.Core</PackageId>
-    <Version>0.1.0-preview.3</Version>
+    <Version>0.1.0-preview.4</Version>
     <Authors>Sb Framework</Authors>
     <Description>SB Framework 基础工具与原语</Description>
   </PropertyGroup>
