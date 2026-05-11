@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统安装向导</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background:#f0f2f5;min-height:100vh;color:#333}
+.header{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);color:#fff;padding:40px 20px 30px;text-align:center}
+.header h1{font-size:28px;margin-bottom:8px}
+.header p{opacity:.7;font-size:14px}
+.container{max-width:680px;margin:-20px auto 40px;padding:0 16px}
+.toolbar{display:flex;justify-content:center;gap:10px;margin-bottom:16px}
+.toolbar .btn{font-size:13px;padding:8px 16px}
+.steps{display:flex;justify-content:center;margin-bottom:30px;background:#fff;border-radius:12px;padding:16px 12px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.step-item{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:#999;flex:1;min-width:0}
+.step-item .num{width:28px;height:28px;border-radius:50%;border:2px solid #ddd;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;transition:all .3s;flex-shrink:0}
+.step-item.active .num{background:#1677ff;border-color:#1677ff;color:#fff}
+.step-item.done .num{background:#52c41a;border-color:#52c41a;color:#fff}
+.step-item.active{color:#1677ff;font-weight:500}
+.step-item.done{color:#52c41a}
+.step-line{flex:1;height:2px;background:#ddd;align-self:center;margin:0 -4px;margin-top:-12px}
+.step-line.done{background:#52c41a}
+.card{background:#fff;border-radius:12px;padding:32px;box-shadow:0 2px 12px rgba(0,0,0,.08);margin-bottom:20px}
+.card h2{font-size:20px;margin-bottom:4px;color:#1a1a2e}
+.card .desc{color:#888;font-size:13px;margin-bottom:24px}
+.form-group{margin-bottom:18px}
+.form-group label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;color:#555}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+input[type="text"],input[type="password"],input[type="number"],select{width:100%;padding:10px 12px;border:1px solid #d9d9d9;border-radius:8px;font-size:14px;outline:none;transition:border-color .3s}
+input:focus,select:focus{border-color:#1677ff;box-shadow:0 0 0 2px rgba(22,119,255,.1)}
+.radio-group{display:flex;gap:12px;margin-top:4px}
+.radio-group label{display:flex;align-items:center;gap:6px;cursor:pointer;padding:10px 20px;border:1px solid #d9d9d9;border-radius:8px;font-weight:400;transition:all .3s}
+.radio-group label:hover{border-color:#1677ff}
+.radio-group input[type="radio"]{accent-color:#1677ff}
+.radio-group label.selected{border-color:#1677ff;background:#f0f5ff;color:#1677ff}
+.btn-row{display:flex;justify-content:space-between;gap:12px;margin-top:24px}
+.btn{padding:10px 28px;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-weight:500;transition:all .2s}
+.btn-primary{background:#1677ff;color:#fff}.btn-primary:hover{background:#4096ff}
+.btn-default{background:#fff;border:1px solid #d9d9d9;color:#333}.btn-default:hover{border-color:#1677ff;color:#1677ff}
+.btn-success{background:#52c41a;color:#fff}.btn-success:hover{background:#73d13d}
+.btn-test{background:#fff;border:1px solid #1677ff;color:#1677ff;padding:8px 16px;font-size:13px}.btn-test:hover{background:#f0f5ff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.test-result{margin-top:8px;padding:8px 12px;border-radius:6px;font-size:13px;display:none}
+.test-result.success{display:block;background:#f6ffed;border:1px solid #b7eb8f;color:#52c41a}
+.test-result.error{display:block;background:#fff2f0;border:1px solid #ffccc7;color:#ff4d4f}
+.summary-table{width:100%;border-collapse:collapse}
+.summary-table tr{border-bottom:1px solid #f0f0f0}
+.summary-table td{padding:12px 0;font-size:14px;vertical-align:middle}
+.summary-table td:first-child{color:#888;width:120px;font-weight:500}
+.summary-table td:last-child{font-weight:500}
+.summary-table img{max-width:128px;max-height:128px}
+.install-progress{text-align:center;padding:40px 0}
+.install-progress .spinner{width:48px;height:48px;border:4px solid #f0f0f0;border-top-color:#1677ff;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.install-success{text-align:center;padding:30px 0}
+.install-success .icon{font-size:64px;margin-bottom:16px}
+.install-success h3{font-size:22px;color:#52c41a;margin-bottom:8px}
+.install-success p{color:#888;font-size:14px;line-height:1.6}
+.install-error{text-align:center;padding:30px 0}
+.install-error .icon{font-size:64px;margin-bottom:16px}
+.install-error h3{font-size:22px;color:#ff4d4f;margin-bottom:8px}
+.install-error p{color:#888;font-size:14px}
+.tags-input{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid #d9d9d9;border-radius:8px;min-height:42px;cursor:text}
+.tags-input:focus-within{border-color:#1677ff;box-shadow:0 0 0 2px rgba(22,119,255,.1)}
+.tags-input .tag{background:#f0f5ff;border:1px solid #91caff;color:#1677ff;padding:2px 8px;border-radius:4px;font-size:12px;display:flex;align-items:center;gap:4px}
+.tags-input .tag .remove{cursor:pointer;font-size:14px;line-height:1}
+.tags-input input{border:none;outline:none;flex:1;min-width:120px;font-size:14px;padding:2px 4px}
+.hidden{display:none!important}
+.hint{color:#999;font-size:12px;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>系统安装向导</h1>
+  <p>按照步骤完成系统初始化配置</p>
+</div>
+
+<div class="container">
+  <div class="toolbar" id="configToolbar">
+    <button class="btn btn-default" onclick="importConfig()">导入配置</button>
+    <button class="btn btn-default" onclick="exportConfig()">导出配置</button>
+    <input type="file" id="configFileInput" accept=".json" style="display:none" onchange="handleConfigFile(event)">
+  </div>
+
+  <div class="steps" id="stepsBar"></div>
+
+  <!-- Step 1: 产品信息 -->
+  <div class="card step-panel" id="step1">
+    <h2>产品信息</h2>
+    <p class="desc">填写产品标识，后续步骤将基于此自动推断 数据库名 / 缓存前缀 / Redis 实例名</p>
+    <div class="form-group">
+      <label>产品英文名称 <span style="color:#e74c3c">*</span></label>
+      <input type="text" id="productEn" value="sb" pattern="^[a-z][a-z0-9]{1,19}$"
+             oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9]/g,''); updateProductDefaults();">
+      <div class="hint">小写字母+数字，字母开头，2-20字符。用于路径前缀、缓存前缀、授权产品标识</div>
+    </div>
+    <div class="form-group">
+      <label>产品中文名称</label>
+      <input type="text" id="productCn" value="管理系统">
+    </div>
+    <div class="form-group">
+      <label>主域名 <span style="color:#999;font-weight:400;font-size:12px">（可选）</span></label>
+      <input type="text" id="primaryDomain" placeholder="例如: example.com（不含 http://）">
+      <div class="hint">用于授权域名验证、品牌信息展示。留空则不启用域名验证</div>
+    </div>
+    <div class="form-group">
+      <label>云端中心地址 <span style="color:#999;font-weight:400;font-size:12px">（可选）</span></label>
+      <input type="text" id="cloudServerUrl" placeholder="例如: https://cloud.example.com">
+      <div class="hint">所有云端功能（在线授权、数据库备份接收、未来其他）的统一根地址，运行时由各功能自动拼接子路径。留空则禁用所有云端功能</div>
+    </div>
+    <div class="form-group">
+      <label>产品 Logo</label>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div id="logoPreview" style="width:64px;height:64px;border:1px solid #ddd;border-radius:8px;display:none;overflow:hidden;align-items:center;justify-content:center"></div>
+        <input type="file" id="logoFile" accept=".png,.jpg,.jpeg,.ico" onchange="handleLogoFile(this)">
+      </div>
+      <div class="hint">PNG/JPG/ICO，建议 512x512+，最大 2MB。自动生成 favicon 和各尺寸图标</div>
+    </div>
+    <div class="form-group">
+      <label>系统时区</label>
+      <select id="timeZone">
+        <option value="Asia/Shanghai">Asia/Shanghai (UTC+8 中国)</option>
+        <option value="Asia/Tokyo">Asia/Tokyo (UTC+9 日本)</option>
+        <option value="Asia/Singapore">Asia/Singapore (UTC+8 新加坡)</option>
+        <option value="Asia/Hong_Kong">Asia/Hong_Kong (UTC+8 香港)</option>
+        <option value="Asia/Taipei">Asia/Taipei (UTC+8 台北)</option>
+        <option value="Asia/Seoul">Asia/Seoul (UTC+9 韩国)</option>
+        <option value="Asia/Bangkok">Asia/Bangkok (UTC+7 泰国)</option>
+        <option value="Asia/Kolkata">Asia/Kolkata (UTC+5:30 印度)</option>
+        <option value="Asia/Dubai">Asia/Dubai (UTC+4 迪拜)</option>
+        <option value="Europe/London">Europe/London (UTC+0 伦敦)</option>
+        <option value="Europe/Paris">Europe/Paris (UTC+1 巴黎)</option>
+        <option value="Europe/Berlin">Europe/Berlin (UTC+1 柏林)</option>
+        <option value="Europe/Moscow">Europe/Moscow (UTC+3 莫斯科)</option>
+        <option value="America/New_York">America/New_York (UTC-5 纽约)</option>
+        <option value="America/Chicago">America/Chicago (UTC-6 芝加哥)</option>
+        <option value="America/Denver">America/Denver (UTC-7 丹佛)</option>
+        <option value="America/Los_Angeles">America/Los_Angeles (UTC-8 洛杉矶)</option>
+        <option value="America/Sao_Paulo">America/Sao_Paulo (UTC-3 圣保罗)</option>
+        <option value="Australia/Sydney">Australia/Sydney (UTC+10 悉尼)</option>
+        <option value="Pacific/Auckland">Pacific/Auckland (UTC+12 新西兰)</option>
+        <option value="UTC">UTC (协调世界时)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>CORS 跨域策略</label>
+      <div class="radio-group">
+        <label class="selected" onclick="selectCors(true,this)">
+          <input type="radio" name="corsPolicy" value="true" checked> 允许所有来源
+        </label>
+        <label onclick="selectCors(false,this)">
+          <input type="radio" name="corsPolicy" value="false"> 指定来源
+        </label>
+      </div>
+    </div>
+    <div id="corsOriginsGroup" class="hidden">
+      <div class="form-group">
+        <label>允许的来源（输入后按回车添加）</label>
+        <div class="tags-input" id="corsTagsInput" onclick="document.getElementById('corsOriginInput').focus()">
+          <input type="text" id="corsOriginInput" placeholder="例如: https://example.com">
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <div></div>
+      <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+    </div>
+  </div>
+
+  <!-- Step 2: 数据库配置 -->
+  <div class="card step-panel hidden" id="step2">
+    <h2>数据库配置</h2>
+    <p class="desc" id="dbDesc">配置 MySQL 数据库连接信息</p>
+    <div class="form-group">
+      <label>数据库类型</label>
+      <div class="radio-group">
+        <label class="selected" onclick="selectDbType('MySql',this)">
+          <input type="radio" name="dbType" value="MySql" checked> MySQL
+        </label>
+        <label onclick="selectDbType('PostgreSql',this)">
+          <input type="radio" name="dbType" value="PostgreSql"> PostgreSQL
+        </label>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>服务器地址</label>
+        <input type="text" id="dbServer" value="127.0.0.1">
+      </div>
+      <div class="form-group">
+        <label>端口</label>
+        <input type="text" id="dbPort" value="3306">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>数据库名称</label>
+      <input type="text" id="dbName" value="Sb">
+      <div class="hint">默认基于产品英文名首字母大写，可手动修改</div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>用户名</label>
+        <input type="text" id="dbUser" value="root">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="dbPassword">
+      </div>
+    </div>
+    <button class="btn btn-test" onclick="testDb()">测试连接</button>
+    <div class="test-result" id="dbTestResult"></div>
+    <div class="form-group" style="margin-top:18px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="wipeDatabase" style="accent-color:#ff4d4f;width:16px;height:16px">
+        <span style="color:#ff4d4f;font-weight:500">抹除现有数据（清空数据库重新安装）</span>
+      </label>
+      <div id="wipeWarning" style="display:none;background:#fff2f0;border:1px solid #ffccc7;border-radius:8px;padding:12px;margin-top:8px;font-size:13px;color:#cf1322">
+        <strong>危险操作！</strong>此操作将删除数据库中所有现有表和数据，且不可恢复。请确保已做好数据备份。
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-default" onclick="prevStep()">上一步</button>
+      <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+    </div>
+  </div>
+
+  <!-- Step 3: 缓存配置 -->
+  <div class="card step-panel hidden" id="step3">
+    <h2>缓存配置</h2>
+    <p class="desc">选择是否启用缓存，默认不启用</p>
+    <div class="form-group">
+      <label>启用缓存</label>
+      <div class="radio-group">
+        <label class="selected" onclick="toggleCache(false,this)">
+          <input type="radio" name="enableCache" value="false" checked> 不启用（默认）
+        </label>
+        <label onclick="toggleCache(true,this)">
+          <input type="radio" name="enableCache" value="true"> 启用缓存
+        </label>
+      </div>
+    </div>
+    <div id="cacheProviderGroup" class="hidden">
+      <div class="form-group">
+        <label>缓存提供程序</label>
+        <div class="radio-group">
+          <label class="selected" onclick="selectCache('Memory',this)">
+            <input type="radio" name="cacheProvider" value="Memory" checked> Memory（内存）
+          </label>
+          <label onclick="selectCache('Redis',this)">
+            <input type="radio" name="cacheProvider" value="Redis"> Redis
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>缓存 Key 前缀</label>
+        <input type="text" id="cachePrefix" value="sb:">
+        <div class="hint">默认基于产品英文名（产品步骤改变时自动同步）</div>
+      </div>
+      <div id="redisConfig" class="hidden">
+        <div class="form-group">
+          <label>Redis 连接字符串</label>
+          <input type="text" id="redisConnection" value="localhost:6379">
+          <div class="hint">默认跟随上一步的数据库地址 + Redis 默认端口 6379</div>
+        </div>
+        <div class="form-group">
+          <label>实例名称前缀</label>
+          <input type="text" id="redisInstanceName" value="sb:">
+        </div>
+        <button class="btn btn-test" onclick="testRedis()">测试连接</button>
+        <div class="test-result" id="redisTestResult"></div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-default" onclick="prevStep()">上一步</button>
+      <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+    </div>
+  </div>
+
+  <!-- Step 4: 部署配置 -->
+  <div class="card step-panel hidden" id="step4">
+    <h2>部署配置</h2>
+    <p class="desc">配置前端子项目的部署路径（可选，可跳过）</p>
+    <div id="deployProjectsList"></div>
+    <button class="btn btn-test" onclick="addDeployProject()" style="margin-top:8px">+ 添加子项目</button>
+    <div class="btn-row">
+      <button class="btn btn-default" onclick="prevStep()">上一步</button>
+      <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+    </div>
+  </div>
+
+  <!-- Step 5: 密码存储方式 -->
+  <div class="card step-panel hidden" id="step5">
+    <h2>密码存储方式</h2>
+    <p class="desc">选择密码的存储方式（安装后不可修改）</p>
+    <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:12px;margin-bottom:20px;display:flex;gap:12px;align-items:flex-start">
+      <div style="font-size:18px;color:#ff9800;flex-shrink:0">&#9888;&#65039;</div>
+      <div style="font-size:13px;color:#856404">
+        <strong>重要提示：此选择安装后将无法修改</strong><br>
+        &bull; 选择"加密"后，所有密码均采用BCrypt加密存储（推荐生产环境）<br>
+        &bull; 选择"明文"后，密码以明文形式存储（仅用于开发/测试，不安全）<br>
+        &bull; 修改此设置会导致已有密码无法验证，请谨慎选择
+      </div>
+    </div>
+    <div class="form-group">
+      <label>密码存储方式</label>
+      <div class="radio-group">
+        <label class="selected" onclick="selectPasswordMode('Encrypted',this)">
+          <input type="radio" name="passwordStorageMode" value="Encrypted" checked> 加密（推荐）&#128274;
+        </label>
+        <label onclick="selectPasswordMode('PlainText',this)">
+          <input type="radio" name="passwordStorageMode" value="PlainText"> 明文&#9888;&#65039;
+        </label>
+      </div>
+    </div>
+    <div class="form-group" style="margin-top:24px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="enableMasterKey" style="accent-color:#1677ff;width:16px;height:16px">
+        <span style="font-weight:500">启用 MasterKey（万能密钥）</span>
+      </label>
+      <div class="hint">启用后，安装成功时生成一个一次性显示的 GUID（写入 appsettings.MasterKey）。客户端可通过 X-Master-Key 请求头调用任意接口，绕过常规鉴权。<strong style="color:#cf1322">生产环境建议关闭。</strong></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-default" onclick="prevStep()">上一步</button>
+      <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+    </div>
+  </div>
+
+  <!-- Step 6: 管理员配置 -->
+  <div class="card step-panel hidden" id="step6">
+    <h2>超级管理员</h2>
+    <p class="desc">设置系统初始管理员账号</p>
+    <div class="form-group">
+      <label>用户名</label>
+      <input type="text" id="adminUsername" value="admin">
+    </div>
+    <div class="form-group">
+      <label>密码（至少6位）</label>
+      <input type="password" id="adminPassword">
+    </div>
+    <div class="form-group">
+      <label>确认密码</label>
+      <input type="password" id="adminPasswordConfirm">
+    </div>
+    <div class="form-group">
+      <label>显示名称</label>
+      <input type="text" id="adminDisplayName" value="超级管理员">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-default" onclick="prevStep()">上一步</button>
+      <button class="btn btn-primary" onclick="nextStep()">下一步</button>
+    </div>
+  </div>
+
+  <!-- Step 7: 确认摘要 -->
+  <div class="card step-panel hidden" id="step7">
+    <h2>确认安装信息</h2>
+    <p class="desc">请确认以下配置无误后执行安装</p>
+    <table class="summary-table" id="summaryTable"></table>
+    <div class="btn-row">
+      <button class="btn btn-default" onclick="prevStep()">上一步</button>
+      <button class="btn btn-success" onclick="doInstall()">确认安装</button>
+    </div>
+  </div>
+
+  <!-- 安装进度 -->
+  <div class="card hidden" id="installProgress">
+    <div class="install-progress">
+      <div class="spinner"></div>
+      <h3>正在安装...</h3>
+      <p>正在创建数据库表、写入初始数据和更新配置文件，请稍候</p>
+    </div>
+  </div>
+
+  <!-- 安装成功 -->
+  <div class="card hidden" id="installSuccess">
+    <div class="install-success">
+      <div class="icon">&#10003;</div>
+      <h3>安装成功！</h3>
+      <p>系统已成功安装。<br>请<strong>重启应用</strong>以加载新的配置。<br>重启后即可使用管理员账号登录系统。</p>
+      <p id="masterKeyInfo" style="margin-top:16px;background:#f6ffed;border:1px solid #b7eb8f;border-radius:8px;padding:12px;font-size:13px;color:#389e0d;text-align:left;display:none">
+        <strong>万能密钥 (MasterKey)：</strong><code id="masterKeyValue"></code><br>
+        <span style="color:#888;font-size:12px">请妥善保存，仅此显示一次。可通过请求头 X-Master-Key 调用任意接口。</span>
+      </p>
+      <div class="btn-row" style="justify-content:center;margin-top:20px">
+        <button class="btn btn-primary" onclick="location.href='/'">回到首页</button>
+        <button class="btn btn-success hidden" id="btnGoLicense" onclick="goToLicense()">去授权页</button>
+      </div>
+      <p style="margin-top:12px;color:#888;font-size:12px">
+        <strong>提示：</strong>授权页位于管理后台前端，开发环境默认地址 <code>http://localhost:6012/auth/license</code>
+      </p>
+    </div>
+  </div>
+
+  <!-- 安装失败 -->
+  <div class="card hidden" id="installError">
+    <div class="install-error">
+      <div class="icon">&#10007;</div>
+      <h3>安装失败</h3>
+      <p id="installErrorMsg"></p>
+      <div class="btn-row" style="justify-content:center;margin-top:20px">
+        <button class="btn btn-primary" onclick="retryInstall()">返回重试</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const STEPS = ['产品','数据库','缓存','部署','密码','管理员','确认'];
+let currentStep = 1;
+let corsOrigins = [];
+let deployProjects = [];
+let logoBase64Data = '';
+
+// 用户手动编辑跟踪：被用户改过的字段不再被自动推断覆盖
+const userEdited = {
+  dbName: false,
+  cachePrefix: false,
+  redisInstanceName: false,
+  redisConnection: false,
+};
+
+function updateProductDefaults() {
+  const name = document.getElementById('productEn').value || 'sb';
+  // 数据库名：首字母大写
+  if (!userEdited.dbName) {
+    const dbN = document.getElementById('dbName');
+    if (dbN) dbN.value = name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  // 缓存前缀
+  if (!userEdited.cachePrefix) {
+    const cp = document.getElementById('cachePrefix');
+    if (cp) cp.value = name + ':';
+  }
+  // Redis 实例名前缀
+  if (!userEdited.redisInstanceName) {
+    const redisInst = document.getElementById('redisInstanceName');
+    if (redisInst) redisInst.value = name + ':';
+  }
+}
+
+function handleLogoFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { alert('Logo 文件不能超过 2MB'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    logoBase64Data = e.target.result;
+    const preview = document.getElementById('logoPreview');
+    preview.innerHTML = '<img src="' + logoBase64Data + '" style="max-width:100%;max-height:100%">';
+    preview.style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderSteps() {
+  const bar = document.getElementById('stepsBar');
+  bar.innerHTML = '';
+  STEPS.forEach((name, i) => {
+    const step = i + 1;
+    const cls = step < currentStep ? 'done' : step === currentStep ? 'active' : '';
+    bar.innerHTML += (i > 0 ? '<div class="step-line'+(step<=currentStep?' done':'')+'"></div>' : '') +
+      '<div class="step-item '+cls+'"><span class="num">'+(step<currentStep?'&#10003;':step)+'</span>'+name+'</div>';
+  });
+}
+
+function showStep(n) {
+  document.querySelectorAll('.step-panel').forEach(el => el.classList.add('hidden'));
+  const panel = document.getElementById('step'+n);
+  if(panel) panel.classList.remove('hidden');
+  currentStep = n;
+  renderSteps();
+}
+
+async function nextStep() {
+  if (!validateStep(currentStep)) return;
+  if (currentStep === 7) return;
+  if (currentStep === 6) buildSummary();
+  // 进入第 4 步（部署）前预填默认 admin / h5 项目
+  if (currentStep === 3) await ensureDefaultDeployProjects();
+  showStep(currentStep + 1);
+}
+
+function prevStep() {
+  if (currentStep <= 1) return;
+  showStep(currentStep - 1);
+}
+
+function validateStep(step) {
+  if (step === 1) {
+    if (!val('dbServer') || !val('dbPort') || !val('dbName') || !val('dbUser')) {
+      alert('请填写完整的数据库配置'); return false;
+    }
+  }
+  if (step === 6) {
+    if (!val('adminUsername')) { alert('请输入管理员用户名'); return false; }
+    if (!val('adminPassword') || val('adminPassword').length < 6) { alert('密码至少6位'); return false; }
+    if (val('adminPassword') !== val('adminPasswordConfirm')) { alert('两次密码不一致'); return false; }
+  }
+  return true;
+}
+
+function val(id) { return document.getElementById(id).value.trim(); }
+
+function getDbType() {
+  return document.querySelector('input[name="dbType"]:checked').value;
+}
+
+function selectDbType(type, el) {
+  el.closest('.radio-group').querySelectorAll('label').forEach(l => l.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+  var portEl = document.getElementById('dbPort');
+  var descEl = document.getElementById('dbDesc');
+  if (type === 'PostgreSql') {
+    if (portEl.value === '3306') portEl.value = '5432';
+    descEl.textContent = '配置 PostgreSQL 数据库连接信息';
+  } else {
+    if (portEl.value === '5432') portEl.value = '3306';
+    descEl.textContent = '配置 MySQL 数据库连接信息';
+  }
+}
+
+function toggleCache(enabled, el) {
+  el.closest('.radio-group').querySelectorAll('label').forEach(l => l.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+  document.getElementById('cacheProviderGroup').classList.toggle('hidden', !enabled);
+  if (!enabled) {
+    document.getElementById('redisConfig').classList.add('hidden');
+  }
+}
+
+function selectCache(provider, el) {
+  el.closest('.radio-group').querySelectorAll('label').forEach(l => l.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+  document.getElementById('redisConfig').classList.toggle('hidden', provider !== 'Redis');
+  if (provider === 'Redis') syncRedisFromDbServer();
+}
+
+// Redis 连接字符串智能跟随：用户没主动改时，跟随上一步的数据库地址
+function syncRedisFromDbServer() {
+  if (userEdited.redisConnection) return;
+  const dbServer = val('dbServer') || 'localhost';
+  document.getElementById('redisConnection').value = dbServer + ':6379';
+}
+
+function selectCors(allowAll, el) {
+  el.closest('.radio-group').querySelectorAll('label').forEach(l => l.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+  document.getElementById('corsOriginsGroup').classList.toggle('hidden', allowAll);
+}
+
+function selectPasswordMode(mode, el) {
+  el.closest('.radio-group').querySelectorAll('label').forEach(l => l.classList.remove('selected'));
+  el.classList.add('selected');
+  el.querySelector('input').checked = true;
+}
+
+// Wipe database checkbox warning toggle
+document.getElementById('wipeDatabase').addEventListener('change', function() {
+  document.getElementById('wipeWarning').style.display = this.checked ? '' : 'none';
+});
+
+// 标记用户手动改过的字段，避免被自动推断覆盖
+['dbName', 'cachePrefix', 'redisInstanceName', 'redisConnection'].forEach(function(id) {
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('input', function() { userEdited[id] = true; });
+});
+
+// 第二步数据库地址变化时，自动同步 Redis 连接字符串
+document.getElementById('dbServer').addEventListener('input', syncRedisFromDbServer);
+
+// CORS origins tag input
+document.getElementById('corsOriginInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const v = this.value.trim();
+    if (v && !corsOrigins.includes(v)) {
+      corsOrigins.push(v);
+      renderCorsTags();
+    }
+    this.value = '';
+  }
+});
+
+function renderCorsTags() {
+  const container = document.getElementById('corsTagsInput');
+  container.querySelectorAll('.tag').forEach(t => t.remove());
+  const input = document.getElementById('corsOriginInput');
+  corsOrigins.forEach((origin, i) => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.innerHTML = origin + '<span class="remove" onclick="removeOrigin('+i+')">&times;</span>';
+    container.insertBefore(tag, input);
+  });
+}
+
+function removeOrigin(i) {
+  corsOrigins.splice(i, 1);
+  renderCorsTags();
+}
+
+// 预填默认 admin / h5 部署项（仅在用户还没添加任何项目时）
+// 路径从后端 /api/Setup/DeployHints 推断（API 部署在 *_api 目录时自动算 *_admin / *_h5）
+let defaultDeployFilled = false;
+async function ensureDefaultDeployProjects() {
+  if (defaultDeployFilled || deployProjects.length > 0) return;
+  defaultDeployFilled = true;
+  let adminPath = '', h5Path = '';
+  try {
+    const r = await api('/api/Setup/DeployHints');
+    if (r.code === 0 && r.data) {
+      adminPath = r.data.adminPath || '';
+      h5Path = r.data.h5Path || '';
+    }
+  } catch (e) { /* 推断失败留空让用户填 */ }
+  deployProjects.push(
+    { name: 'Admin 管理后台', key: 'admin', path: adminPath },
+    { name: 'H5 移动端', key: 'h5', path: h5Path },
+  );
+  renderDeployProjects();
+}
+
+// Deploy projects
+function addDeployProject() {
+  deployProjects.push({ name: '', key: '', path: '' });
+  renderDeployProjects();
+}
+
+function removeDeployProject(i) {
+  deployProjects.splice(i, 1);
+  renderDeployProjects();
+}
+
+function updateDeployProject(i, field, value) {
+  deployProjects[i][field] = value;
+  // 自动更新软连接命令显示
+  var cmdEl = document.getElementById('symlink-cmd-' + i);
+  if (cmdEl && deployProjects[i].path) {
+    cmdEl.textContent = 'ln -sfn ' + getApiStoragePath() + ' ' + deployProjects[i].path + '/storage';
+    cmdEl.parentElement.style.display = '';
+  } else if (cmdEl) {
+    cmdEl.parentElement.style.display = 'none';
+  }
+}
+
+function getApiStoragePath() {
+  return '{API安装目录}/wwwroot/storage';
+}
+
+function renderDeployProjects() {
+  var container = document.getElementById('deployProjectsList');
+  container.innerHTML = '';
+  deployProjects.forEach(function(p, i) {
+    container.innerHTML +=
+      '<div style="border:1px solid #d9d9d9;border-radius:8px;padding:16px;margin-bottom:12px;position:relative">' +
+        '<div style="position:absolute;top:8px;right:12px;cursor:pointer;color:#ff4d4f;font-size:18px" onclick="removeDeployProject('+i+')">&times;</div>' +
+        '<div class="form-row">' +
+          '<div class="form-group"><label>项目名称</label><input type="text" value="'+p.name+'" onchange="updateDeployProject('+i+',\'name\',this.value)" placeholder="如: Admin管理后台"></div>' +
+          '<div class="form-group"><label>项目标识</label><input type="text" value="'+p.key+'" onchange="updateDeployProject('+i+',\'key\',this.value)" placeholder="如: admin"></div>' +
+        '</div>' +
+        '<div class="form-group"><label>部署目录（绝对路径）</label><input type="text" value="'+p.path+'" onchange="updateDeployProject('+i+',\'path\',this.value)" placeholder="如: /www/wwwroot/sb_test_admin"></div>' +
+        '<div style="'+(p.path?'':'display:none;')+'background:#f6ffed;border:1px solid #b7eb8f;border-radius:6px;padding:8px 12px;font-size:12px;color:#389e0d;font-family:monospace;word-break:break-all">' +
+          '安装后自动执行: <code id="symlink-cmd-'+i+'">'+(p.path?'ln -sfn '+getApiStoragePath()+' '+p.path+'/storage':'')+'</code>' +
+        '</div>' +
+      '</div>';
+  });
+}
+
+function isEnableCache() {
+  return document.querySelector('input[name="enableCache"]:checked').value === 'true';
+}
+
+function getProvider() {
+  if (!isEnableCache()) return 'Memory';
+  return document.querySelector('input[name="cacheProvider"]:checked').value;
+}
+
+function getCorsAllowAll() {
+  return document.querySelector('input[name="corsPolicy"]:checked').value === 'true';
+}
+
+function getPasswordStorageMode() {
+  return document.querySelector('input[name="passwordStorageMode"]:checked').value;
+}
+
+function buildSummary() {
+  const wipe = document.getElementById('wipeDatabase').checked;
+  const dbType = getDbType();
+  const rows = [
+    ['数据库类型', dbType === 'PostgreSql' ? 'PostgreSQL' : 'MySQL'],
+    ['数据库地址', val('dbServer') + ':' + val('dbPort')],
+    ['数据库名称', val('dbName')],
+    ['数据库用户', val('dbUser')],
+    ['抹除现有数据', wipe ? '<span style="color:#ff4d4f;font-weight:600">是 - 将清空所有数据</span>' : '否'],
+  ];
+
+  if (isEnableCache()) {
+    rows.push(['缓存方式', getProvider()]);
+    if (getProvider() === 'Redis') {
+      rows.push(['Redis 连接', val('redisConnection')]);
+    }
+  } else {
+    rows.push(['缓存方式', '<span style="color:#888">未启用</span>']);
+  }
+
+  // Logo 显示：如果上传了则显示预览，否则显示默认
+  const logoDisplay = logoBase64Data
+    ? '<img src="' + logoBase64Data + '" style="max-width:128px;max-height:128px;border-radius:4px;border:1px solid #ddd">'
+    : '<span style="color:#999">使用默认 Logo</span>';
+
+  // 时区显示：提取易读的格式，去掉括号内容
+  const timeZoneVal = val('timeZone');
+  const timeZoneDisplay = timeZoneVal ? timeZoneVal : 'Asia/Shanghai';
+
+  rows.push(
+    ['产品英文名', val('productEn') || 'sb'],
+    ['产品中文名', val('productCn') || '管理系统'],
+    ['产品 Logo', logoDisplay],
+    ['主域名', val('primaryDomain') || '<span style="color:#888">未配置</span>'],
+    ['云端中心', val('cloudServerUrl') || '<span style="color:#888">未启用</span>'],
+    ['缓存前缀', val('cachePrefix') || 'sb:'],
+    ['系统时区', timeZoneDisplay],
+    ['CORS 策略', getCorsAllowAll() ? '允许所有来源' : corsOrigins.join(', ') || '无'],
+  );
+
+  // 部署项目
+  var validProjects = deployProjects.filter(function(p) { return p.name && p.path; });
+  if (validProjects.length > 0) {
+    rows.push(['部署项目', validProjects.map(function(p) { return p.name + ' (' + p.path + ')'; }).join('<br>')]);
+  } else {
+    rows.push(['部署项目', '未配置']);
+  }
+
+  const enableMK = document.getElementById('enableMasterKey').checked;
+  rows.push(
+    ['密码存储方式', getPasswordStorageMode() === 'Encrypted' ? '加密 🔒' : '明文 ⚠️'],
+    ['MasterKey', enableMK ? '<span style="color:#cf1322;font-weight:600">启用 🔑（X-Master-Key 通道开放）</span>' : '<span style="color:#888">未启用</span>'],
+    ['管理员账号', val('adminUsername')],
+    ['显示名称', val('adminDisplayName') || '超级管理员'],
+  );
+
+  const table = document.getElementById('summaryTable');
+  table.innerHTML = rows.map(r => '<tr><td>'+r[0]+'</td><td>'+r[1]+'</td></tr>').join('');
+}
+
+// === 配置导入导出 ===
+
+function exportConfig() {
+  var config = {
+    version: "1.0",
+    exportedAt: new Date().toISOString(),
+    database: {
+      dbType: getDbType(),
+      server: val('dbServer'),
+      port: val('dbPort'),
+      database: val('dbName'),
+      user: val('dbUser'),
+      password: val('dbPassword')
+    },
+    cache: {
+      enabled: isEnableCache(),
+      provider: getProvider(),
+      redis: {
+        connection: val('redisConnection'),
+        instanceName: val('redisInstanceName')
+      }
+    },
+    app: {
+      productEn: val('productEn') || 'sb',
+      productCn: val('productCn') || '管理系统',
+      primaryDomain: val('primaryDomain') || '',
+      cloudServerUrl: val('cloudServerUrl') || '',
+      cachePrefix: val('cachePrefix') || 'sb:',
+      corsAllowAll: getCorsAllowAll(),
+      corsOrigins: corsOrigins.slice(),
+      passwordStorageMode: getPasswordStorageMode(),
+      enableMasterKey: document.getElementById('enableMasterKey').checked,
+    },
+    admin: {
+      username: val('adminUsername'),
+      displayName: val('adminDisplayName') || '超级管理员',
+      password: val('adminPassword')
+    }
+  };
+  var blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'setup-config.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importConfig() {
+  document.getElementById('configFileInput').click();
+}
+
+function handleConfigFile(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      var config = JSON.parse(ev.target.result);
+      if (!config.version || !config.database) {
+        alert('无效的配置文件格式'); return;
+      }
+      fillFormFromConfig(config);
+      alert('配置已导入');
+    } catch(err) {
+      alert('解析配置文件失败: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function fillFormFromConfig(config) {
+  var db = config.database || {};
+  // 数据库类型
+  if (db.dbType) {
+    var radios = document.querySelectorAll('input[name="dbType"]');
+    radios.forEach(function(r) {
+      var lbl = r.closest('label');
+      if (r.value === db.dbType) { r.checked = true; lbl.classList.add('selected'); }
+      else { r.checked = false; lbl.classList.remove('selected'); }
+    });
+    selectDbType(db.dbType, document.querySelector('input[name="dbType"]:checked').closest('label'));
+  }
+  if (db.server) document.getElementById('dbServer').value = db.server;
+  if (db.port) document.getElementById('dbPort').value = db.port;
+  if (db.database) document.getElementById('dbName').value = db.database;
+  if (db.user) document.getElementById('dbUser').value = db.user;
+  if (db.password !== undefined) document.getElementById('dbPassword').value = db.password;
+
+  var cache = config.cache || {};
+  // 启用缓存
+  var enableCacheRadios = document.querySelectorAll('input[name="enableCache"]');
+  enableCacheRadios.forEach(function(r) {
+    var lbl = r.closest('label');
+    if (r.value === String(!!cache.enabled)) { r.checked = true; lbl.classList.add('selected'); }
+    else { r.checked = false; lbl.classList.remove('selected'); }
+  });
+  document.getElementById('cacheProviderGroup').classList.toggle('hidden', !cache.enabled);
+  if (cache.enabled && cache.provider) {
+    var providerRadios = document.querySelectorAll('input[name="cacheProvider"]');
+    providerRadios.forEach(function(r) {
+      var lbl = r.closest('label');
+      if (r.value === cache.provider) { r.checked = true; lbl.classList.add('selected'); }
+      else { r.checked = false; lbl.classList.remove('selected'); }
+    });
+    document.getElementById('redisConfig').classList.toggle('hidden', cache.provider !== 'Redis');
+  }
+  if (cache.redis) {
+    if (cache.redis.connection) document.getElementById('redisConnection').value = cache.redis.connection;
+    if (cache.redis.instanceName) document.getElementById('redisInstanceName').value = cache.redis.instanceName;
+  }
+
+  var app = config.app || {};
+  if (app.productEn) { document.getElementById('productEn').value = app.productEn; }
+  if (app.productCn) document.getElementById('productCn').value = app.productCn;
+  if (app.primaryDomain !== undefined) document.getElementById('primaryDomain').value = app.primaryDomain;
+  if (app.cloudServerUrl !== undefined) document.getElementById('cloudServerUrl').value = app.cloudServerUrl;
+  if (app.cachePrefix) document.getElementById('cachePrefix').value = app.cachePrefix;
+  // CORS
+  if (app.corsAllowAll !== undefined) {
+    var corsRadios = document.querySelectorAll('input[name="corsPolicy"]');
+    corsRadios.forEach(function(r) {
+      var lbl = r.closest('label');
+      if (r.value === String(app.corsAllowAll)) { r.checked = true; lbl.classList.add('selected'); }
+      else { r.checked = false; lbl.classList.remove('selected'); }
+    });
+    document.getElementById('corsOriginsGroup').classList.toggle('hidden', app.corsAllowAll);
+  }
+  if (app.corsOrigins && Array.isArray(app.corsOrigins)) {
+    corsOrigins = app.corsOrigins.slice();
+    renderCorsTags();
+  }
+  // 密码存储方式
+  if (app.passwordStorageMode) {
+    var pwRadios = document.querySelectorAll('input[name="passwordStorageMode"]');
+    pwRadios.forEach(function(r) {
+      var lbl = r.closest('label');
+      if (r.value === app.passwordStorageMode) { r.checked = true; lbl.classList.add('selected'); }
+      else { r.checked = false; lbl.classList.remove('selected'); }
+    });
+  }
+  // MasterKey 开关
+  if (app.enableMasterKey !== undefined) {
+    document.getElementById('enableMasterKey').checked = !!app.enableMasterKey;
+  }
+
+  var admin = config.admin || {};
+  if (admin.username) document.getElementById('adminUsername').value = admin.username;
+  if (admin.displayName) document.getElementById('adminDisplayName').value = admin.displayName;
+  if (admin.password !== undefined) {
+    document.getElementById('adminPassword').value = admin.password;
+    document.getElementById('adminPasswordConfirm').value = admin.password;
+  }
+}
+
+// === API 调用 ===
+
+async function api(url, data) {
+  const res = await fetch(url, {
+    method: data ? 'POST' : 'GET',
+    headers: {'Content-Type':'application/json'},
+    body: data ? JSON.stringify(data) : undefined
+  });
+  return res.json();
+}
+
+async function testDb() {
+  const btn = event.target; btn.disabled = true; btn.textContent = '测试中...';
+  const result = document.getElementById('dbTestResult');
+  try {
+    const r = await api('/api/Setup/TestDatabase', {
+      dbType: getDbType(),
+      server: val('dbServer'), port: val('dbPort'),
+      database: val('dbName'), user: val('dbUser'), password: val('dbPassword')
+    });
+    result.className = 'test-result ' + (r.code === 0 ? 'success' : 'error');
+    result.textContent = r.message;
+  } catch(e) {
+    result.className = 'test-result error';
+    result.textContent = '请求失败: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '测试连接';
+}
+
+async function testRedis() {
+  const btn = event.target; btn.disabled = true; btn.textContent = '测试中...';
+  const result = document.getElementById('redisTestResult');
+  try {
+    const r = await api('/api/Setup/TestRedis', {
+      connection: val('redisConnection'), instanceName: val('redisInstanceName')
+    });
+    result.className = 'test-result ' + (r.code === 0 ? 'success' : 'error');
+    result.textContent = r.message;
+  } catch(e) {
+    result.className = 'test-result error';
+    result.textContent = '请求失败: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '测试连接';
+}
+
+async function doInstall() {
+  if (document.getElementById('wipeDatabase').checked) {
+    if (!confirm('确认要抹除数据库中所有现有数据吗？此操作不可恢复！')) return;
+  }
+  document.getElementById('step7').classList.add('hidden');
+  document.getElementById('stepsBar').classList.add('hidden');
+  document.getElementById('configToolbar').classList.add('hidden');
+  document.getElementById('installProgress').classList.remove('hidden');
+
+  const payload = {
+    database: {
+      dbType: getDbType(),
+      server: val('dbServer'), port: val('dbPort'),
+      database: val('dbName'), user: val('dbUser'), password: val('dbPassword')
+    },
+    wipeDatabase: document.getElementById('wipeDatabase').checked,
+    enableCache: isEnableCache(),
+    cacheProvider: getProvider(),
+    redis: isEnableCache() && getProvider() === 'Redis' ? { connection: val('redisConnection'), instanceName: val('redisInstanceName') } : null,
+    passwordStorageMode: getPasswordStorageMode(),
+    productEn: val('productEn') || 'sb',
+    cachePrefix: val('cachePrefix') || 'sb:',
+    logoBase64: logoBase64Data || undefined,
+    productCn: val('productCn') || '管理系统',
+    primaryDomain: val('primaryDomain') || null,
+    cloudServerUrl: val('cloudServerUrl') || null,
+    timeZone: val('timeZone'),
+    corsAllowAll: getCorsAllowAll(),
+    corsOrigins: getCorsAllowAll() ? [] : corsOrigins,
+    adminUsername: val('adminUsername'),
+    adminPassword: val('adminPassword'),
+    adminDisplayName: val('adminDisplayName') || '超级管理员',
+    deployProjects: deployProjects.filter(function(p) { return p.name && p.key && p.path; }),
+    enableMasterKey: document.getElementById('enableMasterKey').checked,
+  };
+
+  try {
+    const r = await api('/api/Setup/Install', payload);
+    document.getElementById('installProgress').classList.add('hidden');
+    if (r.code === 0) {
+      document.getElementById('installSuccess').classList.remove('hidden');
+      // 显示 MasterKey
+      if (r.data && r.data.masterKey) {
+        document.getElementById('masterKeyValue').textContent = r.data.masterKey;
+        document.getElementById('masterKeyInfo').style.display = '';
+      }
+      // 启用授权验证时显示"去授权页"按钮
+      if (r.data && r.data.licenseEnabled) {
+        document.getElementById('btnGoLicense').classList.remove('hidden');
+      }
+    } else {
+      document.getElementById('installErrorMsg').textContent = r.message;
+      document.getElementById('installError').classList.remove('hidden');
+    }
+  } catch(e) {
+    document.getElementById('installProgress').classList.add('hidden');
+    document.getElementById('installErrorMsg').textContent = '请求失败: ' + e.message;
+    document.getElementById('installError').classList.remove('hidden');
+  }
+}
+
+function goToLicense() {
+  // 自动推断前端授权页地址
+  // 开发环境约定: API 端口 6010, 前端 admin 端口 6012
+  // 生产环境通常前后端同域名（nginx 反代），可让用户确认
+  var origin = window.location.protocol + '//' + window.location.hostname;
+  if (window.location.port === '6010') {
+    origin += ':6012';
+  } else if (window.location.port) {
+    origin += ':' + window.location.port;
+  }
+  var defaultUrl = origin + '/auth/license';
+  var url = prompt('请确认管理后台授权页 URL：', defaultUrl);
+  if (url) location.href = url;
+}
+
+function retryInstall() {
+  document.getElementById('installError').classList.add('hidden');
+  document.getElementById('stepsBar').classList.remove('hidden');
+  document.getElementById('configToolbar').classList.remove('hidden');
+  showStep(1);
+}
+
+// Init
+(async function() {
+  try {
+    const r = await api('/api/Setup/Status');
+    if (r.code === 0 && r.data && r.data.installed) {
+      document.getElementById('configToolbar').classList.add('hidden');
+      document.querySelector('.container').innerHTML = '<div class="card"><div class="install-success"><div class="icon">&#10003;</div><h3>系统已安装</h3><p>系统已完成安装配置。</p></div></div>';
+      return;
+    }
+  } catch(e) {}
+  showStep(1);
+})();
+</script>
+</body>
+</html>

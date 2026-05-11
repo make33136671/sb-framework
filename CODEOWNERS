@@ -1,0 +1,22 @@
+# CODEOWNERS — GitLab MR 自动指派 reviewer
+# 文档: https://docs.gitlab.com/ee/user/project/codeowners/
+
+# 默认: 所有文件归 root 审
+* @root
+
+# 治理文件 — 修改前必须额外审
+[Governance]
+/CODEOWNERS @root
+/CONTRIBUTING.md @root
+/README.md @root
+/.gitlab-ci.yml @root
+/.gitlab/ @root
+/docs/naming-conventions.md @root
+
+# Roslyn 分析器 — 影响所有派生项目编译，谨慎
+[Analyzers]
+/SB.Framework.Analyzers/ @root
+
+# License 系统 — 核心商业逻辑
+[License]
+/SB.Framework.Core/License/ @root

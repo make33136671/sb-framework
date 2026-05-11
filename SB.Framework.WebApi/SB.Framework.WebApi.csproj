@@ -1,0 +1,142 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IsPackable>true</IsPackable>
+    <RootNamespace>SB.Framework.WebApi</RootNamespace>
+    <AssemblyName>SB.Framework.WebApi</AssemblyName>
+    <OutputType>Library</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <PackageId>SB.Framework.WebApi</PackageId>
+    <Version>0.1.0-preview.1</Version>
+    <Description>SB Framework Web API 基础设施</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AspNetCore.HealthChecks.MySql" Version="8.0.1" />
+    <PackageReference Include="AspNetCore.HealthChecks.Npgsql" Version="8.0.2" />
+    <PackageReference Include="FreeSql" Version="3.5.304" />
+    <PackageReference Include="FreeSql.Extensions.JsonMap" Version="3.5.109" />
+    <PackageReference Include="FreeSql.Provider.MySql" Version="3.5.109" />
+    <PackageReference Include="FreeSql.Provider.PostgreSQL" Version="3.5.109" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.7" />
+    <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.3.0" />
+    <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.3.0" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Serilog" Version="4.3.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="10.0.0" />
+    <PackageReference Include="Serilog.Extensions.Logging.File" Version="3.0.0" />
+    <PackageReference Include="Serilog.Settings.Configuration" Version="10.0.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+    <PackageReference Include="System.Threading.RateLimiting" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SB.Framework.Services\SB.Framework.Services.csproj" />
+  </ItemGroup>
+
+  <!-- 每次构建生成精确编译时间 -->
+  <Target Name="GenerateBuildTimestamp" BeforeTargets="CoreCompile">
+    <PropertyGroup>
+      <BuildTimestamp>$([System.DateTime]::Now.ToString("yyyy-MM-dd HH:mm:ss"))</BuildTimestamp>
+      <BuildTimestampFile>$(IntermediateOutputPath)BuildTimestamp.g.cs</BuildTimestampFile>
+    </PropertyGroup>
+    <WriteLinesToFile
+      File="$(BuildTimestampFile)"
+      Overwrite="true"
+      Lines="namespace SB.Framework%3B&#10;internal static partial class BuildInfo { public const string Timestamp = &quot;$(BuildTimestamp)&quot;%3B }"
+    />
+    <ItemGroup>
+      <Compile Include="$(BuildTimestampFile)" />
+    </ItemGroup>
+  </Target>
+
+  <UsingTask TaskName="GenerateLicenseKeyFile" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <KeyDir ParameterType="System.String" Required="true" />
+      <FallbackDir ParameterType="System.String" Required="false" />
+      <OutputFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.Security.Cryptography" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+var dir = Path.GetDirectoryName(OutputFile);
+if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+    Directory.CreateDirectory(dir);
+
+var keyDir = KeyDir;
+if (!string.IsNullOrEmpty(keyDir) && keyDir.StartsWith("~"))
+    keyDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), keyDir.Substring(2));
+
+var pubPath = Path.Combine(keyDir, "license_public.key");
+var privPath = Path.Combine(keyDir, "license_private.key");
+
+if ((!File.Exists(pubPath) || !File.Exists(privPath)) && !string.IsNullOrEmpty(FallbackDir))
+{
+    var fbPub = Path.Combine(FallbackDir, "license_public.key");
+    var fbPriv = Path.Combine(FallbackDir, "license_private.key");
+    if (File.Exists(fbPub) && File.Exists(fbPriv))
+    {
+        keyDir = FallbackDir;
+        pubPath = fbPub;
+        privPath = fbPriv;
+        Log.LogMessage(MessageImportance.High, "License: 使用项目目录密钥 → " + keyDir);
+    }
+}
+
+if (!File.Exists(pubPath) || !File.Exists(privPath))
+{
+    if (!Directory.Exists(keyDir))
+        Directory.CreateDirectory(keyDir);
+    var rsa = RSA.Create();
+    rsa.KeySize = 2048;
+    File.WriteAllText(privPath, rsa.ToXmlString(true));
+    File.WriteAllText(pubPath, rsa.ToXmlString(false));
+    rsa.Dispose();
+    Log.LogMessage(MessageImportance.High, "License: 已生成新的 RSA-2048 密钥对 → " + keyDir);
+}
+
+var publicKey = File.ReadAllText(pubPath).Replace("\"", "\\\"");
+File.WriteAllText(OutputFile,
+    "namespace SB.Framework;\ninternal static partial class BuildInfo\n{\n" +
+    "    public const string LicensePublicKey = \"" + publicKey + "\";\n}");
+Log.LogMessage(MessageImportance.High, "License: 公钥已硬编码到程序集 (from " + keyDir + ")");
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="EmbedLicensePublicKey" BeforeTargets="CoreCompile"
+          Condition="'$(DisableLicense)' != 'true'">
+    <PropertyGroup>
+      <_LicenseKeyDir>$(SB_LICENSE_KEY_DIR)</_LicenseKeyDir>
+      <_LicenseKeyDir Condition="'$(_LicenseKeyDir)' == ''">$([System.Environment]::GetEnvironmentVariable('SB_LICENSE_KEY_DIR'))</_LicenseKeyDir>
+      <_LicenseKeyDir Condition="'$(_LicenseKeyDir)' == ''">$(ProjectDir)</_LicenseKeyDir>
+      <_LicenseKeyGenFile>$(IntermediateOutputPath)LicensePublicKey.g.cs</_LicenseKeyGenFile>
+    </PropertyGroup>
+    <GenerateLicenseKeyFile KeyDir="$(_LicenseKeyDir)" FallbackDir="$(ProjectDir)" OutputFile="$(_LicenseKeyGenFile)" />
+    <ItemGroup>
+      <Compile Include="$(_LicenseKeyGenFile)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="EmbedEmptyLicenseKey" BeforeTargets="CoreCompile"
+          Condition="'$(DisableLicense)' == 'true'">
+    <PropertyGroup>
+      <_LicenseKeyGenFile>$(IntermediateOutputPath)LicensePublicKey.g.cs</_LicenseKeyGenFile>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_LicenseKeyGenFile)" Overwrite="true"
+      Lines="namespace SB.Framework%3B&#10;internal static partial class BuildInfo { public const string LicensePublicKey = &quot;&quot;%3B }" />
+    <ItemGroup>
+      <Compile Include="$(_LicenseKeyGenFile)" />
+    </ItemGroup>
+  </Target>
+
+</Project>

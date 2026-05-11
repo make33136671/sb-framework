@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <!-- 编译开关属性声明（实际 DefineConstants 在 Directory.Build.targets 中追加，避免被 SDK 覆盖） -->
+  </PropertyGroup>
+
+  <!--
+    Debug 构建默认使用项目根目录的 license_public.key / license_private.key
+    (sb-api/.. = /Users/tianlong/projects/sb/ 这种布局)
+    效果: 团队里所有开发者用同一把调试密钥对, 签发的 Key 可跨开发者通用.
+    Release 不走这个默认, 使用 csproj 里的 fallback $(ProjectDir) 或环境变量 SB_LICENSE_KEY_DIR.
+    开发者仍可用环境变量 SB_LICENSE_KEY_DIR 覆盖此默认值.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' And '$(SB_LICENSE_KEY_DIR)' == ''">
+    <SB_LICENSE_KEY_DIR>$(MSBuildThisFileDirectory)..</SB_LICENSE_KEY_DIR>
+  </PropertyGroup>
+</Project>

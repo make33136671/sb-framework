@@ -1,0 +1,92 @@
+image: mcr.microsoft.com/dotnet/sdk:8.0
+
+variables:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+  NUGET_PACKAGES: "$CI_PROJECT_DIR/.nuget/packages"
+
+stages:
+  - validate
+  - build
+  - test
+  - package
+  - publish
+
+# ============ Stage 1: validate（规范检查） ============
+
+lint:naming:
+  stage: validate
+  script:
+    - echo "=== 检查命名空间合规 ==="
+    - |
+      if grep -rln --include="*.cs" "namespace SbPm\.\|namespace SB\.Pm\." SB.Framework.* 2>/dev/null; then
+        echo "❌ 基座代码不允许 SbPm / SB.Pm 命名空间"
+        exit 1
+      fi
+    - echo "=== 检查表前缀合规 ==="
+    - |
+      if grep -rln --include="*.cs" '\[Table(Name = "sb_pm_\|\[Table(Name = "sb_erp_' SB.Framework.* 2>/dev/null; then
+        echo "❌ 基座代码不允许派生表前缀 sb_pm_* / sb_erp_*"
+        exit 1
+      fi
+    - echo "=== 检查派生业务关键字 ==="
+    - |
+      FORBIDDEN="ProjectMilestone|RequirementComment|TaskItemLog|MindMapNode|FeatureModule|PipelineProfile"
+      if grep -rE "class\s+($FORBIDDEN)" SB.Framework.* --include="*.cs" 2>/dev/null; then
+        echo "❌ 基座代码出现派生业务关键字"
+        exit 1
+      fi
+    - echo "✓ 命名规范检查通过"
+
+# ============ Stage 2: build ============
+
+build:
+  stage: build
+  script:
+    - dotnet restore sb-framework.sln
+    - dotnet build sb-framework.sln -c Release --no-restore
+  artifacts:
+    paths:
+      - "**/bin/Release/"
+    expire_in: 1 hour
+
+# ============ Stage 3: test（占位 — 未来加测试工程时启用） ============
+
+test:
+  stage: test
+  script:
+    - echo "暂未配置测试工程"
+    # - dotnet test sb-framework.sln -c Release --no-build
+
+# ============ Stage 4: package（仅 MR / main 都做，但只 tag 时 publish） ============
+
+package:
+  stage: package
+  script:
+    - dotnet pack sb-framework.sln -c Release -o ./nupkgs
+    - ls -lh ./nupkgs/
+  artifacts:
+    paths:
+      - "nupkgs/"
+    expire_in: 1 week
+
+# ============ Stage 5: publish（仅 tag 触发，自动推 NuGet 包） ============
+
+publish:nuget:
+  stage: publish
+  dependencies:
+    - package
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+/'
+  script:
+    - dotnet nuget add source "$CI_API_V4_URL/groups/$SAIBO_FRAMEWORK_GROUP_ID/-/packages/nuget/index.json"
+        --name gitlab
+        --username gitlab-ci-token
+        --password "$CI_JOB_TOKEN"
+        --store-password-in-clear-text
+    - for pkg in ./nupkgs/Sb.Framework.*.nupkg; do
+        dotnet nuget push "$pkg" --source gitlab --skip-duplicate;
+      done
+
+# 环境变量需在 GitLab 项目 Settings → CI/CD → Variables 配置:
+# - SAIBO_FRAMEWORK_GROUP_ID = 63

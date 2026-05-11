@@ -1,0 +1,37 @@
+obj/
+bin/
+license_private.key
+Debug/
+Release/
+dist/
+logs/
+logs
+upload/
+upload
+.vs/
+/.vs
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# OS
+Thumbs.db
+
+# Setup
+installed.lock
+
+# 授权Key生成工具（不交付给客户）
+SB.LicenseGen/
+
+# 运行时生成的备份文件
+**/wwwroot/storage/db/
+
+# 用户上传产物（运行时生成，不入库）
+**/wwwroot/storage/uploads/
+**/wwwroot/storage/chunks/
+
+# 云端备份接收 / Logo 接收：其他客户端推过来的运行时数据
+**/wwwroot/storage/remote-backups/
+**/wwwroot/storage/remote-logos/
