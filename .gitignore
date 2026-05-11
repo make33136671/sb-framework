@@ -35,3 +35,4 @@ SB.LicenseGen/
 # 云端备份接收 / Logo 接收：其他客户端推过来的运行时数据
 **/wwwroot/storage/remote-backups/
 **/wwwroot/storage/remote-logos/
+nupkgs/
