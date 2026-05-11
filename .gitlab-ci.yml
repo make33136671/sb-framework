@@ -63,7 +63,9 @@ test:
 package:
   stage: package
   script:
-    - dotnet pack sb-framework.sln -c Release -o ./nupkgs
+    # Web SDK 项目 pack 需要先 build（隐式 build 缺 staticwebassets manifest）
+    - dotnet build sb-framework.sln -c Release
+    - dotnet pack sb-framework.sln -c Release --no-build -o ./nupkgs
     - ls -lh ./nupkgs/
   artifacts:
     paths:
