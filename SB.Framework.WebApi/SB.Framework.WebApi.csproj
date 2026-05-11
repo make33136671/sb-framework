@@ -11,8 +11,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <PackageId>SB.Framework.WebApi</PackageId>
-    <Version>0.1.0-preview.6</Version>
+    <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.WebApi</PackageId>
+    <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.WebApi.NoLicense</PackageId>
+    <Version>0.1.0-preview.7</Version>
     <Description>SB Framework Web API 基础设施</Description>
   </PropertyGroup>
 

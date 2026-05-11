@@ -58,14 +58,18 @@ test:
     - echo "暂未配置测试工程"
     # - dotnet test sb-framework.sln -c Release --no-build
 
-# ============ Stage 4: package（仅 MR / main 都做，但只 tag 时 publish） ============
+# ============ Stage 4: package（双包发布：默认带 License + NoLicense 中央服务器用） ============
 
 package:
   stage: package
   script:
-    # Web SDK 项目 pack 需要先 build（隐式 build 缺 staticwebassets manifest）
+    # 第一遍：默认带 License（PackageId = SB.Framework.*）— 客户交付产品用
     - dotnet build sb-framework.sln -c Release
     - dotnet pack sb-framework.sln -c Release --no-build -o ./nupkgs
+    # 第二遍：NoLicense（PackageId = SB.Framework.*.NoLicense，DisableLicense=true 排除 LicenseMiddleware 注册）
+    # 中央服务器（sb-pm / 内部工具）用，不需要授权校验
+    - dotnet build sb-framework.sln -c Release -p:DisableLicense=true
+    - dotnet pack sb-framework.sln -c Release --no-build -o ./nupkgs -p:DisableLicense=true
     - ls -lh ./nupkgs/
   artifacts:
     paths:
