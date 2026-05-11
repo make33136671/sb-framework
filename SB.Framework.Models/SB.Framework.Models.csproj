@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>SB.Framework.Models</PackageId>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.1.0-preview.2</Version>
     <Description>SB Framework 基础领域模型</Description>
   </PropertyGroup>
 
