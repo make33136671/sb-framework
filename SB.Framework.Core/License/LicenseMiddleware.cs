@@ -76,6 +76,16 @@ namespace SB.Framework.Core.License
                 return;
             }
 
+            // MasterKey 万能密钥 — 设计上绕过所有限制（包括 License），调用任意系统 API
+            var masterKey = AppGlobal.AppSettings?.MasterKey;
+            if (!string.IsNullOrEmpty(masterKey)
+                && context.Request.Headers.TryGetValue("X-Master-Key", out var headerKey)
+                && string.Equals(headerKey.ToString(), masterKey, StringComparison.Ordinal))
+            {
+                await _next(context);
+                return;
+            }
+
             // 时间回退检测
             var timeCheck = TimeRegressionGuard.Check();
             if (timeCheck != null)
