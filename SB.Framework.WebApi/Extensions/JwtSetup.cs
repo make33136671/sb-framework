@@ -15,7 +15,7 @@ namespace SB.Framework.WebApi.Extensions
     {
         public static IServiceCollection AddJwtAuthentication(this IServiceCollection services, IConfiguration configuration)
         {
-            Assembly jwtToken = Assembly.Load("SB.Core");
+            Assembly jwtToken = Assembly.Load("SB.Framework.Core");
             var jwtTokenAssembly = jwtToken.ExportedTypes.Where(t => t.Name == "JwtToken").FirstOrDefault();
             services.AddSingleton(jwtTokenAssembly);
 

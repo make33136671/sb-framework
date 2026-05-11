@@ -34,6 +34,22 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
+        /// 把 CloudConfig.ServerUrl 规范化成 absolute URI：trim、去末尾斜杠、缺 scheme 自动补 https://
+        /// 否则 HttpClient 直接用就会抛 "request URI must be an absolute URI or BaseAddress must be set"。
+        /// </summary>
+        private static string NormalizeServerUrl(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "";
+            var url = raw.Trim().TrimEnd('/');
+            if (!url.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                url = "https://" + url;
+            }
+            return url;
+        }
+
+        /// <summary>
         /// 获取本机客户端标识信息
         /// </summary>
         public virtual object GetClientIdentity()
@@ -103,7 +119,7 @@ namespace SB.Framework.Services
 
             try
             {
-                var url = serverUrl.TrimEnd('/') + "/api/verify/Request";
+                var url = NormalizeServerUrl(serverUrl) + "/api/verify/Request";
                 var content = new StringContent(
                     $"domain={Uri.EscapeDataString(payload.domain)}&clientKey={Uri.EscapeDataString(payload.clientKey)}&hardwareId={Uri.EscapeDataString(payload.hardwareId)}&serverIP={Uri.EscapeDataString(payload.serverIP ?? "")}",
                     Encoding.UTF8, "application/x-www-form-urlencoded");
@@ -145,7 +161,7 @@ namespace SB.Framework.Services
 
             try
             {
-                var url = effectiveUrl.TrimEnd('/') + $"/api/verify/Check?clientKey={Uri.EscapeDataString(clientKey)}&hardwareId={Uri.EscapeDataString(hardwareId)}";
+                var url = NormalizeServerUrl(effectiveUrl) + $"/api/verify/Check?clientKey={Uri.EscapeDataString(clientKey)}&hardwareId={Uri.EscapeDataString(hardwareId)}";
                 if (!string.IsNullOrWhiteSpace(actualDomain))
                     url += $"&actualDomain={Uri.EscapeDataString(actualDomain)}";
                 var response = await _httpClient.GetAsync(url);
@@ -209,7 +225,7 @@ namespace SB.Framework.Services
 
             try
             {
-                var url = effectiveUrl.TrimEnd('/') + $"/api/verify/Download?recordId={recordId}";
+                var url = NormalizeServerUrl(effectiveUrl) + $"/api/verify/Download?recordId={recordId}";
                 var response = await _httpClient.GetAsync(url);
                 var body = await response.Content.ReadAsStringAsync();
 
@@ -258,7 +274,7 @@ namespace SB.Framework.Services
 
             try
             {
-                var url = serverUrl.TrimEnd('/') + "/api/verify/Verify";
+                var url = NormalizeServerUrl(serverUrl) + "/api/verify/Verify";
                 var content = new StringContent(
                     $"domain={Uri.EscapeDataString(domain ?? "")}&clientKey={Uri.EscapeDataString(clientKey)}&hardwareId={Uri.EscapeDataString(hardwareId)}&serverIP={Uri.EscapeDataString(GetLocalIP() ?? "")}&licenseValid={status.IsValid}&message={Uri.EscapeDataString(status.Message ?? "")}",
                     Encoding.UTF8, "application/x-www-form-urlencoded");

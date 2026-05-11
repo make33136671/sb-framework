@@ -623,7 +623,14 @@ namespace SB.Framework.Services
             jObj["LicenseConfig"] = JsonSerializer.SerializeToNode(new { Key = "" });
 
             // 写入 CloudConfig.ServerUrl（云端中心地址；授权 / 备份 等所有云端功能共用，只配置一次）
+            // 缺 scheme 时自动补 https://，避免后续 HttpClient.PostAsync 因 relative URI 抛 BaseAddress 异常
             var cloudUrl = request.CloudServerUrl?.Trim().TrimEnd('/') ?? "";
+            if (!string.IsNullOrEmpty(cloudUrl)
+                && !cloudUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && !cloudUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                cloudUrl = "https://" + cloudUrl;
+            }
             jObj["CloudConfig"] = JsonSerializer.SerializeToNode(new { ServerUrl = cloudUrl });
 
             // 更新时区
@@ -860,7 +867,7 @@ namespace SB.Framework.Services
             var modules = new Dictionary<string, IModuleInitializer>();
 
             // 1. 扫描框架程序集
-            ScanModuleInitializers(modules, "SB.Services");
+            ScanModuleInitializers(modules, "SB.Framework.Services");
 
             // 2. 扫描项目程序集（同名模块覆盖框架版本）
             if (!string.IsNullOrEmpty(projectAssemblyName))

@@ -9,17 +9,17 @@ namespace SB.Framework.WebApi.Extensions
     {
         /// <summary>
         /// 注册业务服务。
-        /// 先注册框架 SB.Services 中的 Service，再注册项目程序集中的 Service。
+        /// 先注册框架 SB.Framework.Services 中的 Service，再注册项目程序集中的 Service。
         /// 项目 Service 如果继承了框架 Service，会自动覆盖框架版本（DI 最后注册胜出）。
         /// </summary>
         /// <param name="services">服务容器</param>
-        /// <param name="projectAssemblyName">项目 Service 程序集名称（如 "Wuxing.Services"），不传则只注册框架 Service</param>
+        /// <param name="projectAssemblyName">项目 Service 程序集名称（如 "Sb.Apps.Pm.Services"），不传则只注册框架 Service</param>
         public static IServiceCollection AddBusinessServices(
             this IServiceCollection services,
             string? projectAssemblyName = null)
         {
             // 1. 注册框架自带的 Service
-            RegisterServicesFromAssembly(services, "SB.Services");
+            RegisterServicesFromAssembly(services, "SB.Framework.Services");
 
             // 2. 注册项目的 Service（后注册覆盖先注册）
             if (!string.IsNullOrEmpty(projectAssemblyName))

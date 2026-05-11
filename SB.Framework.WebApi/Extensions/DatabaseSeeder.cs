@@ -15,8 +15,8 @@ public static class DatabaseSeeder
     public static void SeedDatabase(this WebApplication app)
     {
         var fsql = app.Services.GetRequiredService<IFreeSql>();
-        // 关键：读取下游项目程序集名，否则 DiscoverModuleInitializers 只扫上游 SB.Services，
-        // 下游模块（如 Wuxing.Services）新增的实体/菜单/设置/种子数据永远不会被同步
+        // 关键：读取下游项目程序集名，否则 DiscoverModuleInitializers 只扫上游 SB.Framework.Services，
+        // 下游模块（如 Sb.Apps.Pm.Services）新增的实体/菜单/设置/种子数据永远不会被同步
         var projectAssemblyName = app.Configuration["ProjectAssemblyName"];
 
         try
