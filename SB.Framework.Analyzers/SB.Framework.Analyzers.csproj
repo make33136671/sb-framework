@@ -10,7 +10,7 @@
     <RootNamespace>SB.Framework.Analyzers</RootNamespace>
     <AssemblyName>SB.Framework.Analyzers</AssemblyName>
     <PackageId>SB.Framework.Analyzers</PackageId>
-    <Version>0.1.0-preview.5</Version>
+    <Version>0.1.0-preview.6</Version>
     <Description>SB Framework Roslyn 分析器</Description>
   </PropertyGroup>
 

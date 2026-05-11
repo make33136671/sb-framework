@@ -10,7 +10,11 @@
 #     bash dev-restart-on-exit.sh Sb.Apps.Pm.WebApi     # 指定 csproj 名
 #     bash dev-restart-on-exit.sh /path/to/Foo.exe      # 直接传 binary
 #
-# 环境变量：LOG_FILE（默认 /tmp/<projname>.log）、PORT（默认 6020）。
+# 监听端口由 appsettings.json 的 "Urls" 字段决定（ASP.NET Core 默认行为），
+# 脚本启动 binary 不传 --urls 覆盖，让配置文件成为端口的唯一来源。
+# 如需临时改端口：编辑 appsettings.json 的 "Urls" 字段后 kill 进程即可（watcher 自动拉起）。
+#
+# 环境变量：LOG_FILE（默认 /tmp/<projname>.log）。
 # 生产环境请用宝塔守护进程 / systemd unit，不要用这个脚本。
 
 set -u
@@ -38,7 +42,6 @@ fi
 
 PROJ_NAME=$(basename "$WORK_DIR")
 LOG_FILE="${LOG_FILE:-/tmp/${PROJ_NAME}.log}"
-PORT="${PORT:-6020}"
 
 trap 'echo "[守护] 收到 SIGTERM，停止"; exit 0' TERM INT
 
@@ -49,13 +52,14 @@ if [ ! -x "$BIN" ]; then
 fi
 
 # cd 到 csproj 目录让 ASP.NET Core ContentRoot 落到 appsettings.json 同级，
-# 否则 SetupService 读 appsettings 时会因路径错抛 "Could not find file"
+# 否则 SetupService 读 appsettings 时会因路径错抛 "Could not find file"。
+# 监听端口由该目录下 appsettings.json 的 "Urls" 字段决定。
 cd "$WORK_DIR" || exit 1
 
-echo "[守护] watcher 启动  binary=$BIN  cwd=$WORK_DIR  port=$PORT  log=$LOG_FILE" | tee -a "$LOG_FILE"
+echo "[守护] watcher 启动  binary=$BIN  cwd=$WORK_DIR  log=$LOG_FILE  port=由 appsettings.json Urls 决定" | tee -a "$LOG_FILE"
 
 while true; do
-    "$BIN" --urls="http://localhost:$PORT" >> "$LOG_FILE" 2>&1
+    "$BIN" >> "$LOG_FILE" 2>&1
     EXIT=$?
     echo "[守护] API 进程退出 code=$EXIT，2 秒后重启" | tee -a "$LOG_FILE"
     sleep 2

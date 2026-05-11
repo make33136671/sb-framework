@@ -50,6 +50,26 @@ public class AppController : Controller
 
         var buildTime = BuildInfo.Timestamp;
 
+        var proc = System.Diagnostics.Process.GetCurrentProcess();
+        var workingSetMb = Math.Round(proc.WorkingSet64 / 1024.0 / 1024.0, 1);
+        var privateMemoryMb = Math.Round(proc.PrivateMemorySize64 / 1024.0 / 1024.0, 1);
+        var gcTotalMb = Math.Round(GC.GetTotalMemory(false) / 1024.0 / 1024.0, 1);
+
+        // 当前 ASP.NET Core 监听地址（appsettings.json "Urls" / 环境变量 / 命令行决定）
+        var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
+            ?? Environment.GetEnvironmentVariable("URLS")
+            ?? "";
+        if (string.IsNullOrEmpty(urls))
+        {
+            try
+            {
+                var addressFeature = HttpContext.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>();
+                if (addressFeature != null)
+                    urls = string.Join(",", addressFeature.Addresses);
+            }
+            catch { }
+        }
+
         return Result.Success(new
         {
             version,
@@ -62,6 +82,16 @@ public class AppController : Controller
             timeZone = AppTime.Zone.Id,
             serverTime = AppTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             installPath = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar),
+            // 进程资源
+            processId = proc.Id,
+            threadCount = proc.Threads.Count,
+            workingSetMb,
+            privateMemoryMb,
+            gcTotalMb,
+            processorCount = Environment.ProcessorCount,
+            osVersion = Environment.OSVersion.VersionString,
+            // 当前 listen 地址
+            listeningUrls = urls,
         });
     }
 
