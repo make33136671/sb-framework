@@ -86,7 +86,7 @@ publish:nuget:
         --username gitlab-ci-token
         --password "$CI_JOB_TOKEN"
         --store-password-in-clear-text
-    - for pkg in ./nupkgs/Sb.Framework.*.nupkg; do
+    - for pkg in ./nupkgs/SB.Framework.*.nupkg; do
         dotnet nuget push "$pkg" --source gitlab --skip-duplicate;
       done
 
