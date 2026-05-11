@@ -19,20 +19,19 @@ upload
 # OS
 Thumbs.db
 
-# Setup
+# Setup：install 完成后框架生成的本地状态文件
 installed.lock
+# ClientKeyService 第一次启动从 ContentRoot 生成的客户端唯一标识
+client.key
 
 # 授权Key生成工具（不交付给客户）
 SB.LicenseGen/
 
-# 运行时生成的备份文件
-**/wwwroot/storage/db/
+# wwwroot/storage 整个目录都是 install / 运行时生成的本地数据，不入库：
+#   favicon-*.png / favicon.ico / apple-touch-icon.png / app-info.json / images/logo.png  — install 生成
+#   db/             — DatabaseBackup 后台任务生成
+#   uploads/ chunks/ — 用户上传产物
+#   remote-backups/ remote-logos/ — 云端接收的其他客户端推过来的数据
+**/wwwroot/storage/
 
-# 用户上传产物（运行时生成，不入库）
-**/wwwroot/storage/uploads/
-**/wwwroot/storage/chunks/
-
-# 云端备份接收 / Logo 接收：其他客户端推过来的运行时数据
-**/wwwroot/storage/remote-backups/
-**/wwwroot/storage/remote-logos/
 nupkgs/
