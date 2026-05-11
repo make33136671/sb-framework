@@ -28,7 +28,7 @@
 <configuration>
   <packageSources>
     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
-    <add key="saibo-framework" value="http://192.168.10.241/api/v4/groups/63/-/packages/nuget/index.json" />
+    <add key="saibo-framework" value="https://gitlab.saibo.club/api/v4/groups/63/-/packages/nuget/index.json" />
   </packageSources>
   <packageSourceCredentials>
     <saibo-framework>
@@ -62,7 +62,7 @@ await app.RunAsync();
 ## 本地开发
 
 ```bash
-git clone git@192.168.10.241:saibo/framework/sb-framework.git
+git clone git@gitlab.saibo.club:saibo/framework/sb-framework.git
 cd sb-framework
 
 # 编译

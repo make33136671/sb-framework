@@ -281,7 +281,7 @@ SB_PM_DB_PASSWORD=xxx
 |------|-----------------|---------------|
 | Group | `saibo/framework` | `saibo/apps` |
 | Project | `sb-framework` | `sb-apps-pm` |
-| 仓库 URL | `git@192.168.10.241:saibo/framework/sb-framework.git` | `git@192.168.10.241:saibo/apps/sb-apps-pm.git` |
+| 仓库 URL | `git@gitlab.saibo.club:saibo/framework/sb-framework.git` | `git@gitlab.saibo.club:saibo/apps/sb-apps-pm.git` |
 | Assembly | `Sb.Framework.WebApi` | `Sb.Apps.Pm.WebApi` |
 | Namespace | `Sb.Framework.WebApi.Controllers` | `Sb.Apps.Pm.WebApi.Controllers.Projects` |
 | NuGet | `Sb.Framework.WebApi` | （不发包，仅作为消费方） |

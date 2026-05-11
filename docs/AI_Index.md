@@ -17,6 +17,6 @@
 ## 快速参考（详细规范全部在 AI_Conventions）
 
 - 端口：api=6010, admin=6012（预留范围 6010-6019）
-- Git 远程：`sb-api` + `sb-admin` on `192.168.10.241`
+- Git 远程：`sb-api` + `sb-admin` on `gitlab.saibo.club`
 - 数据库：MySQL `Saibo` (Dev) / `Test` 等 @ `192.168.10.100:3306`
 - 测试账号：`admin / 111111`
