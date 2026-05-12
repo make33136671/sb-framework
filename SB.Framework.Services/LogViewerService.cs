@@ -1,6 +1,8 @@
+using System.Globalization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core.Attribute;
+using SB.Framework.Core.Util;
 using SB.Framework.Models;
 
 namespace SB.Framework.Services
@@ -25,6 +27,11 @@ namespace SB.Framework.Services
 
         #endregion
 
+        // 日志文件后缀:历史上是 .txt,改造为 NDJSON 后是 .ndjson;两者都纳入扫描以兼容归档
+        private static readonly string[] LogFilePatterns = { "*.ndjson", "*.txt" };
+        private static readonly HashSet<string> AllowedDiagLevels =
+            new(StringComparer.OrdinalIgnoreCase) { "info", "warning", "error" };
+
         private readonly string _logsPath;
         private readonly ILogger<LogViewerService> _logger;
 
@@ -42,8 +49,9 @@ namespace SB.Framework.Services
             if (!Directory.Exists(_logsPath))
                 return Result.Success(new { current = Array.Empty<object>(), archives = Array.Empty<object>() });
 
-            // 当前日志（顶层 *.txt）
-            var current = Directory.GetFiles(_logsPath, "*.txt", SearchOption.TopDirectoryOnly)
+            // 当前日志(顶层 *.ndjson 优先,兼容期间也列 *.txt)
+            var current = LogFilePatterns
+                .SelectMany(p => Directory.GetFiles(_logsPath, p, SearchOption.TopDirectoryOnly))
                 .Select(f => new FileInfo(f))
                 .OrderByDescending(f => f.LastWriteTime)
                 .Select(f => new
@@ -62,7 +70,8 @@ namespace SB.Framework.Services
                 {
                     folder = d.Name,
                     lastModified = d.LastWriteTime,
-                    files = Directory.GetFiles(d.FullName, "*.txt")
+                    files = LogFilePatterns
+                        .SelectMany(p => Directory.GetFiles(d.FullName, p))
                         .Select(f => new FileInfo(f))
                         .OrderByDescending(f => f.LastWriteTime)
                         .Select(f => new
@@ -76,6 +85,98 @@ namespace SB.Framework.Services
                 .ToList();
 
             return Result.Success(new { current, archives });
+        }
+
+        /// <summary>
+        /// AI 诊断查询:按日期 + 级别 + tail + 关键字过滤,合并多文件 NDJSON 返回。
+        /// 日志文件按约定命名 {level}-{yyyyMMdd}.ndjson(level ∈ info / warning / error)。
+        /// </summary>
+        /// <param name="date">日期,yyyyMMdd 格式,逗号分隔多个;空 = 今天</param>
+        /// <param name="level">级别 info / warning / error / all,逗号分隔多个;空 = "warning,error"</param>
+        /// <param name="tail">每个文件取尾部 N 行,默认 1000,0 表示不截断</param>
+        /// <param name="contains">关键字过滤(子串匹配,大小写不敏感)</param>
+        public DiagQueryResult QueryDiag(string date = null, string level = null, int tail = 1000, string contains = null)
+        {
+            var dates = ParseDates(date);
+            var levels = ParseLevels(level);
+
+            var files = new List<string>();
+            var collected = new List<string>();
+            var totalLines = 0;
+
+            if (Directory.Exists(_logsPath))
+            {
+                foreach (var d in dates)
+                {
+                    foreach (var lv in levels)
+                    {
+                        var fileName = $"{lv}-{d:yyyyMMdd}.ndjson";
+                        var path = Path.Combine(_logsPath, fileName);
+                        if (!File.Exists(path)) continue;
+
+                        files.Add(fileName);
+                        var lines = File.ReadAllLines(path);
+                        totalLines += lines.Length;
+
+                        var taken = (tail > 0 && tail < lines.Length)
+                            ? lines.Skip(lines.Length - tail).ToArray()
+                            : lines;
+
+                        collected.AddRange(taken);
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(contains))
+            {
+                collected = collected
+                    .Where(l => l.IndexOf(contains, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+            }
+
+            return new DiagQueryResult
+            {
+                Dates = dates.Select(d => d.ToString("yyyyMMdd")).ToList(),
+                Levels = levels,
+                Tail = tail,
+                Contains = contains,
+                Files = files,
+                TotalLines = totalLines,
+                ReturnedLines = collected.Count,
+                Ndjson = string.Join("\n", collected),
+            };
+        }
+
+        private static List<DateTime> ParseDates(string date)
+        {
+            if (string.IsNullOrWhiteSpace(date))
+                return new List<DateTime> { AppTime.Today };
+
+            var result = new List<DateTime>();
+            foreach (var part in date.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (DateTime.TryParseExact(part, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                    result.Add(d);
+            }
+            return result.Count > 0 ? result : new List<DateTime> { AppTime.Today };
+        }
+
+        private static List<string> ParseLevels(string level)
+        {
+            if (string.IsNullOrWhiteSpace(level))
+                return new List<string> { "warning", "error" };
+
+            if (level.Equals("all", StringComparison.OrdinalIgnoreCase))
+                return new List<string> { "info", "warning", "error" };
+
+            var result = level
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(l => AllowedDiagLevels.Contains(l))
+                .Select(l => l.ToLowerInvariant())
+                .Distinct()
+                .ToList();
+
+            return result.Count > 0 ? result : new List<string> { "warning", "error" };
         }
 
         /// <summary>
@@ -142,5 +243,21 @@ namespace SB.Framework.Services
 
             return System.IO.File.Exists(filePath) ? filePath : null;
         }
+    }
+
+    /// <summary>
+    /// LogViewerService.QueryDiag 返回结构。Ndjson 字段是合并后的多行 NDJSON 文本(CLEF 格式),
+    /// 其余字段用于响应头摘要或上层校验。
+    /// </summary>
+    public class DiagQueryResult
+    {
+        public List<string> Dates { get; set; } = new();
+        public List<string> Levels { get; set; } = new();
+        public int Tail { get; set; }
+        public string Contains { get; set; }
+        public List<string> Files { get; set; } = new();
+        public int TotalLines { get; set; }
+        public int ReturnedLines { get; set; }
+        public string Ndjson { get; set; } = "";
     }
 }
