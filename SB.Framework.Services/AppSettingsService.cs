@@ -27,10 +27,10 @@ namespace SB.Framework.Services
         {
             new MenuDefinition
             {
-                ParentPath = "/system",
-                Name = "AppSettings", Path = "/system/app-settings",
+                ParentPath = "/system/devtools",
+                Name = "AppSettings", Path = "/system/devtools/app-settings",
                 Component = "/app-settings/index",
-                Title = "配置文件", Icon = "ion:settings-outline", OrderNo = 90,
+                Title = "配置文件", Icon = "ion:settings-outline", OrderNo = 3,
             }
         };
         public void SeedData(IFreeSql fsql) { }
