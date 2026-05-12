@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using FreeSql;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core;
+using SB.Framework.Services.BackupTools;
 using SB.Framework.Core.Attribute;
 using SB.Framework.Core.Util;
 using SB.Framework.Models;
@@ -25,15 +26,18 @@ namespace SB.Framework.Services
 
         private readonly IFreeSql _fsql;
         private readonly BackupUploader _uploader;
+        private readonly IBackupTool _backupTool;
 
         private static readonly string BackupDir =
             Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "storage", "db");
 
-        public DatabaseBackupService(IFreeSql fsql, ILogger<DatabaseBackupService> logger, BackupUploader uploader)
+        public DatabaseBackupService(IFreeSql fsql, ILogger<DatabaseBackupService> logger, BackupUploader uploader, IServiceProvider sp)
             : base(fsql, logger)
         {
             _fsql = fsql;
             _uploader = uploader;
+            // 按 DbConfig.DbType 选 MySqlBackupTool / PostgreSqlBackupTool。tool 无状态,直接 new。
+            _backupTool = BackupToolFactory.Create(sp);
         }
 
         /// <summary>
@@ -45,11 +49,9 @@ namespace SB.Framework.Services
         /// </summary>
         public virtual async Task<Result> BackupAndUploadAsync(string createdBy, CancellationToken ct = default)
         {
-            // CreateBackup 内部用 Process.Start + WaitForExit() 是 sync 阻塞 syscall,
-            // mysqldump 卡 MySQL TCP connect timeout 时会阻塞 60 秒。
-            // 用 Task.Run 推到 thread pool,确保本 async 方法立即让出控制权,
-            // BackgroundService.StartAsync 链不被阻塞,Kestrel 启动不被推迟。
-            var result = await Task.Run(() => CreateBackup(createdBy), ct);
+            // 直接 await CreateBackupAsync,IBackupTool.DumpAsync 内部已经全部走 async Process API
+            // (WaitForExitAsync / ReadToEndAsync),不再有同步阻塞,无需 Task.Run wrapper。
+            var result = await CreateBackupAsync(createdBy, null, ct);
             if (result.Code != 0) return result;
 
             await TryUploadLatestAsync(ct);
@@ -117,101 +119,22 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
-        /// 检查 mysqldump 是否可用 + 返回数据库详细信息
-        /// 包含：服务器版本/字符集/表数量/总大小/总行数/最近备份时间 等
+        /// 检查备份工具是否可用 + 返回数据库详细信息(版本/字符集/表数/大小/行数/最近备份时间)。
+        /// 工具选取按 DbConfig.DbType:MySQL 用 mysqldump/mysql,PostgreSQL 用 pg_dump/psql。
+        ///
+        /// 返回 Result 字段:
+        ///   - 新名:dumpToolName / restoreToolName / dumpToolAvailable / restoreToolAvailable / dumpToolVersion
+        ///   - 旧名:available / mysqlClientAvailable / version(保留兼容旧前端调用,语义跟新名一致)
         /// </summary>
-        public virtual Result CheckMysqldump()
+        public virtual async Task<Result> CheckBackupToolAsync(CancellationToken ct = default)
         {
             var db = AppGlobal.AppSettings.DbConfig;
 
-            // 1) 检查 mysqldump 客户端
-            bool mysqldumpAvailable = false;
-            string mysqldumpVersion = "";
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "mysqldump",
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                using var proc = Process.Start(psi);
-                mysqldumpVersion = proc!.StandardOutput.ReadToEnd().Trim();
-                proc.WaitForExit();
-                mysqldumpAvailable = proc.ExitCode == 0;
-            }
-            catch
-            {
-                mysqldumpAvailable = false;
-            }
+            var (dumpAvailable, dumpVersion) = await _backupTool.CheckDumpToolAsync(ct);
+            var restoreAvailable = await _backupTool.CheckRestoreToolAsync(ct);
+            var meta = _backupTool.GetMetaInfo(_fsql, db);
 
-            // 2) 检查 mysql 客户端（恢复用）
-            bool mysqlAvailable = false;
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "mysql",
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                using var proc = Process.Start(psi);
-                proc!.WaitForExit();
-                mysqlAvailable = proc.ExitCode == 0;
-            }
-            catch
-            {
-                mysqlAvailable = false;
-            }
-
-            // 3) 查询数据库元信息
-            string serverVersion = "";
-            string charSet = "";
-            string collation = "";
-            long tableCount = 0;
-            long totalSize = 0;
-            long totalRows = 0;
             string? lastBackupTime = null;
-
-            try
-            {
-                serverVersion = (_fsql.Ado.ExecuteScalar("SELECT VERSION()")?.ToString() ?? "").Trim();
-
-                using var dt = _fsql.Ado.ExecuteDataTable(
-                    "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME " +
-                    "FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = ?dbName",
-                    new { dbName = db.Database });
-                if (dt.Rows.Count > 0)
-                {
-                    charSet = dt.Rows[0][0]?.ToString() ?? "";
-                    collation = dt.Rows[0][1]?.ToString() ?? "";
-                }
-
-                using var stat = _fsql.Ado.ExecuteDataTable(
-                    "SELECT COUNT(*) AS table_count, " +
-                    "IFNULL(SUM(data_length + index_length), 0) AS total_size, " +
-                    "IFNULL(SUM(table_rows), 0) AS total_rows " +
-                    "FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?dbName",
-                    new { dbName = db.Database });
-                if (stat.Rows.Count > 0)
-                {
-                    tableCount = Convert.ToInt64(stat.Rows[0]["table_count"]);
-                    totalSize = Convert.ToInt64(stat.Rows[0]["total_size"]);
-                    totalRows = Convert.ToInt64(stat.Rows[0]["total_rows"]);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "查询数据库元信息失败");
-            }
-
-            // 4) 最近一次备份时间
             try
             {
                 var latest = Select.OrderByDescending(r => r.CreatedTime).First();
@@ -226,15 +149,22 @@ namespace SB.Framework.Services
                 dialect = _fsql.Ado.DataType.ToString(),  // FreeSql 实际方言
                 server = $"{db.Server}:{db.Port}",
                 database = db.Database,
-                available = mysqldumpAvailable,
-                version = mysqldumpVersion,
-                mysqlClientAvailable = mysqlAvailable,
-                serverVersion,
-                charSet,
-                collation,
-                tableCount,
-                totalSize,
-                totalRows,
+                // 新字段(跟具体 DB 解耦)
+                dumpToolName = _backupTool.DumpToolName,
+                restoreToolName = _backupTool.RestoreToolName,
+                dumpToolAvailable = dumpAvailable,
+                restoreToolAvailable = restoreAvailable,
+                dumpToolVersion = dumpVersion,
+                // 旧字段(向后兼容,语义跟新名一致;旧前端不改也能跑)
+                available = dumpAvailable,
+                version = dumpVersion,
+                mysqlClientAvailable = restoreAvailable,
+                serverVersion = meta.ServerVersion,
+                charSet = meta.CharSet,
+                collation = meta.Collation,
+                tableCount = meta.TableCount,
+                totalSize = meta.TotalSize,
+                totalRows = meta.TotalRows,
                 lastBackupTime,
             });
         }
@@ -411,9 +341,9 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
-        /// 执行数据库备份
+        /// 执行数据库备份。按 DbConfig.DbType 走 IBackupTool 对应实现(MySQL=mysqldump / PG=pg_dump)。
         /// </summary>
-        public virtual Result CreateBackup(string createdBy, string? remark = null)
+        public virtual async Task<Result> CreateBackupAsync(string createdBy, string? remark = null, CancellationToken ct = default)
         {
             var db = AppGlobal.AppSettings.DbConfig;
             var timestamp = AppTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -430,33 +360,13 @@ namespace SB.Framework.Services
 
             try
             {
-                // 1. 执行 mysqldump
-                var args = $"--host={db.Server} --port={db.Port} --user={db.User} " +
-                           $"--single-transaction --routines --triggers --set-gtid-purged=OFF " +
-                           $"--result-file=\"{sqlFilePath}\" {db.Database}";
-
-                var psi = new ProcessStartInfo
+                // 1. 执行 dump(MySQL=mysqldump / PG=pg_dump)
+                var (ok, stderr) = await _backupTool.DumpAsync(db, sqlFilePath, ct);
+                if (!ok)
                 {
-                    FileName = "mysqldump",
-                    Arguments = args,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                // 通过环境变量传递密码，避免命令行暴露
-                psi.Environment["MYSQL_PWD"] = db.Password;
-
-                using var proc = Process.Start(psi)!;
-                var stderr = proc.StandardError.ReadToEnd();
-                proc.WaitForExit();
-
-                if (proc.ExitCode != 0)
-                {
-                    // 清理临时文件
                     if (File.Exists(sqlFilePath)) File.Delete(sqlFilePath);
-                    _logger.LogError("mysqldump 失败: {Error}", stderr);
-                    return Result.Fail($"mysqldump 执行失败: {stderr}");
+                    _logger.LogError("{Tool} 失败: {Error}", _backupTool.DumpToolName, stderr);
+                    return Result.Fail($"{_backupTool.DumpToolName} 执行失败: {stderr}");
                 }
 
                 // 2. 压缩为 zip
@@ -528,7 +438,7 @@ namespace SB.Framework.Services
         /// </summary>
         /// <param name="id">DB 记录 id；id == 0 表示按 filePath 走 disk_only 路径</param>
         /// <param name="filePath">磁盘文件相对路径（如 /storage/db/Saibo_xxx.zip），id == 0 时必填</param>
-        public virtual Result Restore(int id, string operatorName, string? filePath = null)
+        public virtual async Task<Result> RestoreAsync(int id, string operatorName, string? filePath = null, CancellationToken ct = default)
         {
             string fileName;
             string fullPath;
@@ -554,32 +464,14 @@ namespace SB.Framework.Services
             if (!File.Exists(fullPath))
                 return Result.Fail("备份文件不存在，无法恢复");
 
-            // 1. 检查 mysql 客户端可用性
-            try
-            {
-                var versionPsi = new ProcessStartInfo
-                {
-                    FileName = "mysql",
-                    Arguments = "--version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                using var versionProc = Process.Start(versionPsi);
-                versionProc!.WaitForExit();
-                if (versionProc.ExitCode != 0)
-                    return Result.Fail("mysql 客户端不可用，无法恢复");
-            }
-            catch
-            {
-                return Result.Fail("mysql 客户端未安装，无法恢复");
-            }
+            // 1. 检查 restore 工具可用性(MySQL=mysql / PG=psql)
+            if (!await _backupTool.CheckRestoreToolAsync(ct))
+                return Result.Fail($"{_backupTool.RestoreToolName} 客户端不可用,无法恢复");
 
-            // 2. 恢复前自动备份当前数据库（用作回退）
+            // 2. 恢复前自动备份当前数据库(用作回退)
             var safetyTag = id > 0 ? $"#{id} {fileName}" : $"磁盘文件 {fileName}";
-            var safety = CreateBackup($"{operatorName} (恢复前自动备份)",
-                $"恢复 {safetyTag} 之前的安全备份");
+            var safety = await CreateBackupAsync($"{operatorName} (恢复前自动备份)",
+                $"恢复 {safetyTag} 之前的安全备份", ct);
             if (safety.Code != 0)
             {
                 _logger.LogError("恢复前自动备份失败，中止恢复");
@@ -605,37 +497,16 @@ namespace SB.Framework.Services
                     entryFile.ExtractToFile(sqlPath, overwrite: true);
                 }
 
-                // 4. mysql 导入
+                // 4. 导入(MySQL=mysql / PG=psql)
                 var db = AppGlobal.AppSettings.DbConfig;
                 var sw = Stopwatch.StartNew();
-                var args = $"--host={db.Server} --port={db.Port} --user={db.User} {db.Database}";
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "mysql",
-                    Arguments = args,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-                psi.Environment["MYSQL_PWD"] = db.Password;
-
-                using var proc = Process.Start(psi)!;
-                using (var fs = File.OpenRead(sqlPath))
-                {
-                    fs.CopyTo(proc.StandardInput.BaseStream);
-                }
-                proc.StandardInput.Close();
-                var stderr = proc.StandardError.ReadToEnd();
-                proc.WaitForExit();
+                var (ok, stderr) = await _backupTool.RestoreAsync(db, sqlPath, ct);
                 sw.Stop();
 
-                if (proc.ExitCode != 0)
+                if (!ok)
                 {
                     _logger.LogError("数据库恢复失败: {Error}", stderr);
-                    return Result.Fail($"mysql 导入失败: {stderr}");
+                    return Result.Fail($"{_backupTool.RestoreToolName} 导入失败: {stderr}");
                 }
 
                 _logger.LogWarning(

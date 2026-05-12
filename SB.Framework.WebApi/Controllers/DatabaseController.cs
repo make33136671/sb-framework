@@ -24,10 +24,10 @@ namespace SB.Framework.WebApi.Controllers
         }
 
         /// <summary>
-        /// 检查 mysqldump 可用性 + 数据库信息
+        /// 检查备份工具可用性 + 数据库信息(工具按 DbType 自动选 mysqldump 或 pg_dump)
         /// </summary>
         [HttpGet]
-        public Result CheckBackup() => _service.CheckMysqldump();
+        public Task<Result> CheckBackup(CancellationToken ct) => _service.CheckBackupToolAsync(ct);
 
         /// <summary>
         /// 触发数据库备份（Admin 后台）
@@ -57,8 +57,8 @@ namespace SB.Framework.WebApi.Controllers
         /// id == 0 时按 filePath 恢复 disk_only 文件
         /// </summary>
         [HttpPost]
-        public Result Restore([FromForm] int id, [FromForm] string? filePath = null)
-            => _service.Restore(id, User.Username(), filePath);
+        public Task<Result> Restore([FromForm] int id, [FromForm] string? filePath = null, CancellationToken ct = default)
+            => _service.RestoreAsync(id, User.Username(), filePath, ct);
 
         /// <summary>
         /// 触发数据库备份（MasterKey API）
