@@ -47,7 +47,7 @@ public class AppSettingsController : Controller
     /// restart=true 时调 AppShutdownHelper.GracefulStop 重启生效。
     /// </summary>
     [HttpPost]
-    public Result Save([FromBody] SaveAppSettingsRequest req)
+    public Result Save([FromForm] SaveAppSettingsRequest req)
     {
         var op = HttpContext.User.Username();
         var result = _service.Save(req.RawText, op);
@@ -98,7 +98,7 @@ public class AppSettingsController : Controller
 
     /// <summary>Diff 预览：返回当前原文 + 提交的新内容，前端做差异展示</summary>
     [HttpPost]
-    public Result Diff([FromBody] SaveAppSettingsRequest req) => _service.Diff(req.RawText);
+    public Result Diff([FromForm] SaveAppSettingsRequest req) => _service.Diff(req.RawText);
 
     /// <summary>历史 .bak 列表（时间倒序，最多 30 条）</summary>
     [HttpGet]
@@ -113,7 +113,7 @@ public class AppSettingsController : Controller
     /// 当前 appsettings.json 会先存为新 .bak，然后覆盖回 .bak 内容。restart 参数同 Save。
     /// </summary>
     [HttpPost]
-    public Result Rollback([FromBody] RollbackRequest req)
+    public Result Rollback([FromForm] RollbackRequest req)
     {
         var op = HttpContext.User.Username();
         var result = _service.Rollback(req.FileName, op);

@@ -80,8 +80,25 @@
 
 ## 3. 后端规范
 
+### 接口源约定(参数绑定,**强制**)
+
+framework 全部 controller 参数用 **`[FromForm]`**(不是 `[FromBody]`),前端按 form-urlencoded 发请求。
+
+| 场景 | 后端 | 前端 |
+|------|------|------|
+| 普通业务接口(login / CRUD / 设置等)| `[FromForm] T req` 或 `[FromForm] string foo, [FromForm] int bar` | `api.post(url, { foo, bar })` — plain object,axios v1 看到默认 form-urlencoded Content-Type **自动**序列化为 form 串(`foo=...&bar=...`)|
+| 文件上传 | `IFormFile file`(implicit `[FromForm]`)+ 可选 `[FromForm] string key` | `new FormData() + formData.append('file', file)`,axios 自动设 `multipart/form-data` + boundary |
+| **极少数 JSON 接口** | `[FromBody]` (e.g. Setup 走 fetch + JSON 旁路,不走 axios 拦截器)| 必须由 caller 显式 `headers: { 'Content-Type': 'application/json' }`,扩展 `api.ts` 接口加 headers 选项 |
+
+**禁忌**:
+- ❌ `[FromBody]` + axios 默认拦截器 → 后端拿到 form 串,model 全 null
+- ❌ FormData 上传时硬编码 Content-Type=form-urlencoded → 浏览器仍发 multipart 但 header 错,`IFormFile` 解不到,"文件不能为空"
+- ❌ 改 `apps/web-antd/src/api/request.ts` 全局拦截器把默认 Content-Type 改成 application/json → 直接破整个 framework 的 28+ `[FromForm]` 接口(login 首当其冲)
+
+**踩雷史**(2026-05):AppSettings/Save 当时用 `[FromBody]` 期望 JSON,前端拦截器默认 form 报 415。一度改全局拦截器为 JSON → login + 文件上传 + 系统设置等所有 form 接口集体崩。最终修法是**统一后端用 `[FromForm]`**,axios 拦截器只为 FormData 加一个跳过分支(让浏览器自动设 multipart)。
+
 ### Controller 命名
-- **不加 `Admin` 前缀**：直接业务名 → `MemberController` / `EmailConfigController` / `RoleController`
+- **不加 `Admin` 前缀**:直接业务名 → `MemberController` / `EmailConfigController` / `RoleController`
 - 路由约定 `AdminRoutePrefixConvention` 自动给所有控制器加 `admin/` 前缀
 
 | 类型 | 路由 | 最终 URL | Auth |
