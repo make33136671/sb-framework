@@ -41,6 +41,13 @@
         public bool Debug { get; set; } = false;
 
         /// <summary>
+        /// 500 unhandled exception 时,响应体是否包含 ex.Message(只 message,不带堆栈)。
+        /// 默认 false(安全):响应只显示通用"服务器内部错误",细节只进日志(防止攻击者借错误信息探测系统内部)。
+        /// 调试时可在 appsettings.json 设 true 让 admin UI 直接看到错误细节,无需 ssh 翻日志。
+        /// </summary>
+        public bool ExposeErrorDetails { get; set; } = false;
+
+        /// <summary>
         /// 运行后台任务
         /// </summary>
         public bool RunBackgroundService { get; set; } = false;

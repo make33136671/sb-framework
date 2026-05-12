@@ -29,9 +29,13 @@ namespace SB.Framework.Core.Middleware
                 context.Response.StatusCode = 500;
                 context.Response.ContentType = "application/json; charset=utf-8";
 
-                // 把 ex.Message 带到响应(不带堆栈),admin UI 能直接看到具体错,无需 ssh 翻日志。
-                // framework 内部网部署,Message 暴露 acceptable;堆栈仍只进日志。
-                var result = Result.Fail($"服务器内部错误: {ex.Message}");
+                // 是否在响应中包含 ex.Message 由 AppSettings.ExposeErrorDetails 控制(默认 false,安全)。
+                // 生产环境留 false 防止攻击者借错误细节探测系统;调试时改 true 让 admin UI 直接看到具体错。
+                // 堆栈仍只进日志,不入 response。
+                var exposeDetails = AppGlobal.AppSettings?.ExposeErrorDetails ?? false;
+                var result = exposeDetails
+                    ? Result.Fail($"服务器内部错误: {ex.Message}")
+                    : Result.Fail("服务器内部错误");
                 // 配 camelCase + 不转义 unicode,跟 controller 正常返回的 Result 格式对齐
                 // (老版用 JsonSerializer 默认 PascalCase + UnicodeEscape,中文消息成 "服务...")
                 var json = JsonSerializer.Serialize(result, new JsonSerializerOptions
