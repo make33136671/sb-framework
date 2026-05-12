@@ -95,7 +95,7 @@ namespace SB.Framework.WebApi.Controllers
         /// 删除系统设置
         /// </summary>
         [HttpPost(Name = "SystemSettingDel")]
-        public Result Del(int id)
+        public Result Del([FromForm] int id)
         {
             return _systemSettingService.Del(id);
         }
