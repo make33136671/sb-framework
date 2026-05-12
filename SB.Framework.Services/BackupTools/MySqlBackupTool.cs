@@ -149,11 +149,16 @@ public class MySqlBackupTool : IBackupTool
         psi.Environment["MYSQL_PWD"] = db.Password;
 
         using var proc = Process.Start(psi)!;
-        using (var fs = File.OpenRead(inputSqlPath))
+        try
         {
+            using var fs = File.OpenRead(inputSqlPath);
             await fs.CopyToAsync(proc.StandardInput.BaseStream, ct);
         }
-        proc.StandardInput.Close();
+        catch (IOException)
+        {
+            // mysql 客户端中途退出(权限/语法错)会让 stdin pipe 断。继续读 stderr 拿真错。
+        }
+        try { proc.StandardInput.Close(); } catch { /* already closed */ }
         var stderrTask = proc.StandardError.ReadToEndAsync(ct);
         await proc.WaitForExitAsync(ct);
         var stderr = await stderrTask;

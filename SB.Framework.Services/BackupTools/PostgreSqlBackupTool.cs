@@ -117,8 +117,10 @@ public class PostgreSqlBackupTool : IBackupTool
     {
         // --no-owner / --no-privileges 让导出文件不带 user/grant 信息,便于不同环境恢复
         // --format=plain 输出 sql 文本(跟 mysqldump 一致,zip 后体积差不多)
+        // --clean --if-exists 让生成的 sql 先 DROP TABLE IF EXISTS 再 CREATE — 否则 restore
+        // 到已存在 db 时第一条 CREATE TABLE 撞已存在表,psql 立即退出导致 broken pipe
         var args = $"--host={db.Server} --port={db.Port} --username={db.User} " +
-                   $"--format=plain --no-owner --no-privileges " +
+                   $"--format=plain --no-owner --no-privileges --clean --if-exists " +
                    $"--file=\"{outputSqlPath}\" {db.Database}";
 
         var psi = new ProcessStartInfo
@@ -161,11 +163,17 @@ public class PostgreSqlBackupTool : IBackupTool
         psi.Environment["PGPASSWORD"] = db.Password;
 
         using var proc = Process.Start(psi)!;
-        using (var fs = File.OpenRead(inputSqlPath))
+        try
         {
+            using var fs = File.OpenRead(inputSqlPath);
             await fs.CopyToAsync(proc.StandardInput.BaseStream, ct);
         }
-        proc.StandardInput.Close();
+        catch (IOException)
+        {
+            // ON_ERROR_STOP=1 时 psql 撞到第一条失败 SQL 会立即退出 → stdin pipe broken。
+            // 不当作 fatal,正常 wait + 读 stderr 拿真实错误(SQL 错误内容)。
+        }
+        try { proc.StandardInput.Close(); } catch { /* already closed */ }
         var stderrTask = proc.StandardError.ReadToEndAsync(ct);
         await proc.WaitForExitAsync(ct);
         var stderr = await stderrTask;
