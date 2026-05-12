@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Services</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Services.NoLicense</PackageId>
-    <Version>0.1.0-preview.20</Version>
+    <Version>0.1.0-preview.21</Version>
     <Description>SB Framework 基础应用服务 + 扩展点</Description>
   </PropertyGroup>
 
@@ -28,6 +28,13 @@
   <ItemGroup>
     <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
     <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 让 WebApi 程序集能跨 assembly 访问 Services 里 internal 匿名类型(controller 里 dynamic
+         访问 service 返回的匿名对象成员,如 AppSettings Save restart=true 路径)。
+         不加这条 → RuntimeBinderException: 'object' does not contain a definition for '...' -->
+    <InternalsVisibleTo Include="SB.Framework.WebApi" />
   </ItemGroup>
 
 </Project>
