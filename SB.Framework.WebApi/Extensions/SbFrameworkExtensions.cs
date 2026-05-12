@@ -90,7 +90,9 @@ public static class SbFrameworkExtensions
         if (!app.Environment.IsDevelopment())
         {
             app.UseHsts();
-            app.UseHttpsRedirection();
+            // 不挂 UseHttpsRedirection — saibo 所有派生项目部署模式都是 nginx 反代终结 TLS 后转 HTTP 给 .NET。
+            // 反代场景下 .NET 看到的请求永远是 HTTP,UseHttpsRedirection 找不到 https port 会每次都 warning,
+            // 而且功能上由 nginx 在 80→443 层已经做掉 redirect,.NET 再做一遍是冗余。
         }
 
         app.UseCors();
