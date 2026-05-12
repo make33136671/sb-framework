@@ -45,7 +45,11 @@ namespace SB.Framework.Services
         /// </summary>
         public virtual async Task<Result> BackupAndUploadAsync(string createdBy, CancellationToken ct = default)
         {
-            var result = CreateBackup(createdBy);
+            // CreateBackup 内部用 Process.Start + WaitForExit() 是 sync 阻塞 syscall,
+            // mysqldump 卡 MySQL TCP connect timeout 时会阻塞 60 秒。
+            // 用 Task.Run 推到 thread pool,确保本 async 方法立即让出控制权,
+            // BackgroundService.StartAsync 链不被阻塞,Kestrel 启动不被推迟。
+            var result = await Task.Run(() => CreateBackup(createdBy), ct);
             if (result.Code != 0) return result;
 
             await TryUploadLatestAsync(ct);

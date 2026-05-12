@@ -91,6 +91,14 @@ public abstract class BaseBackgroundTask : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // 关键:防御性 yield,让 BackgroundService.StartAsync 立即拿到 yield 点。
+        // BackgroundService.StartAsync 源码会同步执行 ExecuteAsync 到第一个真异步 await 才返回。
+        // 如果 ExecuteTaskAsync 内部有 sync 阻塞(像 DatabaseBackupService 老版本 Process.WaitForExit
+        // 卡 60 秒等 MySQL TCP timeout),整个 BackgroundTaskHostedService.StartAsync 链会同步阻塞,
+        // Kestrel 监听被推迟,应用启动延迟。这一行确保任何 task 都先 yield 给 hosted service 链,
+        // 真正实现 fire-and-forget。
+        await Task.Yield();
+
         await OnStartAsync(stoppingToken);
         Status = TaskStatus.Running;
         LogInfo($"{GetType().Name} started.");
