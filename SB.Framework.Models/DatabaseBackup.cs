@@ -81,7 +81,7 @@ namespace SB.Framework.Models
         /// <summary>
         /// 云端上传失败原因
         /// </summary>
-        [Column(Name = "RemoteUploadError", DbType = "longtext", IsNullable = true)]
+        [Column(Name = "RemoteUploadError", StringLength = -2, IsNullable = true)]
         public string? RemoteUploadError { get; set; }
 
         /// <summary>

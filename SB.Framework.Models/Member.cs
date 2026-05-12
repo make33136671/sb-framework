@@ -93,7 +93,7 @@ namespace SB.Framework.Models
         /// <summary>
         /// 软删除标记
         /// </summary>
-        [Column(Name = "IsDeleted", IsNullable = false, InsertValueSql = "0")]
+        [Column(Name = "IsDeleted", IsNullable = false, InsertValueSql = "false")]
         public bool IsDeleted { get; set; }
     }
 }

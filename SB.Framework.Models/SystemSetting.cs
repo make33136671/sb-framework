@@ -50,13 +50,13 @@ namespace SB.Framework.Models
         /// <summary>
         /// 设置数据内容
         /// </summary>
-        [Column(Name = "DataContent", DbType = "longtext")]
+        [Column(Name = "DataContent", StringLength = -2)]
         public string? DataContent { get; set; }
 
         /// <summary>
         /// 设置数据选项
         /// </summary>
-        [Column(Name = "DataContentConfig", DbType = "longtext")]
+        [Column(Name = "DataContentConfig", StringLength = -2)]
         public string DataContentConfig { get; set; }
 
         /// <summary>
