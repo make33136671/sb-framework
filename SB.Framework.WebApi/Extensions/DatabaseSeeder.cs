@@ -75,6 +75,29 @@ public static class DatabaseSeeder
         if (allMenuDefs.Count == 0) return (0, 0);
 
         var existingMenus = fsql.Select<Menu>().DisableGlobalFilter().ToList();
+
+        // 自愈:Path 唯一性 — 历史遗留可能在 SB_Menu 出现同 Path 多条记录(早期 seed 逻辑缺失 dedup
+        // 校验,或并发启动导致),会让下面 ToDictionary 直接抛 ArgumentException 整个 seed 回滚。
+        // 这里发现重复就物理删多余,保留 id 最小的一条 + 关联 AdminRoleMenu。
+        var duplicatePathGroups = existingMenus
+            .GroupBy(m => m.Path)
+            .Where(g => g.Count() > 1)
+            .ToList();
+        if (duplicatePathGroups.Count > 0)
+        {
+            foreach (var grp in duplicatePathGroups)
+            {
+                var keeper = grp.OrderBy(m => m.Id).First();
+                var removeIds = grp.Where(m => m.Id != keeper.Id).Select(m => m.Id).ToList();
+                fsql.Delete<AdminRoleMenu>().Where(rm => removeIds.Contains(rm.MenuId)).ExecuteAffrows();
+                fsql.Delete<Menu>().Where(m => removeIds.Contains(m.Id)).ExecuteAffrows();
+                Log.Warning(
+                    "菜单同步自愈: Path [{Path}] 在 SB_Menu 出现 {Count} 条重复, 保留 id={KeptId}, 删除 id={RemovedIds}",
+                    grp.Key, grp.Count(), keeper.Id, string.Join(",", removeIds));
+            }
+            existingMenus = fsql.Select<Menu>().DisableGlobalFilter().ToList();
+        }
+
         var pathToMenu = existingMenus.ToDictionary(m => m.Path, m => m);
         var pathToId = existingMenus.ToDictionary(m => m.Path, m => m.Id);
 
