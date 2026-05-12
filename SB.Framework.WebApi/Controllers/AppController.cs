@@ -139,8 +139,8 @@ public class AppController : Controller
             // 删除时间回退检测文件，避免新版本启动时因时间戳不匹配触发授权异常
             try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
-            // 解压覆盖到 API 目录
-            ZipFile.ExtractToDirectory(tempZip, appDir, overwriteFiles: true);
+            // 用 atomic rename 替换 inode,避免 mmap race(详见 ExtractApiAtomic 注释)
+            ExtractApiAtomic(tempZip, appDir);
 
             _logger.LogWarning("API package uploaded and extracted by {Username}, restarting...", username);
 
@@ -158,6 +158,46 @@ public class AppController : Controller
         {
             if (System.IO.File.Exists(tempZip))
                 System.IO.File.Delete(tempZip);
+        }
+    }
+
+    /// <summary>
+    /// 原子替换 API zip 内容到 appDir。
+    /// 直接 ZipFile.ExtractToDirectory(overwriteFiles=true) 走 File.Open(FileMode.Create) in-place 重写,
+    /// 跟 .NET runtime mmap 加载有 race — 进程持有 dll 的 mmap 时,新字节进 page cache 但不能完整刷到 inode,
+    /// systemd 拉起的新进程读到新旧字节混合 → assembly load 失败、版本不匹配。framework 跨版本(几十个 dll
+    /// 同时换)100% 撞 race。
+    ///
+    /// 修法:解压到 appDir 同盘的 staging 子目录(零 mmap 交互),然后逐文件 File.Move(overwrite:true) 替换到
+    /// appDir。File.Move 在 Linux 是 rename(2) atomic,**替换的是 inode**:
+    /// - 运行中进程的 mmap 仍指向旧 inode(看到旧内容,无中断)
+    /// - filename 现在指向新 inode
+    /// - 进程退出 → mmap 释放 → 旧 inode 被 GC
+    /// - systemd 拉起的新进程 open(filename) → 看到新 inode → mmap 新内容
+    /// 零 race,跨多少个 dll 都安全。
+    /// </summary>
+    private static void ExtractApiAtomic(string zipPath, string appDir)
+    {
+        var staging = Path.Combine(appDir, $".upload-staging-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(staging);
+
+        try
+        {
+            ZipFile.ExtractToDirectory(zipPath, staging);
+
+            foreach (var src in Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(staging, src);
+                var dest = Path.Combine(appDir, rel);
+                var destDir = Path.GetDirectoryName(dest);
+                if (!string.IsNullOrEmpty(destDir))
+                    Directory.CreateDirectory(destDir);
+                System.IO.File.Move(src, dest, overwrite: true);
+            }
+        }
+        finally
+        {
+            try { Directory.Delete(staging, recursive: true); } catch { }
         }
     }
 
@@ -196,8 +236,8 @@ public class AppController : Controller
             // 删除时间回退检测文件，避免新版本启动时因时间戳不匹配触发授权异常
             try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
-            // 解压覆盖到 API 目录
-            ZipFile.ExtractToDirectory(fullPath, appDir, overwriteFiles: true);
+            // 用 atomic rename 替换 inode,避免 mmap race(详见 ExtractApiAtomic 注释)
+            ExtractApiAtomic(fullPath, appDir);
 
             _logger.LogWarning("API package deployed via chunk upload by {Username}, restarting...", username);
 
@@ -600,9 +640,9 @@ public class AppController : Controller
 
         if (record.Target == "api")
         {
-            // 回滚 API
+            // 回滚 API — 同样走 atomic rename,避免 mmap race
             var appDir = AppContext.BaseDirectory;
-            ZipFile.ExtractToDirectory(backupPath, appDir, overwriteFiles: true);
+            ExtractApiAtomic(backupPath, appDir);
 
             // 记录回滚操作
             await _deployRecordService.SaveRecord("api", "API程序(回滚)", backupPath, record.FileName, record.FileSize, username ?? "unknown");
