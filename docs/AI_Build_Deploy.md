@@ -38,6 +38,52 @@ dotnet SB.API.dll --urls='http://127.0.0.1:6010'
 
 ➜ 详见 [AI_Conventions.md §10](AI_Conventions.md) — `-p:DisableLicense` / `-p:EnableLicenseManage` / `-p:EnableBackupReceive` 三个开关 + 常见组合命令。
 
+## 派生项目 SemVer 自动版本号(推荐脚本)
+
+派生 application 项目(`sb-apps-pm` / `sb-apps-nexus` / 等)应该在自己仓库根目录放一个 `build-publish.sh`,让 `dotnet publish` 自动生成语义化版本号,使 `/admin/App/Info` 返回的 `version` 字段真实反映"代码改了多少次",而不是永远 `1.0.0+<sha>`。
+
+**版本号规则**:`Version = <PREFIX>.<git commit 总数>`,例如 `1.0.157`。每次新 commit → patch 自动 +1。bump minor/major 用 `VERSION_PREFIX=1.1 ./build-publish.sh` 覆盖默认 PREFIX。
+
+**关键 dotnet 参数**:`-p:Version=$VERSION` + `-p:IncludeSourceRevisionInInformationalVersion=false`(关掉 SourceLink 默认追加 commit sha,让 `InformationalVersion` 干净等于 `Version`)。
+
+**模板脚本**:
+
+```bash
+#!/bin/bash
+# <App> API 构建发布脚本
+set -e
+cd "$(dirname "$0")"
+
+PREFIX=${VERSION_PREFIX:-1.0}
+PATCH=$(git rev-list --count HEAD 2>/dev/null || echo 0)
+VERSION="$PREFIX.$PATCH"
+
+echo "=== <App> publish version $VERSION ==="
+
+DIST=../dist/api
+rm -rf $DIST && mkdir -p $DIST
+
+dotnet publish <App.WebApi.csproj 路径> \
+  -c Release -o $DIST \
+  -p:Version=$VERSION \
+  -p:IncludeSourceRevisionInInformationalVersion=false \
+  --nologo -v minimal
+
+# 默认过滤:appsettings + wwwroot(线上配置/资源不要覆盖)
+cd $DIST
+rm -f appsettings.json appsettings.*.json
+rm -rf wwwroot
+
+# 打 zip(zip 内直接是产物,无外层目录)
+cd .. && rm -f api.zip && (cd api && zip -qr ../api.zip .)
+
+echo "✓ Done. Version: $VERSION"
+```
+
+参考实现:
+- [sb-apps-pm/build-publish.sh](https://gitlab.saibo.club/saibo/apps/sb-apps-pm/-/blob/main/build-publish.sh)
+- [sb-apps-nexus/build-publish.sh](https://gitlab.saibo.club/saibo/apps/sb-apps-nexus/-/blob/main/build-publish.sh)
+
 ## Frontend Commands
 
 ```bash
