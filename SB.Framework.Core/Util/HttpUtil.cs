@@ -35,5 +35,15 @@ namespace SB.Framework.Core.Util
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsStringAsync(cancellationToken);
         }
+
+        /// <summary>
+        /// 下载远端 URL 的二进制内容(用于图片、PDF 等二进制资源)
+        /// </summary>
+        public static async Task<byte[]> GetBytesAsync(string url, CancellationToken cancellationToken = default)
+        {
+            var response = await _client.GetAsync(url, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        }
     }
 }
