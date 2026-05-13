@@ -65,7 +65,7 @@ done
 ```
 
 > `--skip-duplicate` 让重推幂等无害(同版本会被忽略而不是报错)。
-> **GitLab Packages 跟 BaGet 是两个独立 NuGet 源**,要保持同步的话两边都得 push;只 push 一边其他项目可能拉不到。
+> 2026-05-13 起 **GitLab Packages NuGet 源已废弃**(性能差),所有 saibo 包统一只 push 到 BaGet,**不再**双源同步。派生项目 NuGet.config 也只配 BaGet。
 
 ## restore
 
