@@ -48,7 +48,22 @@ public class AppController : Controller
             ?? assembly?.GetName().Version?.ToString()
             ?? "unknown";
 
-        var buildTime = BuildInfo.Timestamp;
+        // buildTime 优先用入口 dll 的文件 mtime(派生项目每次 publish/部署都更新),
+        // fallback 到 BuildInfo.Timestamp(framework 包自身 build 时间) 兜底。
+        // 解决"派生项目部署后版本号/时间不更新"的痛点 — BuildInfo.Timestamp 在 framework NuGet
+        // 包里硬编码,派生项目 build 时不会重新生成,所以单看它永远是 framework 发包时间。
+        string buildTime;
+        try
+        {
+            var loc = assembly?.Location;
+            buildTime = !string.IsNullOrEmpty(loc) && System.IO.File.Exists(loc)
+                ? System.IO.File.GetLastWriteTime(loc).ToString("yyyy-MM-dd HH:mm:ss")
+                : BuildInfo.Timestamp;
+        }
+        catch
+        {
+            buildTime = BuildInfo.Timestamp;
+        }
 
         var proc = System.Diagnostics.Process.GetCurrentProcess();
         var workingSetMb = Math.Round(proc.WorkingSet64 / 1024.0 / 1024.0, 1);
@@ -113,7 +128,7 @@ public class AppController : Controller
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(200 * 1024 * 1024)]
-    public async Task<Result> UploadApi(IFormFile file)
+    public async Task<Result> UploadApi(IFormFile file, [FromForm] bool keepConfig = true)
     {
         if (file == null || file.Length == 0)
             return Result.Fail("请选择文件");
@@ -140,7 +155,7 @@ public class AppController : Controller
             try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
             // 用 atomic rename 替换 inode,避免 mmap race(详见 ExtractApiAtomic 注释)
-            ExtractApiAtomic(tempZip, appDir);
+            ExtractApiAtomic(tempZip, appDir, keepConfig);
 
             _logger.LogWarning("API package uploaded and extracted by {Username}, restarting...", username);
 
@@ -176,7 +191,7 @@ public class AppController : Controller
     /// - systemd 拉起的新进程 open(filename) → 看到新 inode → mmap 新内容
     /// 零 race,跨多少个 dll 都安全。
     /// </summary>
-    private static void ExtractApiAtomic(string zipPath, string appDir)
+    private static void ExtractApiAtomic(string zipPath, string appDir, bool keepConfig = true)
     {
         var staging = Path.Combine(appDir, $".upload-staging-{Guid.NewGuid():N}");
         Directory.CreateDirectory(staging);
@@ -188,6 +203,10 @@ public class AppController : Controller
             foreach (var src in Directory.EnumerateFiles(staging, "*", SearchOption.AllDirectories))
             {
                 var rel = Path.GetRelativePath(staging, src);
+                // keepConfig=true 时跳过根目录的 appsettings.json / appsettings.*.json,
+                // 防止误打包的配置文件覆盖线上配置(默认开启,生产部署兜底)。
+                if (keepConfig && IsProtectedConfigFile(rel))
+                    continue;
                 var dest = Path.Combine(appDir, rel);
                 var destDir = Path.GetDirectoryName(dest);
                 if (!string.IsNullOrEmpty(destDir))
@@ -202,6 +221,22 @@ public class AppController : Controller
     }
 
     /// <summary>
+    /// 判断是否为受保护的配置文件(只针对部署根目录的 appsettings.json / appsettings.*.json)。
+    /// 子目录里同名文件不受保护 — 它们一般是 plugin 自带不会跟运行时配置冲突。
+    /// </summary>
+    private static bool IsProtectedConfigFile(string relPath)
+    {
+        // 只保护根目录的配置文件,子目录的不算
+        var dirName = Path.GetDirectoryName(relPath);
+        if (!string.IsNullOrEmpty(dirName)) return false;
+        var fileName = Path.GetFileName(relPath);
+        if (string.Equals(fileName, "appsettings.json", StringComparison.OrdinalIgnoreCase)) return true;
+        if (fileName.StartsWith("appsettings.", StringComparison.OrdinalIgnoreCase) &&
+            fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    /// <summary>
     /// 通过分片上传的文件路径部署 API 程序（filePath 由 ChunkUpload/Merge 返回）
     /// </summary>
     [HttpPost]
@@ -209,7 +244,8 @@ public class AppController : Controller
         [FromForm] string filePath,
         [FromForm] string fileName,
         [FromForm] long fileSize,
-        [FromForm] bool clearCache = false)
+        [FromForm] bool clearCache = false,
+        [FromForm] bool keepConfig = true)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return Result.Fail("文件路径不能为空");
@@ -237,7 +273,7 @@ public class AppController : Controller
             try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
             // 用 atomic rename 替换 inode,避免 mmap race(详见 ExtractApiAtomic 注释)
-            ExtractApiAtomic(fullPath, appDir);
+            ExtractApiAtomic(fullPath, appDir, keepConfig);
 
             _logger.LogWarning("API package deployed via chunk upload by {Username}, restarting...", username);
 
