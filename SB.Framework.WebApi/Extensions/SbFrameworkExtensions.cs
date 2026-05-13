@@ -49,6 +49,7 @@ public static class SbFrameworkExtensions
             builder.Services.AddBusinessServices(projectAssembly);
             builder.Services.AddCacheService();
             builder.Services.AddEmailServices();
+            builder.Services.AddQdrantService(configuration);
             builder.Services.AddBackgroundTasks();
             builder.Services.AddLoginRateLimiter();
             builder.Services.AddDatabaseHealthCheck(configuration);
