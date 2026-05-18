@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.FileProviders;
 using SB.Framework.Core;
 using SB.Framework.Core.License;
 using SB.Framework.Core.Middleware;
@@ -117,22 +116,6 @@ public static class SbFrameworkExtensions
         app.UseMiddleware<GlobalExceptionMiddleware>();
         app.UseMiddleware<QueryCountMiddleware>();
         app.UseStaticFiles();
-        // 静态资源已迁出 wwwroot 到 ContentRoot/storage/。同时挂两条 URL 路径:
-        //   /uploads/...        → storage/uploads/...  (派生项目业务上传,如 nexus 笔记附件)
-        //   /storage/uploads/.. → storage/uploads/...  (兼容 framework Upload 返回 fileName 形如 "/storage/uploads/xxx")
-        var storageRoot = Path.Combine(app.Environment.ContentRootPath, "storage");
-        var storageUploads = Path.Combine(storageRoot, "uploads");
-        Directory.CreateDirectory(storageUploads);
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            FileProvider = new PhysicalFileProvider(storageUploads),
-            RequestPath = "/uploads"
-        });
-        app.UseStaticFiles(new StaticFileOptions
-        {
-            FileProvider = new PhysicalFileProvider(storageRoot),
-            RequestPath = "/storage"
-        });
         app.UseMiddleware<SetupMiddleware>();
         app.UseRouting();
         app.UseAuthorization();

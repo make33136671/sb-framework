@@ -39,11 +39,11 @@ namespace SB.Framework.Services
                     return Result.Fail($"不允许上传 {extension} 类型的文件");
             }
 
-            // 物理根 = {ContentRoot}/{UploadPath}[/{subPath}](脱离 wwwroot,放到 ContentRoot 下,
-            // 默认 UploadPath="/storage/uploads/" 时物理落 {ContentRoot}/storage/uploads/...)
+            // 物理根 = {ContentRoot}/wwwroot{UploadPath}[/{subPath}],默认 UploadPath="/storage/uploads/"
+            // → wwwroot/storage/uploads/...,直接被默认 UseStaticFiles() serve,无需额外注册 PhysicalFileProvider
             var relativePath = config.UploadPath;
             var baseFolder = relativePath.TrimStart('/').TrimEnd('/').Replace('/', Path.DirectorySeparatorChar);
-            var savePath = Path.Combine(_env.ContentRootPath, baseFolder);
+            var savePath = Path.Combine(_env.ContentRootPath, "wwwroot", baseFolder);
             var normalizedSub = string.IsNullOrEmpty(subPath) ? null : subPath.Trim('/').Replace('/', Path.DirectorySeparatorChar);
             if (!string.IsNullOrEmpty(normalizedSub))
                 savePath = Path.Combine(savePath, normalizedSub);
