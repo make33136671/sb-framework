@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.FileProviders;
 using SB.Framework.Core;
 using SB.Framework.Core.License;
 using SB.Framework.Core.Middleware;
@@ -116,6 +117,14 @@ public static class SbFrameworkExtensions
         app.UseMiddleware<GlobalExceptionMiddleware>();
         app.UseMiddleware<QueryCountMiddleware>();
         app.UseStaticFiles();
+        // 新增:把 storage/uploads/ 也挂到 /uploads URL 路径,与默认 wwwroot/uploads 并存(新文件落 storage,老文件仍在 wwwroot)
+        var storageUploads = Path.Combine(app.Environment.ContentRootPath, "storage", "uploads");
+        Directory.CreateDirectory(storageUploads);
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new PhysicalFileProvider(storageUploads),
+            RequestPath = "/uploads"
+        });
         app.UseMiddleware<SetupMiddleware>();
         app.UseRouting();
         app.UseAuthorization();

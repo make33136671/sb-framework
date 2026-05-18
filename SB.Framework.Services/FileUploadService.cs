@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using SB.Framework.Core;
 using SB.Framework.Core.Attribute;
 using SB.Framework.Core.Expand;
@@ -10,25 +11,27 @@ namespace SB.Framework.Services
     public class FileUploadService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IHostEnvironment _env;
 
-        public FileUploadService(IHttpContextAccessor httpContextAccessor)
+        public FileUploadService(IHttpContextAccessor httpContextAccessor, IHostEnvironment env)
         {
             _httpContextAccessor = httpContextAccessor;
+            _env = env;
         }
 
-        public virtual Result Upload(IFormFile file)
+        public virtual Result Upload(IFormFile file) => Upload(file, null);
+
+        public virtual Result Upload(IFormFile file, string subPath)
         {
             if (file == null || file.Length == 0)
                 return Result.Fail("请选择要上传的文件");
 
             var config = AppGlobal.AppSettings.UploadConfig;
 
-            // 校验文件大小
             var maxBytes = config.MaxFileSizeMB * 1024 * 1024;
             if (file.Length > maxBytes)
                 return Result.Fail($"文件大小不能超过 {config.MaxFileSizeMB}MB");
 
-            // 校验文件扩展名
             var extension = Path.GetExtension(file.FileName);
             if (config.AllowedExtensions != null && config.AllowedExtensions.Count > 0)
             {
@@ -36,13 +39,16 @@ namespace SB.Framework.Services
                     return Result.Fail($"不允许上传 {extension} 类型的文件");
             }
 
-            // 拼接保存路径
+            // 物理根:{ContentRoot}/storage{UploadPath}[/subPath]
             var relativePath = config.UploadPath;
-            var savePath = Path.Combine(Directory.GetCurrentDirectory(), $"wwwroot{relativePath}");
+            var uploadFolder = relativePath.Trim('/');
+            var savePath = Path.Combine(_env.ContentRootPath, "storage", uploadFolder);
+            var normalizedSub = string.IsNullOrEmpty(subPath) ? null : subPath.Trim('/').Replace('/', Path.DirectorySeparatorChar);
+            if (!string.IsNullOrEmpty(normalizedSub))
+                savePath = Path.Combine(savePath, normalizedSub);
             if (!Directory.Exists(savePath))
                 Directory.CreateDirectory(savePath);
 
-            // GUID 重命名，保存文件
             var fileName = Guid.NewGuid().ToString("N") + extension;
             var filePath = Path.Combine(savePath, fileName);
 
@@ -51,12 +57,20 @@ namespace SB.Framework.Services
                 file.CopyTo(stream);
             }
 
+            var storageKey = string.IsNullOrEmpty(normalizedSub)
+                ? fileName
+                : $"{subPath.Trim('/')}/{fileName}";
+
+            var ctx = _httpContextAccessor.HttpContext;
+            var host = ctx != null ? ctx.RequestHostWithScheme() : string.Empty;
+
             return Result.Success("上传成功", new
             {
-                fileName = $"{relativePath}{fileName}",
-                absfileName = $"{_httpContextAccessor.HttpContext.RequestHostWithScheme()}{relativePath}{fileName}",
+                fileName = $"{relativePath}{storageKey}",
+                absfileName = $"{host}{relativePath}{storageKey}",
                 name = file.FileName,
-                size = file.Length
+                size = file.Length,
+                storageKey
             });
         }
     }
