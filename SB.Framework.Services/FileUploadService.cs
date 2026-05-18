@@ -39,10 +39,11 @@ namespace SB.Framework.Services
                     return Result.Fail($"不允许上传 {extension} 类型的文件");
             }
 
-            // 物理根:{ContentRoot}/storage{UploadPath}[/subPath]
+            // 物理根 = {ContentRoot}/{UploadPath}[/{subPath}](脱离 wwwroot,放到 ContentRoot 下,
+            // 默认 UploadPath="/storage/uploads/" 时物理落 {ContentRoot}/storage/uploads/...)
             var relativePath = config.UploadPath;
-            var uploadFolder = relativePath.Trim('/');
-            var savePath = Path.Combine(_env.ContentRootPath, "storage", uploadFolder);
+            var baseFolder = relativePath.TrimStart('/').TrimEnd('/').Replace('/', Path.DirectorySeparatorChar);
+            var savePath = Path.Combine(_env.ContentRootPath, baseFolder);
             var normalizedSub = string.IsNullOrEmpty(subPath) ? null : subPath.Trim('/').Replace('/', Path.DirectorySeparatorChar);
             if (!string.IsNullOrEmpty(normalizedSub))
                 savePath = Path.Combine(savePath, normalizedSub);
