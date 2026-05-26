@@ -250,17 +250,30 @@ public class AppController : Controller
     [HttpGet]
     public Result CacheInfo()
     {
+        var stats = _cacheService.GetStats();
+
         var categories = CacheCategories.Select(c => new
         {
             prefix = c.Prefix,
             name = c.Name,
-            description = c.Description
-        });
+            description = c.Description,
+            count = _cacheService.CountByPrefix(c.Prefix),
+        }).ToList();
+
+        // 未分类 = 当前实例 key 数 - 各分类 count 之和
+        int uncategorized = -1;
+        if (stats != null && stats.TryGetValue("instance_keys", out var ikObj) && ikObj is int ik && ik >= 0)
+        {
+            var categorized = categories.Sum(c => Math.Max(0, c.count));
+            uncategorized = Math.Max(0, ik - categorized);
+        }
 
         return Result.Success(new
         {
             provider = _cacheService.ProviderName,
-            categories
+            stats,
+            categories,
+            uncategorized,
         });
     }
 

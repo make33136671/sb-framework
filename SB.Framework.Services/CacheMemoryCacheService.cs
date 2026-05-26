@@ -90,5 +90,26 @@ namespace SB.Framework.Services
                 _prefixKeys.Clear();
             }
         }
+
+        public int CountByPrefix(string keyPrefix)
+        {
+            lock (_lockObject)
+            {
+                return _allKeys.Count(k => k.StartsWith(keyPrefix));
+            }
+        }
+
+        public Dictionary<string, object?>? GetStats()
+        {
+            lock (_lockObject)
+            {
+                return new Dictionary<string, object?>
+                {
+                    ["instance_name"] = "",
+                    ["instance_keys"] = _allKeys.Count,
+                    ["dbsize"] = _allKeys.Count,
+                };
+            }
+        }
     }
 }
