@@ -29,7 +29,14 @@ namespace SB.Framework.WebApi.Extensions
                 var redisConfig = cacheConfig.Redis;
                 var instanceName = redisConfig.InstanceName ?? "";
                 services.AddSingleton<IConnectionMultiplexer>(_ =>
-                    ConnectionMultiplexer.Connect(redisConfig.Connection));
+                {
+                    // AllowAdmin=true 是 server.Info() / server.Keys(pattern) / SLOWLOG GET 等
+                    // 运维诊断命令的必要开关。StackExchange.Redis 默认拒绝这些命令,
+                    // 导致 CacheRedisService.GetStats() 抛 RedisCommandException → stats 字段返 null。
+                    var opts = ConfigurationOptions.Parse(redisConfig.Connection);
+                    opts.AllowAdmin = true;
+                    return ConnectionMultiplexer.Connect(opts);
+                });
                 services.AddSingleton<ICacheService>(_ =>
                     new CacheRedisService(_.GetRequiredService<IConnectionMultiplexer>(), instanceName));
             }

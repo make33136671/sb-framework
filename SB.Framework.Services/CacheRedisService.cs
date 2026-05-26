@@ -130,9 +130,14 @@ namespace SB.Framework.Services
                     ["slowlog"] = slowlog,
                 };
             }
-            catch
+            catch (Exception ex)
             {
-                return null;
+                // 调用方能看到具体错误,而非吞掉返 null 导致前端只显示"无 stats"无法排查
+                return new Dictionary<string, object?>
+                {
+                    ["instance_name"] = _prefix,
+                    ["error"] = ex.GetType().Name + ": " + ex.Message,
+                };
             }
         }
     }
