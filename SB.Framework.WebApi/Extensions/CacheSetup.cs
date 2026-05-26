@@ -27,9 +27,11 @@ namespace SB.Framework.WebApi.Extensions
             if (string.Equals(provider, "Redis", StringComparison.OrdinalIgnoreCase))
             {
                 var redisConfig = cacheConfig.Redis;
+                var instanceName = redisConfig.InstanceName ?? "";
                 services.AddSingleton<IConnectionMultiplexer>(_ =>
                     ConnectionMultiplexer.Connect(redisConfig.Connection));
-                services.AddSingleton<ICacheService, CacheRedisService>();
+                services.AddSingleton<ICacheService>(_ =>
+                    new CacheRedisService(_.GetRequiredService<IConnectionMultiplexer>(), instanceName));
             }
             else
             {
