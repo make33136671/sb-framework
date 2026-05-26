@@ -19,23 +19,20 @@ public class AppController : Controller
     private readonly ILogger<AppController> _logger;
     private readonly IWebHostEnvironment _env;
     private readonly ICacheService _cacheService;
-    private readonly DeployRecordService _deployRecordService;
-    private readonly UploadRecordService _uploadRecordService;
+    private readonly DeployJobService _deployJobService;
 
     public AppController(
         IHostApplicationLifetime appLifetime,
         ILogger<AppController> logger,
         IWebHostEnvironment env,
         ICacheService cacheService,
-        DeployRecordService deployRecordService,
-        UploadRecordService uploadRecordService)
+        DeployJobService deployJobService)
     {
         _appLifetime = appLifetime;
         _logger = logger;
         _env = env;
         _cacheService = cacheService;
-        _deployRecordService = deployRecordService;
-        _uploadRecordService = uploadRecordService;
+        _deployJobService = deployJobService;
     }
 
     /// <summary>
@@ -128,7 +125,7 @@ public class AppController : Controller
 
     /// <summary>
     /// 上传 API 程序包（zip），解压覆盖后自动重启。
-    /// 内部走 Upload → Deploy 两步，上传文件持久保存；部署失败时文件仍在，可凭 UploadRecord.Id 重试。
+    /// 内部走 Upload → Deploy 两步,上传文件持久保存到 deploy_archive,部署失败可凭 DeployJob.Id 重试。
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(200 * 1024 * 1024)]
@@ -141,8 +138,8 @@ public class AppController : Controller
 
         var username = HttpContext.User.Username() ?? "unknown";
         using var stream = file.OpenReadStream();
-        var record = await _uploadRecordService.SaveUploadFromStream("api", "API程序", stream, file.FileName, file.Length, username);
-        return await DeployByRecord(record, keepConfig: keepConfig, clearCache: false);
+        var job = await _deployJobService.CreateFromStream("api", "API程序", stream, file.FileName, file.Length, username);
+        return await DeployByJob(job, keepConfig: keepConfig, clearCache: false);
     }
 
     /// <summary>
@@ -207,7 +204,7 @@ public class AppController : Controller
 
     /// <summary>
     /// 通过分片上传的文件路径部署 API 程序（filePath 由 ChunkUpload/Merge 返回）。
-    /// 内部创建 UploadRecord 后走统一 DeployByRecord 逻辑。
+    /// 内部创建 DeployJob(Uploaded)后走统一 DeployByJob 逻辑。
     /// </summary>
     [HttpPost]
     public async Task<Result> DeployApiByPath(
@@ -228,8 +225,8 @@ public class AppController : Controller
         var displayName = string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(fullPath) : fileName;
         var actualSize = fileSize > 0 ? fileSize : new FileInfo(fullPath).Length;
 
-        var record = await _uploadRecordService.SaveUpload("api", "API程序", fullPath, displayName, actualSize, username);
-        return await DeployByRecord(record, keepConfig: keepConfig, clearCache: clearCache);
+        var job = await _deployJobService.CreateFromFile("api", "API程序", fullPath, displayName, actualSize, username);
+        return await DeployByJob(job, keepConfig: keepConfig, clearCache: clearCache);
     }
 
     // ==================== 缓存管理 ====================
@@ -465,13 +462,13 @@ public class AppController : Controller
 
         var username = HttpContext.User.Username() ?? "unknown";
         using var stream = file.OpenReadStream();
-        var record = await _uploadRecordService.SaveUploadFromStream(key, project.Name, stream, file.FileName, file.Length, username);
-        return await DeployByRecord(record);
+        var job = await _deployJobService.CreateFromStream(key, project.Name, stream, file.FileName, file.Length, username);
+        return await DeployByJob(job);
     }
 
     /// <summary>
     /// 通过分片上传的文件路径部署前端项目（filePath 由 ChunkUpload/Merge 返回）。
-    /// 内部创建 UploadRecord 后走统一 DeployByRecord 逻辑。
+    /// 内部创建 DeployJob(Uploaded)后走统一 DeployByJob 逻辑。
     /// </summary>
     [HttpPost]
     public async Task<Result> DeployProjectByPath([FromForm] string key, [FromForm] string filePath, [FromForm] string fileName, [FromForm] long fileSize)
@@ -494,23 +491,23 @@ public class AppController : Controller
         var displayName = string.IsNullOrWhiteSpace(fileName) ? Path.GetFileName(fullPath) : fileName;
         var actualSize = fileSize > 0 ? fileSize : new FileInfo(fullPath).Length;
 
-        var record = await _uploadRecordService.SaveUpload(key, project.Name, fullPath, displayName, actualSize, username);
-        return await DeployByRecord(record);
+        var job = await _deployJobService.CreateFromFile(key, project.Name, fullPath, displayName, actualSize, username);
+        return await DeployByJob(job);
     }
 
     // ==================== 统一上传 / 部署接口 ====================
 
     /// <summary>
-    /// 统一上传接口：将 zip 持久化到 upload_staging，创建 UploadRecord（Status=Pending）并返回。
-    /// 不触发部署。后续调用 Deploy 接口传入 uploadId 完成部署；若部署失败，文件仍在，可重试。
-    /// target = "api" 时部署 API 二进制；其他值对应 DeployConfig.Projects 的 key（如 admin、h5）。
+    /// 统一上传接口:将 zip 持久化到 deploy_archive,创建 DeployJob(Status=Uploaded)并返回。
+    /// 不触发部署。后续调用 Deploy 接口传入 jobId 完成部署;若部署失败,文件仍在,可重试。
+    /// target = "api" 时部署 API 二进制;其他值对应 DeployConfig.Projects 的 key(admin / h5)。
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(200 * 1024 * 1024)]
     public async Task<Result> Upload([FromForm] string target, IFormFile file)
     {
         if (string.IsNullOrEmpty(target))
-            return Result.Fail("请指定 target（api 或项目 key）");
+            return Result.Fail("请指定 target(api 或项目 key)");
         if (file == null || file.Length == 0)
             return Result.Fail("请选择文件");
         if (!file.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
@@ -532,22 +529,23 @@ public class AppController : Controller
 
         var username = HttpContext.User.Username() ?? "unknown";
         using var stream = file.OpenReadStream();
-        var record = await _uploadRecordService.SaveUploadFromStream(target, targetName, stream, file.FileName, file.Length, username);
+        var job = await _deployJobService.CreateFromStream(target, targetName, stream, file.FileName, file.Length, username);
 
         return Result.Success(new
         {
-            uploadId = record.Id,
-            target = record.Target,
-            targetName = record.TargetName,
-            fileName = record.FileName,
-            fileSize = record.FileSize,
-            status = record.Status,
+            jobId = job.Id,
+            uploadId = job.Id,  // 向后兼容旧前端字段名
+            target = job.Target,
+            targetName = job.TargetName,
+            fileName = job.FileName,
+            fileSize = job.FileSize,
+            status = job.Status,
         });
     }
 
     /// <summary>
-    /// 统一部署接口：根据 uploadId 找到已上传文件并部署。
-    /// target=api 时重启进程；其他 target 解压到前端目录，不重启。
+    /// 统一部署接口:根据 jobId(旧字段名 uploadId 也接受)找到已上传文件并部署。
+    /// target=api 时重启进程;其他 target 解压到前端目录,不重启。
     /// keepConfig / clearCache 仅对 api 部署有效。
     /// </summary>
     [HttpPost]
@@ -556,62 +554,73 @@ public class AppController : Controller
         [FromForm] bool keepConfig = true,
         [FromForm] bool clearCache = false)
     {
-        var record = await _uploadRecordService.Select.Where(r => r.Id == uploadId).FirstAsync();
-        if (record == null)
-            return Result.Fail("上传记录不存在");
+        var jobId = uploadId;  // 字段名向后兼容
+        var job = await _deployJobService.Select.Where(r => r.Id == jobId).FirstAsync();
+        if (job == null)
+            return Result.Fail("部署作业不存在");
 
-        var fullPath = _uploadRecordService.GetFullPath(record);
+        var fullPath = _deployJobService.GetFullPath(job);
         if (!System.IO.File.Exists(fullPath))
-            return Result.Fail("上传文件已不存在，请重新上传");
+            return Result.Fail("上传文件已不存在,请重新上传");
 
-        return await DeployByRecord(record, keepConfig: keepConfig, clearCache: clearCache);
+        return await DeployByJob(job, keepConfig: keepConfig, clearCache: clearCache);
     }
 
     /// <summary>
-    /// 上传记录列表：可按 target / status 过滤，方便查找可重试的失败记录。
-    /// status 可选值：Pending / Deployed / Failed
+    /// 部署作业列表(向后兼容旧 endpoint 名 UploadRecords)。可按 target / status 过滤。
+    /// 旧前端 status=Pending 自动映射到新 Uploaded;新值 Uploaded/Deploying/Deployed/Failed/RolledBack 也接受。
     /// </summary>
     [HttpGet]
     public async Task<Result> UploadRecords(string? target = null, string? status = null, int page = 1, int pageSize = 20)
     {
-        var data = await _uploadRecordService.GetRecords(target, status, page, pageSize);
+        // 旧前端字段兼容:Pending → Uploaded
+        if (string.Equals(status, "Pending", StringComparison.OrdinalIgnoreCase))
+            status = DeployJobStatus.Uploaded;
+        var data = await _deployJobService.GetJobs(target, status, page, pageSize);
+        return Result.Success(data);
+    }
+
+    /// <summary>部署作业列表(新名,等同 UploadRecords)</summary>
+    [HttpGet]
+    public async Task<Result> DeployJobs(string? target = null, string? status = null, int page = 1, int pageSize = 20)
+    {
+        var data = await _deployJobService.GetJobs(target, status, page, pageSize);
         return Result.Success(data);
     }
 
     /// <summary>
-    /// 核心部署逻辑：根据 UploadRecord 决定走 api 部署还是前端项目部署，并更新记录状态。
+    /// 核心部署逻辑:根据 DeployJob 决定走 api 部署还是前端项目部署,流转 Uploaded/Deploying/Deployed/Failed 状态。
+    /// 文件已在 deploy_archive,部署成功的旧 job(同 target)自动转 RolledBack 并被新 job 的 PreviousJobId 指向。
     /// </summary>
-    private async Task<Result> DeployByRecord(
-        UploadRecord record,
+    private async Task<Result> DeployByJob(
+        DeployJob job,
         bool keepConfig = true,
         bool clearCache = false)
     {
-        var fullPath = _uploadRecordService.GetFullPath(record);
+        var fullPath = _deployJobService.GetFullPath(job);
         if (!System.IO.File.Exists(fullPath))
         {
-            await _uploadRecordService.MarkFailed(record.Id, "上传文件已不存在");
-            return Result.Fail("上传文件已不存在，请重新上传");
+            await _deployJobService.MarkFailed(job.Id, "上传文件已不存在");
+            return Result.Fail("上传文件已不存在,请重新上传");
         }
 
-        // 兜底校验
-        var (valid, error, _) = InspectZip(fullPath, record.Target);
+        var (valid, error, _) = InspectZip(fullPath, job.Target);
         if (!valid)
         {
-            await _uploadRecordService.MarkFailed(record.Id, error ?? "zip 校验失败");
+            await _deployJobService.MarkFailed(job.Id, error ?? "zip 校验失败");
             return Result.Fail(error ?? "zip 文件校验失败");
         }
 
-        var username = record.UploadedBy;
-        var isApi = string.Equals(record.Target, "api", StringComparison.OrdinalIgnoreCase);
+        var username = job.UploadedBy;
+        var isApi = string.Equals(job.Target, "api", StringComparison.OrdinalIgnoreCase);
+
+        await _deployJobService.MarkDeploying(job.Id, username);
 
         try
         {
             if (isApi)
             {
                 var appDir = AppContext.BaseDirectory;
-
-                await _deployRecordService.SaveRecord("api", "API程序", fullPath, record.FileName, record.FileSize, username);
-
                 try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
                 ExtractApiAtomic(fullPath, appDir, keepConfig);
@@ -622,28 +631,26 @@ public class AppController : Controller
                     catch (Exception ex) { _logger.LogError(ex, "Failed to clear cache during deploy"); }
                 }
 
-                await _uploadRecordService.MarkDeployed(record.Id);
-                _logger.LogWarning("API package deployed (uploadId={Id}) by {Username}, restarting...", record.Id, username);
+                await _deployJobService.MarkDeployed(job.Id, job.Target);
+                _logger.LogWarning("API package deployed (jobId={Id}) by {Username}, restarting...", job.Id, username);
 
                 AppShutdownHelper.GracefulStop(_appLifetime);
-                return Result.Success(clearCache ? "程序包已更新+缓存已清空，即将重启" : "程序包已更新，即将重启");
+                return Result.Success(clearCache ? "程序包已更新+缓存已清空,即将重启" : "程序包已更新,即将重启");
             }
             else
             {
                 var project = AppGlobal.AppSettings?.DeployConfig?.Projects?
-                    .FirstOrDefault(p => string.Equals(p.Key, record.Target, StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(p => string.Equals(p.Key, job.Target, StringComparison.OrdinalIgnoreCase));
                 if (project == null)
                 {
-                    await _uploadRecordService.MarkFailed(record.Id, $"未找到项目配置: {record.Target}");
-                    return Result.Fail($"未找到项目配置: {record.Target}");
+                    await _deployJobService.MarkFailed(job.Id, $"未找到项目配置: {job.Target}");
+                    return Result.Fail($"未找到项目配置: {job.Target}");
                 }
                 if (!Directory.Exists(project.Path))
                 {
-                    await _uploadRecordService.MarkFailed(record.Id, $"目标目录不存在: {project.Path}");
+                    await _deployJobService.MarkFailed(job.Id, $"目标目录不存在: {project.Path}");
                     return Result.Fail($"目标目录不存在: {project.Path}");
                 }
-
-                await _deployRecordService.SaveRecord(record.Target, project.Name, fullPath, record.FileName, record.FileSize, username);
 
                 var dirInfo = new DirectoryInfo(project.Path);
                 foreach (var f in dirInfo.GetFiles())
@@ -659,93 +666,51 @@ public class AppController : Controller
 
                 ZipFile.ExtractToDirectory(fullPath, project.Path, overwriteFiles: true);
 
-                await _uploadRecordService.MarkDeployed(record.Id);
-                _logger.LogWarning("Project '{ProjectName}' deployed (uploadId={Id}) by {Username}", project.Name, record.Id, username);
+                await _deployJobService.MarkDeployed(job.Id, job.Target);
+                _logger.LogWarning("Project '{ProjectName}' deployed (jobId={Id}) by {Username}", project.Name, job.Id, username);
 
                 return Result.Success($"项目 {project.Name} 已更新");
             }
         }
         catch (Exception ex)
         {
-            await _uploadRecordService.MarkFailed(record.Id, ex.Message);
-            _logger.LogError(ex, "Deploy failed for uploadId={Id} target={Target}", record.Id, record.Target);
+            await _deployJobService.MarkFailed(job.Id, ex.Message);
+            _logger.LogError(ex, "Deploy failed for jobId={Id} target={Target}", job.Id, job.Target);
             return Result.Fail($"部署失败: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// 获取部署记录列表
+    /// 部署记录列表(向后兼容旧 endpoint 名):查 DeployJob filter Status=Deployed/RolledBack(已完成生命周期的部署历史)。
     /// </summary>
     [HttpGet]
     public async Task<Result> DeployRecords(string? target, int page = 1, int pageSize = 20)
     {
-        var data = await _deployRecordService.GetRecords(target, page, pageSize);
+        // 旧 DeployRecord 只记部署成功,新模型可同时查 Deployed + RolledBack 看历史
+        var data = await _deployJobService.GetJobs(target, status: null, page, pageSize);
         return Result.Success(data);
     }
 
     /// <summary>
-    /// 回滚到指定部署记录
+    /// 回滚到指定 DeployJob(被回滚的目标必须是 Deployed 或 RolledBack)。
+    /// 创建一个新 DeployJob(RollbackOfJobId 指向原 job,共享旧 StoragePath),立即触发部署。
+    /// 部署成功后:新 job → Deployed;当前活动的 Deployed job → RolledBack。
     /// </summary>
     [HttpPost]
     public async Task<Result> Rollback([FromForm] int id)
     {
-        var record = await _deployRecordService.Select.Where(r => r.Id == id).FirstAsync();
-        if (record == null)
-            return Result.Fail("部署记录不存在");
+        var target = await _deployJobService.Select.Where(r => r.Id == id).FirstAsync();
+        if (target == null)
+            return Result.Fail("部署作业不存在");
 
-        var backupPath = _deployRecordService.GetBackupFullPath(record);
-        if (backupPath == null)
-            return Result.Fail("备份文件不存在，无法回滚");
+        var fullPath = _deployJobService.GetFullPath(target);
+        if (!System.IO.File.Exists(fullPath))
+            return Result.Fail("归档文件不存在,无法回滚");
 
-        var username = HttpContext.User.Username();
+        var username = HttpContext.User.Username() ?? "unknown";
+        var rollbackJob = await _deployJobService.CreateRollbackJob(id, username);
+        _logger.LogWarning("Rollback initiated to job #{TargetId} (new jobId={NewId}) by {Username}", id, rollbackJob.Id, username);
 
-        if (record.Target == "api")
-        {
-            // 回滚 API — 同样走 atomic rename,避免 mmap race
-            var appDir = AppContext.BaseDirectory;
-            ExtractApiAtomic(backupPath, appDir);
-
-            // 记录回滚操作
-            await _deployRecordService.SaveRecord("api", "API程序(回滚)", backupPath, record.FileName, record.FileSize, username ?? "unknown");
-
-            _logger.LogWarning("API rolled back to record #{RecordId} by {Username}", id, username);
-            AppShutdownHelper.GracefulStop(_appLifetime);
-            return Result.Success("API 已回滚，即将重启");
-        }
-        else
-        {
-            // 回滚前端项目
-            var project = AppGlobal.AppSettings?.DeployConfig?.Projects?
-                .FirstOrDefault(p => string.Equals(p.Key, record.Target, StringComparison.OrdinalIgnoreCase));
-
-            if (project == null)
-                return Result.Fail($"未找到项目配置: {record.Target}");
-
-            if (!Directory.Exists(project.Path))
-                return Result.Fail($"目标目录不存在: {project.Path}");
-
-            // 清空目标目录（保留软连接）
-            var dirInfo = new DirectoryInfo(project.Path);
-            foreach (var f in dirInfo.GetFiles())
-            {
-                if (f.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
-                try { f.Delete(); }
-                catch (UnauthorizedAccessException) { /* 跳过受保护文件，如宝塔 .user.ini 带 chattr +i */ }
-            }
-            foreach (var d in dirInfo.GetDirectories())
-            {
-                if (d.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
-                try { d.Delete(true); }
-                catch (UnauthorizedAccessException) { /* 跳过受保护目录 */ }
-            }
-
-            ZipFile.ExtractToDirectory(backupPath, project.Path, overwriteFiles: true);
-
-            // 记录回滚操作
-            await _deployRecordService.SaveRecord(record.Target, $"{project.Name}(回滚)", backupPath, record.FileName, record.FileSize, username ?? "unknown");
-
-            _logger.LogWarning("Project '{ProjectName}' rolled back to record #{RecordId} by {Username}", project.Name, id, username);
-            return Result.Success($"项目 {project.Name} 已回滚");
-        }
+        return await DeployByJob(rollbackJob);
     }
 }
