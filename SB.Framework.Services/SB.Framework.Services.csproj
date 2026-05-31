@@ -27,8 +27,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
-    <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+    <PackageReference Include="SB.Framework.Core.NoLicense" Version="0.1.0-preview.34" />
+    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.1.0-preview.34" />
   </ItemGroup>
 
   <ItemGroup>

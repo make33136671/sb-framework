@@ -15,13 +15,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj"
-                      OutputItemType="Analyzer"
-                      ReferenceOutputAssembly="false" />
+    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.1.0-preview.34" />
+    <PackageReference Include="SB.Framework.Analyzers.NoLicense" Version="0.1.0-preview.34"
+                      PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
