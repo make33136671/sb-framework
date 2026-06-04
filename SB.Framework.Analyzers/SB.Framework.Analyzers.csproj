@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- 分析器必须 netstandard2.0：Roslyn 分析器铁律，不随 framework 升 net10 -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
@@ -11,14 +12,28 @@
     <AssemblyName>SB.Framework.Analyzers</AssemblyName>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Analyzers</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Analyzers.NoLicense</PackageId>
-    <Version>0.1.0-preview.34</Version>
+    <Version>0.1.0-preview.37</Version>
     <Description>SB Framework Roslyn 分析器</Description>
+    <!--
+      关键：分析器包的 DLL 必须放在 analyzers/dotnet/cs/，Roslyn 才会当"分析器"加载。
+      之前缺这两行 → DLL 被默认打进 lib/ → 被当普通运行时库，分析器从未在 NuGet 消费方生效
+      （SB0001 BanDateTimeNow 在所有派生项目里都形同虚设）。
+      IncludeBuildOutput=false 阻止默认把 DLL 塞进 lib/。
+    -->
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <DevelopmentDependency>true</DevelopmentDependency>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.4" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.8.0" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- 把分析器 DLL 显式打到 analyzers/dotnet/cs/（Roslyn 加载分析器的标准路径） -->
+  <ItemGroup>
+    <None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visibility="false" />
   </ItemGroup>
 
 </Project>
