@@ -9,14 +9,14 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Core</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Core.NoLicense</PackageId>
-    <Version>0.1.0-preview.37</Version>
+    <Version>0.2.0</Version>
     <Authors>Sb Framework</Authors>
     <Description>SB Framework 基础工具与原语</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.1.0-preview.37" />
-    <PackageReference Include="SB.Framework.Analyzers.NoLicense" Version="0.1.0-preview.37"
+    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.2.0" />
+    <PackageReference Include="SB.Framework.Analyzers.NoLicense" Version="0.2.0"
                       PrivateAssets="all" />
   </ItemGroup>
 

@@ -7,6 +7,6 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SB.Framework.WebApi.NoLicense" Version="0.1.0-preview.37" />
+    <PackageReference Include="SB.Framework.WebApi.NoLicense" Version="0.2.0" />
   </ItemGroup>
 </Project>

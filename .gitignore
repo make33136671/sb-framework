@@ -35,3 +35,8 @@ SB.LicenseGen/
 **/wwwroot/storage/
 
 nupkgs/
+
+# license 密钥（敏感，本地保存，绝不提交）
+license_keys/
+license_private.key
+license_public.key
