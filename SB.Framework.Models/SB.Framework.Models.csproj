@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>SB.Framework.Models</RootNamespace>
     <AssemblyName>SB.Framework.Models</AssemblyName>
@@ -10,7 +10,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Models</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Models.NoLicense</PackageId>
-    <Version>0.1.0-preview.34</Version>
+    <Version>0.1.0-preview.37</Version>
     <Description>SB Framework 基础领域模型</Description>
   </PropertyGroup>
 

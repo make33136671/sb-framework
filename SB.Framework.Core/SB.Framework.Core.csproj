@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>SB.Framework.Core</RootNamespace>
     <AssemblyName>SB.Framework.Core</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -9,14 +9,14 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Core</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Core.NoLicense</PackageId>
-    <Version>0.1.0-preview.34</Version>
+    <Version>0.1.0-preview.37</Version>
     <Authors>Sb Framework</Authors>
     <Description>SB Framework 基础工具与原语</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.1.0-preview.34" />
-    <PackageReference Include="SB.Framework.Analyzers.NoLicense" Version="0.1.0-preview.34"
+    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.1.0-preview.37" />
+    <PackageReference Include="SB.Framework.Analyzers.NoLicense" Version="0.1.0-preview.37"
                       PrivateAssets="all" />
   </ItemGroup>
 

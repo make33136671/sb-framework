@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IsPackable>true</IsPackable>
     <RootNamespace>SB.Framework.WebApi</RootNamespace>
@@ -13,7 +13,7 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.WebApi</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.WebApi.NoLicense</PackageId>
-    <Version>0.1.0-preview.34</Version>
+    <Version>0.1.0-preview.37</Version>
     <Description>SB Framework Web API 基础设施</Description>
   </PropertyGroup>
 
@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SB.Framework.Services.NoLicense" Version="0.1.0-preview.34" />
+    <PackageReference Include="SB.Framework.Services.NoLicense" Version="0.1.0-preview.37" />
   </ItemGroup>
 
   <!-- 每次构建生成精确编译时间 -->

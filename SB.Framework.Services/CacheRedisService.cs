@@ -24,7 +24,9 @@ namespace SB.Framework.Services
         public T Get<T>(string key)
         {
             var value = _redisDb.StringGet(P(key));
-            return value.HasValue ? JsonSerializer.Deserialize<T>(value) : default;
+            // net10 起 JsonSerializer.Deserialize 新增 ReadOnlySpan<byte> 重载，
+            // RedisValue 同时可隐式转 string / byte[] → 直接传会 CS0121 二义性，显式转 string 消歧。
+            return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString()) : default;
         }
 
         public void Set<T>(string key, T value, TimeSpan? expiration = null)
