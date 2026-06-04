@@ -46,16 +46,16 @@ namespace SB.Framework.Analyzers
             if (!BannedMembers.Contains(memberName))
                 return;
 
-            if (memberAccess.Expression is IdentifierNameSyntax identifier
-                && identifier.Identifier.Text == "DateTime")
+            // 只靠语义判断（符号的声明类型是否 System.DateTime + 是否属性），
+            // 不限制左侧语法写法 —— 这样 DateTime.Now / System.DateTime.Now /
+            // global::System.DateTime.Now 全部覆盖，且语义保证一定是 System.DateTime 不误伤。
+            // （旧版只匹配 IdentifierName "DateTime"，漏掉带命名空间前缀的写法。）
+            var symbolInfo = context.SemanticModel.GetSymbolInfo(memberAccess);
+            if (symbolInfo.Symbol is IPropertySymbol propSymbol
+                && propSymbol.ContainingType?.ToString() == "System.DateTime")
             {
-                var symbolInfo = context.SemanticModel.GetSymbolInfo(memberAccess);
-                if (symbolInfo.Symbol is IPropertySymbol propSymbol
-                    && propSymbol.ContainingType.ToString() == "System.DateTime")
-                {
-                    var diagnostic = Diagnostic.Create(Rule, memberAccess.GetLocation(), memberName);
-                    context.ReportDiagnostic(diagnostic);
-                }
+                var diagnostic = Diagnostic.Create(Rule, memberAccess.GetLocation(), memberName);
+                context.ReportDiagnostic(diagnostic);
             }
         }
     }
