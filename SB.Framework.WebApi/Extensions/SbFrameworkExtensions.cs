@@ -162,8 +162,10 @@ public static class SbFrameworkExtensions
         app.UseStaticFiles();
         app.UseMiddleware<SetupMiddleware>();
         app.UseRouting();
-        if (!string.IsNullOrEmpty(AppGlobal.AppSettings?.MasterKey))
-            app.UseMiddleware<MasterKeyMiddleware>();
+        // API Key 全局身份中间件(取代静态 MasterKeyMiddleware):有效 sk_ key → 设 context.User 为归属账号。
+        // 功能包未加载时内部无副作用,故无条件挂载。
+        if (isInstalled)
+            app.UseMiddleware<ApiKeyMiddleware>();
         app.UseAuthorization();
         app.UseSwaggerDoc();
 
