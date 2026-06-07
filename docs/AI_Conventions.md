@@ -492,3 +492,51 @@ AppGlobal.AppSettings.GetBackupUploadUrl()     // 拼 {ServerUrl}/api/BackupRece
 1. 业务里发现重复模式（≥ 2 处）→ 抽到 `components/` 或 `Util/Expand/`
 2. **同 commit 更新本文件 §13.1 / §13.2 的清单**（commit msg 加 "+ 组件清单"）
 3. PR 描述里强调"已加入清单"
+
+---
+
+## §14 框架功能开关分级范式
+
+框架内置了多个可选功能。**新增功能时必须先判断它属于哪一档**，对号入座，不能用错机制。
+
+### 14.1 三档分级标准
+
+| 档位 | 判定标准 | 典型功能 | 开关机制 |
+|------|---------|---------|---------|
+| **主权功能** | 客户不能自行关闭；关闭即破坏商业控制（授权到期、防盗版） | 授权验证 `LicenseMiddleware`、授权管理 `LicenseManageService` | **编译期 `#if`**，由构建参数 `-p:DisableLicense=true` / `-p:EnableLicenseManage=true` 决定，产物中物理不存在关闭分支 |
+| **运维后门** | 由框架作者/运维持有，不暴露给最终用户；泄漏不会破坏授权但有安全风险 | `MasterKeyMiddleware`（绕过 JWT 的万能密钥）| **运行时配置驱动**：`AppSettings.MasterKey` 非空则框架内部自动装入管线，空则物理不装；派生项目只改 `appsettings.json`，无需写代码 |
+| **纯功能性** | 客户开关无所谓，关了是他自己损失，不影响商业控制 | 云端备份、邮件、限流参数、Qdrant | **`appsettings.json` 配置**，或显式 `app.UseXxx()` 调用 |
+
+### 14.2 两套交付场景对照
+
+| 场景 | 客户拿到 | 主权功能防护 |
+|------|---------|------------|
+| **A. 纯产物交付**（大多数） | 编译好的 dll + 配置文件，不含源码 | 客户改不了 dll，显式调用或内置均可 |
+| **B. 协作开发**（客户即开发者，能改 Program.cs） | 派生项目源码 + 框架 NuGet 包 | **必须用编译期 `#if`**：授权写死在 `UseSbFramework()` 内部，客户改不了框架 dll；三重锁：dll 内置 → 无关闭分支 → RSA 私钥签名 |
+
+### 14.3 新增功能时的决策树
+
+```
+新功能要不要让客户关闭？
+├── 不能关（关了我失控）→ 主权功能 → #if 编译期，写进 UseSbFramework/AddSbFramework 内部
+├── 可以关，但是运维/作者持有的后门 → 运维后门 → AppSettings 非空自动装，空不装
+└── 随便关，纯功能性 → appsettings.json 或显式调用
+```
+
+### 14.4 运维后门的实现范式（以 MasterKey 为模板）
+
+```csharp
+// SbFrameworkExtensions.cs - UseSbFramework 内部
+// 有配置则自动装入管线，空则不装——派生项目无需写任何代码
+if (!string.IsNullOrEmpty(AppGlobal.AppSettings?.MasterKey))
+    app.UseMiddleware<MasterKeyMiddleware>();
+```
+
+派生项目只需在 `appsettings.json` 配置（自用系统）或留空（客户环境）：
+```json
+{
+  "MasterKey": "64c0c764c90242f3b65eb20daaff4597"
+}
+```
+
+**后续新增同类运维后门功能，照此范式复制**：中间件写在框架里、`AppSettings` 加配置项、`UseSbFramework` 里判空自动装。

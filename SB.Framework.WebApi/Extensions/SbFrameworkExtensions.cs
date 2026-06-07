@@ -118,6 +118,8 @@ public static class SbFrameworkExtensions
         app.UseStaticFiles();
         app.UseMiddleware<SetupMiddleware>();
         app.UseRouting();
+        if (!string.IsNullOrEmpty(AppGlobal.AppSettings?.MasterKey))
+            app.UseMiddleware<MasterKeyMiddleware>();
         app.UseAuthorization();
         app.UseSwaggerDoc();
 

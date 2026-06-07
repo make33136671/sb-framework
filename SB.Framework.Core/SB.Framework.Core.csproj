@@ -9,7 +9,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Core</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Core.NoLicense</PackageId>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Authors>Sb Framework</Authors>
     <Description>SB Framework 基础工具与原语</Description>
   </PropertyGroup>
