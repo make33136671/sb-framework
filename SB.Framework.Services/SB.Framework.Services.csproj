@@ -27,8 +27,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SB.Framework.Core.NoLicense" Version="0.2.1" />
-    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.2.1" />
+    <!-- 开发期 ProjectReference（变体由发包参数统一控制，见 Core.csproj 注释） -->
+    <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
+    <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
   </ItemGroup>
 
   <ItemGroup>

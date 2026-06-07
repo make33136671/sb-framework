@@ -41,7 +41,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="SB.Framework.Services.NoLicense" Version="0.2.1" />
+    <!-- 开发期 ProjectReference（变体由发包参数统一控制，见 Core.csproj 注释） -->
+    <ProjectReference Include="..\SB.Framework.Services\SB.Framework.Services.csproj" />
   </ItemGroup>
 
   <!-- 每次构建生成精确编译时间 -->

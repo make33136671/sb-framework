@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 using SB.Framework.Models;
 using System.Linq.Expressions;
 
-namespace SB.Framework.Services
+namespace SB.Framework.Core
 {
     /// <summary>
     /// 通用 CRUD 基类 — 提供 Detail、Del、排序和分页的默认实现

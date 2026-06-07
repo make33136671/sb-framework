@@ -6,6 +6,7 @@ using SB.Framework.Core.Attribute;
 using SB.Framework.Core.FreeSql;
 using SB.Framework.Models;
 using SB.Framework.Models.Dto;
+using SB.Framework.Core;
 
 namespace SB.Framework.Services
 {

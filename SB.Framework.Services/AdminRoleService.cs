@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core.Attribute;
 using SB.Framework.Models;
+using SB.Framework.Core;
 using SB.Framework.Core.FreeSql;
 using System;
 

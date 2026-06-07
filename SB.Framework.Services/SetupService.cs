@@ -858,8 +858,22 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
-        /// 扫描框架和项目程序集，发现所有 IModuleInitializer 实现。
+        /// 发现所有 IModuleInitializer（feature 化主路径）。
+        /// 遍历 catalog.AllScanAssemblies（框架Services → feature(短名排序) → 项目），
+        /// 同名模块（ModuleName 相同）后扫覆盖先扫（项目排最后 ⇒ 项目覆盖 feature/框架）。
+        /// </summary>
+        public static List<IModuleInitializer> DiscoverModuleInitializers(SB.Framework.Features.FeatureCatalog catalog)
+        {
+            var modules = new Dictionary<string, IModuleInitializer>();
+            foreach (var asm in catalog.AllScanAssemblies)
+                ScanModuleInitializers(modules, asm);
+            return modules.Values.OrderBy(m => m.InitOrder).ToList();
+        }
+
+        /// <summary>
+        /// 扫描框架和项目程序集，发现所有 IModuleInitializer 实现（旧字符串重载，兼容缝）。
         /// 同名模块（ModuleName 相同）项目版本覆盖框架版本，避免重复初始化。
+        /// 新代码一律走 DiscoverModuleInitializers(FeatureCatalog)。
         /// </summary>
         public static List<IModuleInitializer> DiscoverModuleInitializers(string? projectAssemblyName = null)
         {
@@ -867,21 +881,19 @@ namespace SB.Framework.Services
             var modules = new Dictionary<string, IModuleInitializer>();
 
             // 1. 扫描框架程序集
-            ScanModuleInitializers(modules, "SB.Framework.Services");
+            ScanModuleInitializers(modules, Assembly.Load("SB.Framework.Services"));
 
             // 2. 扫描项目程序集（同名模块覆盖框架版本）
             if (!string.IsNullOrEmpty(projectAssemblyName))
             {
-                ScanModuleInitializers(modules, projectAssemblyName);
+                ScanModuleInitializers(modules, Assembly.Load(projectAssemblyName));
             }
 
             return modules.Values.OrderBy(m => m.InitOrder).ToList();
         }
 
-        private static void ScanModuleInitializers(Dictionary<string, IModuleInitializer> modules, string assemblyName)
+        private static void ScanModuleInitializers(Dictionary<string, IModuleInitializer> modules, Assembly assembly)
         {
-            var assembly = Assembly.Load(assemblyName);
-
             foreach (var type in assembly.ExportedTypes)
             {
                 if (!typeof(IModuleInitializer).IsAssignableFrom(type) || type.IsInterface || type.IsAbstract)

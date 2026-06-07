@@ -1,4 +1,5 @@
 using SB.Framework.Core.Attribute;
+using SB.Framework.Features;
 using SB.Framework.Models;
 using SB.Framework.Services;
 using System.Reflection;
@@ -8,9 +9,23 @@ namespace SB.Framework.WebApi.Extensions
     public static class ServiceSetup
     {
         /// <summary>
-        /// 注册业务服务。
-        /// 先注册框架 SB.Framework.Services 中的 Service，再注册项目程序集中的 Service。
-        /// 项目 Service 如果继承了框架 Service，会自动覆盖框架版本（DI 最后注册胜出）。
+        /// 注册业务服务（feature 化主路径）。
+        /// 遍历 catalog.AllScanAssemblies（框架Services → 各feature(短名排序) → 项目程序集），
+        /// 对每个程序集扫 [AutoDependencyInjection] 注册。顺序保证"后注册覆盖先注册"：
+        /// 项目排最后 ⇒ 项目子类仍覆盖 feature/框架基类。
+        /// </summary>
+        public static IServiceCollection AddBusinessServices(
+            this IServiceCollection services,
+            FeatureCatalog catalog)
+        {
+            foreach (var asm in catalog.AllScanAssemblies)
+                RegisterServicesFromAssembly(services, asm);
+            return services;
+        }
+
+        /// <summary>
+        /// 注册业务服务（旧字符串重载，兼容缝）。
+        /// 新代码一律走 AddBusinessServices(FeatureCatalog)。
         /// </summary>
         /// <param name="services">服务容器</param>
         /// <param name="projectAssemblyName">项目 Service 程序集名称（如 "Sb.Apps.Pm.Services"），不传则只注册框架 Service</param>
@@ -19,12 +34,12 @@ namespace SB.Framework.WebApi.Extensions
             string? projectAssemblyName = null)
         {
             // 1. 注册框架自带的 Service
-            RegisterServicesFromAssembly(services, "SB.Framework.Services");
+            RegisterServicesFromAssembly(services, Assembly.Load("SB.Framework.Services"));
 
             // 2. 注册项目的 Service（后注册覆盖先注册）
             if (!string.IsNullOrEmpty(projectAssemblyName))
             {
-                RegisterServicesFromAssembly(services, projectAssemblyName);
+                RegisterServicesFromAssembly(services, Assembly.Load(projectAssemblyName));
             }
 
             return services;
@@ -33,10 +48,8 @@ namespace SB.Framework.WebApi.Extensions
         /// <summary>
         /// 扫描指定程序集，注册所有标记了 [AutoDependencyInjection] 的 Service
         /// </summary>
-        private static void RegisterServicesFromAssembly(IServiceCollection services, string assemblyName)
+        private static void RegisterServicesFromAssembly(IServiceCollection services, Assembly assembly)
         {
-            var assembly = Assembly.Load(assemblyName);
-
             foreach (var type in assembly.ExportedTypes)
             {
                 if (type.IsAbstract || type.IsInterface)
@@ -67,9 +80,15 @@ namespace SB.Framework.WebApi.Extensions
         }
 
         /// <summary>
-        /// 发现所有模块初始化器
+        /// 发现所有模块初始化器（旧字符串重载，兼容缝）
         /// </summary>
         public static List<IModuleInitializer> DiscoverModuleInitializers(string? projectAssemblyName = null)
             => SetupService.DiscoverModuleInitializers(projectAssemblyName);
+
+        /// <summary>
+        /// 发现所有模块初始化器（feature 化主路径）
+        /// </summary>
+        public static List<IModuleInitializer> DiscoverModuleInitializers(FeatureCatalog catalog)
+            => SetupService.DiscoverModuleInitializers(catalog);
     }
 }

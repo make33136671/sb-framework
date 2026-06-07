@@ -15,14 +15,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="SB.Framework.Models.NoLicense" Version="0.2.1" />
-    <PackageReference Include="SB.Framework.Analyzers.NoLicense" Version="0.2.1"
-                      PrivateAssets="all" />
+    <!-- 开发期：框架内部包走 ProjectReference，一次编译全贯通，无需链式发包。
+         发布期：dotnet pack 自动把 ProjectReference 转成对应版本的包依赖；
+         变体（正常 / NoLicense）由 dotnet pack 的 -p:DisableLicense 参数统一控制，不在此写死。 -->
+    <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="FreeSql.Repository" Version="3.5.304" />
+    <!-- Feature 发现层：读 .deps.json 的 RuntimeLibraries 枚举程序集 -->
+    <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="9.0.3" />
+    <!-- Feature 启动日志 + 装配上下文 Logger -->
+    <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.0" />
