@@ -1,7 +1,7 @@
-#if ENABLE_LICENSE_MANAGE
 using FreeSql;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SB.Framework.Core;
 using SB.Framework.Core.Attribute;
 using SB.Framework.Core.License;
@@ -16,60 +16,40 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace SB.Framework.Services
+namespace SB.Feature.LicenseManage
 {
     /// <summary>
     /// 授权管理服务（服务端：生成授权、管理客户、处理申请）
     /// </summary>
     [AutoDependencyInjection]
-    public class LicenseManageService : IModuleInitializer
+    public class LicenseManageService
     {
-        #region IModuleInitializer
-
-        public string ModuleName => "授权管理";
-        public int InitOrder => 70;
-
-        public List<MenuDefinition> GetMenus() => new()
-        {
-            new MenuDefinition
-            {
-                Name = "LicenseManage", Path = "/license-manage", Component = "LAYOUT",
-                Title = "授权管理", Icon = "ion:shield-checkmark-outline", OrderNo = 90,
-                Children = new()
-                {
-                    new() { Name = "LicenseQuickGenerate", Path = "/license-manage/quick-generate", Component = "/license-manage/QuickGenerate", Title = "授权签发", Icon = "ion:key-outline", OrderNo = 0 },
-                    new() { Name = "LicenseClientList", Path = "/license-manage/client", Component = "/license-manage/ClientList", Title = "产品列表", Icon = "ion:globe-outline", OrderNo = 1 },
-                    new() { Name = "LicenseRequestList", Path = "/license-manage/request", Component = "/license-manage/RequestList", Title = "授权申请", Icon = "ion:document-attach-outline", OrderNo = 2 },
-                    new() { Name = "LicenseRecordList", Path = "/license-manage/record", Component = "/license-manage/RecordList", Title = "授权记录", Icon = "ion:ribbon-outline", OrderNo = 3 },
-                    new() { Name = "LicenseVerifyLog", Path = "/license-manage/verify-log", Component = "/license-manage/VerifyLogList", Title = "验证日志", Icon = "ion:pulse-outline", OrderNo = 4 },
-                }
-            },
-        };
-
-        #endregion
-
         private readonly IFreeSql _fsql;
         private readonly ILogger<LicenseManageService> _logger;
         private readonly IHostEnvironment _env;
+        private readonly LicenseManageOptions _opt;
         private const string PrivateKeyFile = "license_private.key";
         private const string PublicKeyFile = "license_public.key";
 
-        public LicenseManageService(IFreeSql fsql, ILogger<LicenseManageService> logger, IHostEnvironment env)
+        public LicenseManageService(IFreeSql fsql, ILogger<LicenseManageService> logger, IHostEnvironment env, IOptions<LicenseManageOptions> opt)
         {
             _fsql = fsql;
             _logger = logger;
             _env = env;
+            _opt = opt.Value;
         }
 
         /// <summary>
         /// 密钥文件目录: 优先读 SB_LICENSE_KEY_DIR 环境变量 (和 csproj 里 EmbedLicensePublicKey Target 保持一致),
-        /// 未设置时回退到 ContentRootPath. 开发调试场景下通过环境变量让签发端和构建嵌入端指向同一处密钥,
-        /// 避免"签发时用的公钥"和"程序集里硬编码的公钥"不一致导致本机 ApplyKey 签名验证失败.
+        /// 其次读 LicenseManageOptions.KeyDirectory, 都未设置时回退到 ContentRootPath. 开发调试场景下通过环境变量/配置
+        /// 让签发端和构建嵌入端指向同一处密钥, 避免"签发时用的公钥"和"程序集里硬编码的公钥"不一致导致本机 ApplyKey 签名验证失败.
         /// </summary>
         private string GetKeyDir()
         {
             var env = Environment.GetEnvironmentVariable("SB_LICENSE_KEY_DIR");
-            return !string.IsNullOrWhiteSpace(env) ? env : _env.ContentRootPath;
+            if (!string.IsNullOrWhiteSpace(env)) return env;
+            if (!string.IsNullOrWhiteSpace(_opt.KeyDirectory)) return _opt.KeyDirectory;
+            return _env.ContentRootPath;
         }
 
         #region RSA 密钥管理
@@ -807,4 +787,3 @@ namespace SB.Framework.Services
         #endregion
     }
 }
-#endif

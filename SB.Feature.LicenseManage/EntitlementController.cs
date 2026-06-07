@@ -1,12 +1,10 @@
-#if ENABLE_LICENSE_MANAGE
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SB.Framework.Models;
 using SB.Framework.Models.Dto;
-using SB.Framework.Services;
 using System.Collections.Generic;
 
-namespace SB.Framework.WebApi.Controllers
+namespace SB.Feature.LicenseManage
 {
     /// <summary>
     /// 权益管理（服务端：管理客户、审批申请、生成授权证书）
@@ -143,4 +141,3 @@ namespace SB.Framework.WebApi.Controllers
         #endregion
     }
 }
-#endif

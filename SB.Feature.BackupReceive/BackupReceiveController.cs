@@ -1,21 +1,20 @@
-#if ENABLE_BACKUP_RECEIVE
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using SB.Framework.Core.Util;
+using Microsoft.Extensions.Hosting;
 using SB.Framework.Models;
-using SB.Framework.Services;
 
-namespace SB.Framework.WebApi.Controllers
+namespace SB.Feature.BackupReceive
 {
     /// <summary>
     /// 云端备份接收
     ///
     /// **重要安全设计：本 Controller 只暴露 Upload + 查询 + Download 三类接口，
-    /// 没有任何 Delete/Update/Replace HTTP 方法**。客户端通过应用层无法删除云端备份。
-    /// 服务端运维如需清理，只能通过文件系统直接操作。
+    /// 没有任何 Delete/Update/Replace 客户端可达的 HTTP 方法**。客户端通过应用层无法删除云端备份。
+    /// 服务端运维如需清理，只能通过文件系统直接操作，或走 admin 鉴权接口。
     /// </summary>
     [ApiController]
-    public class BackupReceiveController : Controller
+    public class BackupReceiveController : ControllerBase
     {
         private readonly BackupReceiveService _service;
         private readonly IHostEnvironment _env;
@@ -103,4 +102,3 @@ namespace SB.Framework.WebApi.Controllers
         public Result Delete([FromForm] int id) => _service.DeleteByAdmin(id);
     }
 }
-#endif

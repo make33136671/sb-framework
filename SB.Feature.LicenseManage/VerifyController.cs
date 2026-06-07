@@ -1,12 +1,10 @@
-#if ENABLE_LICENSE_MANAGE
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SB.Framework.Core.Util;
 using SB.Framework.Models;
 using SB.Framework.Models.Dto;
-using SB.Framework.Services;
 
-namespace SB.Framework.WebApi.Controllers
+namespace SB.Feature.LicenseManage
 {
     /// <summary>
     /// 授权验证公开 API（供客户端调用，无需认证）
@@ -86,4 +84,3 @@ namespace SB.Framework.WebApi.Controllers
         }
     }
 }
-#endif

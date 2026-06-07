@@ -1,60 +1,36 @@
-#if ENABLE_BACKUP_RECEIVE
 using FreeSql;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using SB.Framework.Core;
 using SB.Framework.Core.Attribute;
 using SB.Framework.Core.Util;
 using SB.Framework.Models;
 using System.Text.RegularExpressions;
 
-namespace SB.Framework.Services
+namespace SB.Feature.BackupReceive
 {
     /// <summary>
-    /// 云端备份接收服务（服务端角色，ENABLE_BACKUP_RECEIVE 开启时启用）
-    /// 接收客户端 multipart 上传 → 落盘到 wwwroot/storage/remote-backups → 入库 BackupRemoteRecord
+    /// 云端备份接收服务（服务端角色）
+    /// 接收客户端 multipart 上传 → 落盘到 {StoragePath} → 入库 BackupRemoteRecord
     /// 不暴露删除接口（防黑客通过应用层删云端备份；运维通过文件系统 / 服务端 admin 后台才能删）
     /// </summary>
     [AutoDependencyInjection]
-    public class BackupReceiveService : BaseCrudService<BackupRemoteRecord>, IModuleInitializer
+    public class BackupReceiveService : BaseCrudService<BackupRemoteRecord>
     {
-        #region IModuleInitializer
-        public string ModuleName => "云端备份接收";
-        public int InitOrder => 80;
-
-        public Type[] GetEntityTypes() => new[] { typeof(BackupRemoteRecord) };
-
-        public List<MenuDefinition> GetMenus() => new()
-        {
-            // 一级菜单（与「授权管理」平级）
-            new MenuDefinition
-            {
-                Name = "BackupReceive",
-                Path = "/backup-receive",
-                Component = "LAYOUT",
-                Title = "云端备份",
-                Icon = "ion:cloud-download-outline",
-                OrderNo = 95,
-                Children = new()
-                {
-                    new() { Name = "BackupReceiveProductList", Path = "/backup-receive/product", Component = "/backup-receive/ProductList", Title = "产品列表", Icon = "ion:apps-outline", OrderNo = 1 },
-                    new() { Name = "BackupReceiveDetail", Path = "/backup-receive/detail", Component = "/backup-receive/RecordList", Title = "备份详情", Icon = "ion:document-attach-outline", OrderNo = 2, HideInMenu = true },
-                },
-            },
-        };
-        #endregion
-
         private readonly IFreeSql _fsql;
         private readonly IHostEnvironment _env;
         private readonly ILogger<BackupReceiveService> _logger;
+        private readonly BackupReceiveOptions _opt;
 
-        public BackupReceiveService(IFreeSql fsql, ILogger<BackupReceiveService> logger, IHostEnvironment env)
+        public BackupReceiveService(IFreeSql fsql, ILogger<BackupReceiveService> logger, IHostEnvironment env, IOptions<BackupReceiveOptions> opt)
             : base(fsql, logger)
         {
             _fsql = fsql;
             _env = env;
             _logger = logger;
+            _opt = opt.Value;
         }
 
         /// <summary>
@@ -83,9 +59,9 @@ namespace SB.Framework.Services
             if (string.IsNullOrEmpty(safeFileName))
                 safeFileName = $"backup_{AppTime.Now:yyyyMMddHHmmss}.zip";
 
-            // 备份文件落盘 wwwroot/storage/remote-backups/{productEn}/{ip}/{filename}
-            var remoteBackupDir = Path.Combine(_env.ContentRootPath, "wwwroot", "storage",
-                "remote-backups", safeProductEn, safeIp);
+            // 备份文件落盘 {StoragePath}/{productEn}/{ip}/{filename}
+            var remoteBackupDir = Path.Combine(_env.ContentRootPath, _opt.StoragePath,
+                safeProductEn, safeIp);
             Directory.CreateDirectory(remoteBackupDir);
             var diskPath = Path.Combine(remoteBackupDir, safeFileName);
             // 同名文件已存在 → 加时间戳后缀，确保只增不覆盖
@@ -252,4 +228,3 @@ namespace SB.Framework.Services
         }
     }
 }
-#endif

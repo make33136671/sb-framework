@@ -1,11 +1,11 @@
-#if ENABLE_BACKUP_RECEIVE
 using FreeSql.DataAnnotations;
+using SB.Framework.Models;
 using System;
 
-namespace SB.Framework.Models
+namespace SB.Feature.BackupReceive
 {
     /// <summary>
-    /// 云端备份接收记录（服务端角色独有，ENABLE_BACKUP_RECEIVE 编译宏开启时建表）
+    /// 云端备份接收记录（服务端角色独有）
     /// 客户端通过 POST /api/BackupReceive/Upload 上传时，服务端落盘 + 写一条本表记录
     /// 不开放删除接口（防黑客通过应用层删云端备份）
     /// </summary>
@@ -60,4 +60,3 @@ namespace SB.Framework.Models
         public DateTime ReceivedTime { get; set; }
     }
 }
-#endif

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SB.Feature.BackupReceive</RootNamespace>
+    <AssemblyName>SB.Feature.BackupReceive</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>SB.Feature.BackupReceive</PackageId>
+    <Version>0.1.0</Version>
+    <Description>SB Feature 云端备份接收端（服务端角色）</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只依赖 Core + Models。Core 提供下沉后的 BaseCrudService + IFeatureModule；
+         Models 提供 IEntity/Result/IModuleInitializer。不引 Services、不引 WebApi。
+         开发期 ProjectReference（发布期 dotnet pack 自动转包依赖，变体由发包参数收敛）。 -->
+    <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
+    <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+    <!-- 控制器要 [ApiController]/IActionResult/IFormFile → MVC 类型。
+         用官方 framework-reference，不把整个 WebApi 包拉进来（避免循环）。 -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

@@ -1,13 +1,10 @@
 <Project>
   <PropertyGroup>
-    <!-- dotnet publish/build -p:DisableLicense=true  → 关闭授权验证 -->
+    <!-- dotnet publish/build -p:DisableLicense=true  → 关闭授权验证（主权功能，#if 双变体，唯一保留的编译符号） -->
     <!-- Debug 和 Release 均默认启用授权 -->
     <DefineConstants Condition="'$(DisableLicense)' == 'true'">$(DefineConstants);DISABLE_LICENSE</DefineConstants>
-    <!-- dotnet publish -p:EnableLicenseManage=true  → 启用授权管理功能 -->
-    <!-- Debug 模式默认启用授权管理（方便开发调试） -->
-    <DefineConstants Condition="'$(EnableLicenseManage)' == 'true' or ('$(Configuration)' == 'Debug' and '$(EnableLicenseManage)' != 'false')">$(DefineConstants);ENABLE_LICENSE_MANAGE</DefineConstants>
-    <!-- dotnet publish -p:EnableBackupReceive=true  → 启用云端备份接收端（服务端角色） -->
-    <!-- Debug 模式默认启用接收端（方便联调） -->
-    <DefineConstants Condition="'$(EnableBackupReceive)' == 'true' or ('$(Configuration)' == 'Debug' and '$(EnableBackupReceive)' != 'false')">$(DefineConstants);ENABLE_BACKUP_RECEIVE</DefineConstants>
+    <!-- ENABLE_LICENSE_MANAGE / ENABLE_BACKUP_RECEIVE 已移除：
+         授权管理 / 备份接收端已抽成独立插件包 SB.Feature.LicenseManage / SB.Feature.BackupReceive，
+         "引包即启用 + Features:Disabled 黑名单可关"取代编译符号开关。详见 docs/AI_Plugin_Architecture.md。 -->
   </PropertyGroup>
 </Project>
