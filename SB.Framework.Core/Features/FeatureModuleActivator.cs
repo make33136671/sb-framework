@@ -29,9 +29,15 @@ public static class FeatureModuleActivator
     /// catalog.FeatureAssemblies 只含 enabled 的。这里只补"实例自己声明 EnabledByDefault=false"的默认关。</summary>
     public static IReadOnlyList<IFeatureModule> ActivateAndSort(FeatureCatalog catalog, IConfiguration configuration)
     {
-        // 1. 扫描 + 实例化（仅 enabled feature 程序集）
+        // 1. 扫描 + 实例化清单。范围 = enabled feature 程序集 + 派生项目程序集。
+        //    项目程序集纳入：让派生项目自己的 IFeatureModule（如 PmCoreFeature）也被发现，
+        //    从而统一范式——项目业务也是一个 feature，彻底取代旧 ProjectAssemblyName 的 AddXxxServices 手动注册。
+        var scanAssemblies = new List<System.Reflection.Assembly>(catalog.FeatureAssemblies);
+        if (catalog.ProjectAssembly is not null && !scanAssemblies.Contains(catalog.ProjectAssembly))
+            scanAssemblies.Add(catalog.ProjectAssembly);
+
         var instances = new Dictionary<Type, IFeatureModule>();
-        foreach (var asm in catalog.FeatureAssemblies)
+        foreach (var asm in scanAssemblies)
         {
             foreach (var type in SafeGetExportedTypes(asm))
             {
