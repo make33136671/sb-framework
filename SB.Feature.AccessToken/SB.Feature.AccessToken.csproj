@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SB.Feature.AccessToken</RootNamespace>
+    <AssemblyName>SB.Feature.AccessToken</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>SB.Feature.AccessToken</PackageId>
+    <Version>0.1.0</Version>
+    <Description>SB Feature 统一访问令牌 —— 账号即 token(密码 / API Key 两种认证),scoped key + FullAccess(god)取代静态 MasterKey;吸收 agent token 全部能力。</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只依赖 Core + Models（与 BackupReceive 范式一致）。Core 提供 IApiKeyAuthenticator/BaseCrudService/
+         AppGlobal/ClaimsPrincipal 扩展；Models 提供 IEntity/Result/IModuleInitializer/Admin。
+         不引 Services、不引 WebApi（避免循环）。控制器/MVC/IMemoryCache 走 framework-reference。 -->
+    <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
+    <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+</Project>

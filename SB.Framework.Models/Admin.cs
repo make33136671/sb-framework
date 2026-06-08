@@ -92,6 +92,13 @@ namespace SB.Framework.Models
         public string Nickname { get; set; }
 
         /// <summary>
+        /// 账号类型：Human=可密码登录的人；Service=仅供 API Key 使用的服务账号
+        /// （无可用密码、禁止密码登录）。现有行默认 0=Human，向后兼容。
+        /// </summary>
+        [Column(Name = "AccountType", IsNullable = false, InsertValueSql = "0")]
+        public AccountType AccountType { get; set; } = AccountType.Human;
+
+        /// <summary>
         /// 伪删除
         /// </summary>
         [Column(Name = "IsDeleted", IsNullable = false, InsertValueSql = "false")]
@@ -104,5 +111,14 @@ namespace SB.Framework.Models
     {
         Active = 0,
         Disabled = 1,
+    }
+
+    /// <summary>
+    /// 账号类型。Human=普通人类管理员（密码登录）；Service=服务账号（仅 API Key 访问，无密码登录）。
+    /// </summary>
+    public enum AccountType
+    {
+        Human = 0,
+        Service = 1,
     }
 }

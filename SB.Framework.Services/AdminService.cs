@@ -162,6 +162,13 @@ namespace SB.Framework.Services
                 return Result.Fail("账号密码错误！");
             }
 
+            // 服务账号（仅供 API Key 使用）禁止密码登录 —— 纵深防御:即便其密码为随机不可匹配值，
+            // 也直接以"账号密码错误"统一回应，不泄露账号存在性。
+            if (admin.AccountType == AccountType.Service)
+            {
+                return Result.Fail("账号密码错误！");
+            }
+
             if (!PasswordUtil.VerifyPassword(password, admin.Password))
             {
                 // 记录失败登录日志

@@ -10,7 +10,7 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Models</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Models.NoLicense</PackageId>
-    <Version>0.3.1</Version>
+    <Version>0.4.0</Version>
     <Description>SB Framework 基础领域模型</Description>
   </PropertyGroup>
 

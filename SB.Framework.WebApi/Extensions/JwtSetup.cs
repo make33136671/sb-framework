@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 using SB.Framework.Core;
+using SB.Framework.Core.Authentication;
 using SB.Framework.Core.Authentication.Jwt;
 using SB.Framework.Core.Expand;
 using SB.Framework.Models;
@@ -41,7 +42,7 @@ namespace SB.Framework.WebApi.Extensions
                     {
                         OnMessageReceived = context =>
                         {
-                            return HandleMasterKey(context);
+                            return HandleApiKey(context);
                         }
                     };
                 });
@@ -99,7 +100,7 @@ namespace SB.Framework.WebApi.Extensions
 
                             return Task.CompletedTask;
                         },
-                        OnMessageReceived = context => HandleMasterKey(context),
+                        OnMessageReceived = context => HandleApiKey(context),
                         OnForbidden = context => Task.CompletedTask,
                         OnChallenge = context => Task.CompletedTask,
                         OnAuthenticationFailed = context => Task.CompletedTask
@@ -110,24 +111,26 @@ namespace SB.Framework.WebApi.Extensions
         }
 
         /// <summary>
-        /// MasterKey 万能密钥认证 — 在 JWT 验证前拦截，匹配则直接认证成功
+        /// API Key 认证 — 在 JWT 验证前拦截。请求带 Authorization: Bearer sk_… 时,
+        /// 交给功能包提供的 IApiKeyAuthenticator 校验(含失败节流 / 审计 / 归属账号状态校验)。
+        /// 取代原静态 X-Master-Key:不再做配置串比对。功能包未加载(DI 取不到)时本方法无副作用,交回 JWT 校验。
         /// </summary>
-        private static Task HandleMasterKey(MessageReceivedContext context)
+        private static Task HandleApiKey(MessageReceivedContext context)
         {
-            var masterKey = AppGlobal.AppSettings?.MasterKey;
-            if (!string.IsNullOrEmpty(masterKey)
-                && context.Request.Headers.TryGetValue("X-Master-Key", out var headerKey)
-                && string.Equals(masterKey, headerKey.ToString(), StringComparison.Ordinal))
+            var authenticator = context.HttpContext.RequestServices
+                .GetService(typeof(IApiKeyAuthenticator)) as IApiKeyAuthenticator;
+            if (authenticator == null) return Task.CompletedTask;
+
+            var result = authenticator.Resolve(context.HttpContext, context.Scheme.Name);
+            if (result.Outcome == ApiKeyOutcome.Authenticated)
             {
-                var claims = new[]
-                {
-                    new Claim("Id", "1"),
-                    new Claim("Username", "MasterKey"),
-                    new Claim("UserType", "Admin")
-                };
-                var identity = new ClaimsIdentity(claims, context.Scheme.Name);
-                context.Principal = new ClaimsPrincipal(identity);
+                context.Principal = result.Principal;
                 context.Success();
+            }
+            else if (result.Outcome == ApiKeyOutcome.Invalid)
+            {
+                // 带了 key 但无效 → 直接判失败,避免再走 JWT 解析报无关错误
+                context.Fail(result.FailReason ?? "无效的 API Key");
             }
             return Task.CompletedTask;
         }

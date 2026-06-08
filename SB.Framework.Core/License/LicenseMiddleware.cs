@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using SB.Framework.Core.Authentication;
 
 namespace SB.Framework.Core.License
 {
@@ -76,14 +77,17 @@ namespace SB.Framework.Core.License
                 return;
             }
 
-            // MasterKey 万能密钥 — 设计上绕过所有限制（包括 License），调用任意系统 API
-            var masterKey = AppGlobal.AppSettings?.MasterKey;
-            if (!string.IsNullOrEmpty(masterKey)
-                && context.Request.Headers.TryGetValue("X-Master-Key", out var headerKey)
-                && string.Equals(headerKey.ToString(), masterKey, StringComparison.Ordinal))
+            // FullAccess(god)API Key — 设计上绕过所有限制（含 License）。普通 key / 密码登录不绕过。
+            // 取代原静态 X-Master-Key 通道,改由可吊销 / 可审计的 FullAccess key 承担。
+            var apiKeyAuth = context.RequestServices.GetService(typeof(IApiKeyAuthenticator)) as IApiKeyAuthenticator;
+            if (apiKeyAuth != null)
             {
-                await _next(context);
-                return;
+                var keyResult = apiKeyAuth.Resolve(context, "JwtAdmin");
+                if (keyResult.Outcome == ApiKeyOutcome.Authenticated && keyResult.IsFullAccess)
+                {
+                    await _next(context);
+                    return;
+                }
             }
 
             // 时间回退检测
