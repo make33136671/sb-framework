@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-06-10
+
+### Fixed
+
+- 修复 0.4.2 包内程序集版本号未同步的问题。0.4.2 的 NuGet 包（含 NoLicense 变体）实际打入的 `SB.Framework.Core.dll` / `SB.Framework.Models.dll` 程序集版本仍为 `0.4.1.0`（重打包时复用了旧 `bin/obj`，未干净重建），与包版本 `0.4.2` 不一致。任何对着 0.4.2 引用程序集编译的消费者（如 `SB.Feature.AccessToken 0.1.3` 引用 `Core 0.4.2.0`），运行时在 `Assembly.GetExportedTypes()` 解析阶段抛 `FileNotFoundException: SB.Framework.Core, Version=0.4.2.0`（CLR 只能向高版本 roll-forward，不能向低版本回退），导致 PM 生产启动崩溃循环（supervisor BACKOFF）。
+- 本版删除 `bin/obj` 干净重建后重新打包发布；程序集版本正确为 `0.4.3.0`，与包版本一致。
+- BaGet（`loicsharma/baget`）默认不支持同版本覆盖（同版本 push 被静默跳过），故 bump 到 `0.4.3` 而非重推 `0.4.2`。派生项目升级到 `0.4.3` 即可。
+
 ### Added
 
 - AI 诊断日志接口 — `GET /admin/LogViewer/Diag`
@@ -20,6 +28,7 @@
   - 字段标准化:`@t`(ISO 8601 UTC) / `@mt`(消息模板) / `@l`(级别,Information 默认省略) / `@x`(异常) / `SourceContext`(模块来源,用于 framework vs 派生项目责任归属) / 自定义属性
   - `LogViewerService.GetFiles` 同时列 `*.ndjson` 和 `*.txt`,保留归档目录里旧 `.txt` 文件可读
 - `appsettings.json` / `appsettings.Development.json` Serilog 配置同步更新
+- `SB.Feature.AccessToken` 0.1.3 → 0.1.4：对着框架 `0.4.3` 重新编译（引用 `Core/Models 0.4.3.0`）；API Key 随机串编码由 base64url 改为 hex（纯 `0-9a-f`，shell 安全无特殊字符）。
 
 ## [0.4.2] - 2026-06-09
 

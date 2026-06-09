@@ -37,9 +37,9 @@ namespace SB.Feature.AccessToken.Services
             if (accountId <= 0)
                 throw new ArgumentException("accountId 非法", nameof(accountId));
 
-            // 32 字节随机 → base64url(去掉不友好字符)
+            // 32 字节随机 → hex(纯 0-9a-f,shell 安全无特殊字符)
             var bytes = RandomNumberGenerator.GetBytes(32);
-            var rand = Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
+            var rand = Convert.ToHexString(bytes).ToLowerInvariant();
             var prefix = string.IsNullOrEmpty(_opt.KeyPrefix) ? "sk_" : _opt.KeyPrefix;
             var plaintext = $"{prefix}{rand}";
             var hash = Sha256Hex(plaintext);
