@@ -125,9 +125,10 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 上传 API 程序包（zip），解压覆盖后自动重启。
-    /// 内部走 Upload → Deploy 两步,上传文件持久保存到 deploy_archive,部署失败可凭 DeployJob.Id 重试。
+    /// [已废弃] 上传 API 程序包（zip），解压覆盖后自动重启。
+    /// 请改用 Upload(target="api") + Deploy(uploadId) 两步流程。
     /// </summary>
+    [Obsolete("请改用 Upload(target=\"api\") + Deploy(uploadId) 两步流程")]
     [HttpPost]
     [RequestSizeLimit(200 * 1024 * 1024)]
     public async Task<Result> UploadApi(IFormFile file, [FromForm] bool keepConfig = true)
@@ -204,9 +205,10 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 通过分片上传的文件路径部署 API 程序（filePath 由 ChunkUpload/Merge 返回）。
-    /// 内部创建 DeployJob(Uploaded)后走统一 DeployByJob 逻辑。
+    /// [已废弃] 通过分片上传的文件路径部署 API 程序。
+    /// 请改用 Upload(target="api") + Deploy(uploadId) 两步流程。
     /// </summary>
+    [Obsolete("请改用 Upload(target=\"api\") + Deploy(uploadId) 两步流程")]
     [HttpPost]
     public async Task<Result> DeployApiByPath(
         [FromForm] string filePath,
@@ -442,11 +444,10 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 上传前端项目包（zip），解压到对应目录。一步式上传+部署,供自动化/CI 调用。
-    /// 内部走 Upload → Deploy 两步，上传文件持久保存；部署失败时文件仍在，可凭 UploadRecord.Id 重试。
-    /// 鉴权:[Scope("deploy")] —— key 专用端点,须带 deploy scope 的访问令牌(原浏览器 JWT 直传通道已废,
-    /// 人工部署改走 UI 的分片上传 DeployProjectByPath 流程)。
+    /// [已废弃] 上传前端项目包（zip），解压到对应目录。
+    /// 请改用 Upload(target=key) + Deploy(uploadId) 两步流程。
     /// </summary>
+    [Obsolete("请改用 Upload(target=key) + Deploy(uploadId) 两步流程")]
     [HttpPost]
     [RequestSizeLimit(200 * 1024 * 1024)]
     [Scope("deploy")]
@@ -471,9 +472,10 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 通过分片上传的文件路径部署前端项目（filePath 由 ChunkUpload/Merge 返回）。
-    /// 内部创建 DeployJob(Uploaded)后走统一 DeployByJob 逻辑。
+    /// [已废弃] 通过分片上传的文件路径部署前端项目。
+    /// 请改用 Upload(target=key) + Deploy(uploadId) 两步流程。
     /// </summary>
+    [Obsolete("请改用 Upload(target=key) + Deploy(uploadId) 两步流程")]
     [HttpPost]
     public async Task<Result> DeployProjectByPath([FromForm] string key, [FromForm] string filePath, [FromForm] string fileName, [FromForm] long fileSize)
     {
