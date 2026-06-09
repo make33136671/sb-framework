@@ -41,7 +41,7 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
-        /// 完整备份流程（统一入口，定时任务 / Admin 手动 / MasterKey API 都调它）：
+        /// 完整备份流程（统一入口，定时任务 / Admin 手动 / 访问令牌 API 都调它）：
         ///   1. CreateBackup 本地 dump + zip + insert
         ///   2. 启用了云端备份 → UploadLatestAsync 推到 CloudConfig.ServerUrl 并落 RemoteUpload* 字段
         ///   3. 按 backup_keep_local_count 清理超期本地备份

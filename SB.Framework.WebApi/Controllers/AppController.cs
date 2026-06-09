@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SB.Framework.Core;
+using SB.Framework.Core.Authentication;
 using SB.Framework.Core.Expand;
 using SB.Framework.Core.Util;
 using SB.Framework.Models;
@@ -441,11 +442,14 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 上传前端项目包（zip），解压到对应目录。
+    /// 上传前端项目包（zip），解压到对应目录。一步式上传+部署,供自动化/CI 调用。
     /// 内部走 Upload → Deploy 两步，上传文件持久保存；部署失败时文件仍在，可凭 UploadRecord.Id 重试。
+    /// 鉴权:[Scope("deploy")] —— key 专用端点,须带 deploy scope 的访问令牌(原浏览器 JWT 直传通道已废,
+    /// 人工部署改走 UI 的分片上传 DeployProjectByPath 流程)。
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(200 * 1024 * 1024)]
+    [Scope("deploy")]
     public async Task<Result> UploadProject([FromForm] string key, IFormFile file)
     {
         if (string.IsNullOrEmpty(key))

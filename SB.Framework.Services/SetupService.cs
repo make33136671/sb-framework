@@ -254,9 +254,7 @@ namespace SB.Framework.Services
                 // 6. 更新 appsettings.json
                 var jwtAdminKey = GenerateJwtKey();
                 var jwtApiKey = GenerateJwtKey();
-                // EnableMasterKey=false 时写空字符串，X-Master-Key 通道关闭
-                var masterKey = request.EnableMasterKey ? Guid.NewGuid().ToString("N") : string.Empty;
-                UpdateAppSettings(request, jwtAdminKey, jwtApiKey, masterKey);
+                UpdateAppSettings(request, jwtAdminKey, jwtApiKey);
                 _logger.LogInformation("安装向导: 配置文件更新成功");
 
                 // 7. 生成 Logo、Favicon、app-info.json
@@ -290,11 +288,8 @@ namespace SB.Framework.Services
                     false;
 #endif
 
-                // EnableMasterKey=false 时不返回 masterKey 给前端，前端据此不显示 MasterKey 区块
                 return Result.Success("安装成功！请重启应用以加载新配置。", new
                 {
-                    masterKey = request.EnableMasterKey ? masterKey : null,
-                    enableMasterKey = request.EnableMasterKey,
                     symlinkResults,
                     licenseEnabled,
                 });
@@ -554,7 +549,7 @@ namespace SB.Framework.Services
 
         #endregion
 
-        private void UpdateAppSettings(SetupRequest request, string jwtAdminKey, string jwtApiKey, string masterKey)
+        private void UpdateAppSettings(SetupRequest request, string jwtAdminKey, string jwtApiKey)
         {
             var appSettingsPath = AppGlobal.GetAppSettingsPath(_env.ContentRootPath, _env.EnvironmentName);
             var json = File.ReadAllText(appSettingsPath);
@@ -669,9 +664,6 @@ namespace SB.Framework.Services
                 Audience = $"{nameEn}API",
                 Expires = jwtApiExpires
             });
-
-            // 写入 MasterKey
-            jObj["MasterKey"] = masterKey;
 
             // 写入 DeployConfig
             if (request.DeployProjects != null && request.DeployProjects.Count > 0)

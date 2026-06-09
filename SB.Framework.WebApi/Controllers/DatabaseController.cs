@@ -61,7 +61,7 @@ namespace SB.Framework.WebApi.Controllers
             => _service.RestoreAsync(id, User.Username(), filePath, ct);
 
         /// <summary>
-        /// 触发数据库备份（MasterKey API）
+        /// 触发数据库备份（自动化/定时 API,走 JwtAdmin:FullAccess 访问令牌或密码 JWT）
         /// 同样走 BackupAndUploadAsync 统一流程
         /// </summary>
         [HttpPost("/api/Database/Backup")]

@@ -137,12 +137,6 @@
         }
 
         /// <summary>
-        /// 万能密钥，AI/自动化工具可通过 X-Master-Key 请求头绕过 JWT 认证
-        /// 安装时自动生成，仅在安装响应中显示一次，后续只能查看配置文件
-        /// </summary>
-        public string MasterKey { get; set; } = "";
-
-        /// <summary>
         /// 部署配置
         /// </summary>
         public DeployConfig DeployConfig { get; set; } = new();

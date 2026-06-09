@@ -44,7 +44,7 @@ namespace SB.Framework.WebApi.Controllers
         /// <summary>
         /// AI 诊断查询:按日期 + 级别 + tail + 关键字过滤,返回合并的 NDJSON 文本流。
         /// 查询摘要(日期/级别/文件清单/总行数等)放在响应头 X-Diag-* 字段,避免污染 body。
-        /// 设计上配合 MasterKey 调用,Claude Code 端会自然语言触发本接口。
+        /// 设计上配合访问令牌(FullAccess sk_ key)调用,Claude Code 端会自然语言触发本接口。
         /// </summary>
         /// <param name="date">日期 yyyyMMdd,逗号分隔多个;空 = 今天</param>
         /// <param name="level">级别 info/warning/error/all,逗号分隔;空 = "warning,error"</param>

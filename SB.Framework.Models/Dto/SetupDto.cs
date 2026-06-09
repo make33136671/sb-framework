@@ -89,13 +89,5 @@ namespace SB.Framework.Models.Dto
         /// 部署项目列表（可选）
         /// </summary>
         public List<DeployProjectDto> DeployProjects { get; set; } = new();
-
-        /// <summary>
-        /// 是否启用 MasterKey（万能密钥）
-        /// 启用后安装时生成一次性显示的 GUID，写入 appsettings 的 MasterKey 字段，
-        /// 客户端可通过 X-Master-Key 请求头调用任意接口；
-        /// 不启用则 MasterKey 写空字符串，X-Master-Key 通道关闭。生产环境建议关闭。
-        /// </summary>
-        public bool EnableMasterKey { get; set; } = false;
     }
 }

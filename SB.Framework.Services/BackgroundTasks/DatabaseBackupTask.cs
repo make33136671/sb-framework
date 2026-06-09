@@ -80,7 +80,7 @@ namespace SB.Framework.Services.BackgroundTasks
 
         protected override async Task ExecuteTaskAsync(CancellationToken cancellationToken)
         {
-            // 完全复用 DatabaseBackupService.BackupAndUploadAsync —— 跟 admin 手动备份 / MasterKey API 走同一套
+            // 完全复用 DatabaseBackupService.BackupAndUploadAsync —— 跟 admin 手动备份 / 访问令牌 API 走同一套
             using var scope = _scopeFactory.CreateScope();
             var backupService = scope.ServiceProvider.GetRequiredService<DatabaseBackupService>();
             var result = await backupService.BackupAndUploadAsync("auto-task", cancellationToken);

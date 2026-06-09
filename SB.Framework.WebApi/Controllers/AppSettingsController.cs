@@ -10,7 +10,7 @@ namespace SB.Framework.WebApi.Controllers;
 
 /// <summary>
 /// appsettings.json 管理端点。
-/// 所有 endpoint 要求 JwtAdmin（或 X-Master-Key 头），改动会写文件 + 历史 .bak。
+/// 所有 endpoint 要求 JwtAdmin（密码登录,或 FullAccess 的 sk_ 访问令牌;旧 X-Master-Key 通道已废），改动会写文件 + 历史 .bak。
 /// 保存 / 上传 / 回滚后默认触发 AppShutdownHelper.GracefulStop，让 systemd 拉起新进程加载最新配置。
 /// </summary>
 [ApiController]

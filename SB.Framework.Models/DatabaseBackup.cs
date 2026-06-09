@@ -43,7 +43,7 @@ namespace SB.Framework.Models
         public int Duration { get; set; }
 
         /// <summary>
-        /// 操作人（管理员用户名 或 MasterKey）
+        /// 操作人（管理员用户名 或 访问令牌账号）
         /// </summary>
         [Column(Name = "CreatedBy", StringLength = 100)]
         public string CreatedBy { get; set; }
