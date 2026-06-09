@@ -21,6 +21,14 @@
   - `LogViewerService.GetFiles` 同时列 `*.ndjson` 和 `*.txt`,保留归档目录里旧 `.txt` 文件可读
 - `appsettings.json` / `appsettings.Development.json` Serilog 配置同步更新
 
+## [0.4.2] - 2026-06-09
+
+### Fixed
+
+- 修复 `*.NoLicense` 变体包未真正关闭授权的问题。已发布的 `SB.Framework.WebApi.NoLicense 0.4.1` 系用旧源码打包，运行时仍按授权版逻辑执行 `MissingKeyLicenseService`（`IsEnabled=true`），导致引用该包的派生项目（PM 生产）所有非白名单 `/admin/*` 请求被 `LicenseMiddleware` 拦截返回 HTTP 403「授权系统已启用但未检测到公钥」。
+- 本版从当前源码（`SbFrameworkExtensions` 中 `#if !DISABLE_LICENSE … #else NullLicenseService()` 门已正确）重新打包发布；NoLicense 变体 `IsEnabled=false`，`UseLicense()` 正确跳过中间件。
+- 仅版本号 bump（0.4.1 → 0.4.2），无源码改动；双变体（正常版 + NoLicense）一并重新发布到 BaGet。派生项目升级到 `0.4.2` 即可。
+
 ## [0.1.0-preview.1] - 2026-05-11
 
 ### Added
