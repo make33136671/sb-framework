@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-06-10
+
+### Fixed
+
+- 修复 `.NoLicense` 变体（`0.4.4` / `0.4.5`）实际未关闭授权的问题。这两个版本顶着 `.NoLicense` 包名，但产出的 `SB.Framework.WebApi.dll` 仍走 `#if !DISABLE_LICENSE` 分支，注册 `MissingKeyLicenseService` 并挂载 `LicenseMiddleware`，导致下游（如 PM）无 token 的非白名单请求被 `403`（`license_invalid`「授权系统已启用但未检测到公钥」）。`0.4.4`/`0.4.5`（`774cc24`/`5c066e0`）仅 bump 版本号重发，未干净重建 / 未正确传 `-p:DisableLicense=true`，发布的包仍带授权拦截。
+- 本版基于当前 HEAD 源码重打（`-p:DisableLicense=true` 同时切换 `PackageId` 后缀、`DISABLE_LICENSE` 编译符号、空公钥嵌入三者，机制一致），删 `bin/obj` 干净重建。`NullLicenseService`（`IsEnabled=false`）使 `UseLicense()` 不再挂载中间件，授权确认关闭。
+
+### Changed
+
+- 全套包版本 `0.4.3 → 0.4.6`（Core / Models / Services / Analyzers / WebApi），统一对齐重发 NoLicense 变体。
+
 ## [0.4.3] - 2026-06-10
 
 ### Fixed
