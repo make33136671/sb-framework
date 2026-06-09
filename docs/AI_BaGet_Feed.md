@@ -6,7 +6,7 @@ saibo 自己的 NuGet feed,托管 SB.Framework.* 包 + Mirror 透传 nuget.org �
 ## 一图链路
 
 ```
-派生项目  ──https──▶  nuget.saibo.club  ──▶  公网 走 CF Tunnel ──▶ BaGet (192.168.10.100:5555)
+派生项目  ──https──▶  nuget.saibo.club  ──▶  公网 走 CF Tunnel ──▶ BaGet (192.168.10.68:80)
                                           │
                                           └──  内网 走 NPM 反代  ──▶ BaGet (saibo_net 容器名)
                                                (用户证书 LiteSSL,有效期 ~ 2026-08-11)
@@ -21,13 +21,17 @@ BaGet ──cache miss──▶  api.nuget.org  ──▶  上游公共包透传
 | 公网 / 内网(推荐统一用这个) | `https://nuget.saibo.club` |
 | Web UI(浏览/搜索) | `https://nuget.saibo.club` |
 | v3 service index | `https://nuget.saibo.club/v3/index.json` |
-| 后端直连(只在 NAS 内有意义) | `http://192.168.10.100:5555` |
+| 后端直连(内网) | `http://192.168.10.68`（80 端口） |
+
+> ⚠️ 2026-06-10 核实：BaGet 后端已从 `192.168.10.100:5555` 迁移到 `192.168.10.68:80`（旧地址已不可达）。公网域名 `nuget.saibo.club` 不变。
 
 ## ApiKey
 
-`f0e8a9bb404c0c0e96f02b01c5ee8296`
+`d77f86fba8cd73cee8e4bcb3938a9fb3`
 
 push 时通过 `--api-key` 参数传;GET / restore 不需要 key。
+
+> 旧 key `f0e8a9bb…8296` 已轮换失效（push 返回 401）。key 存在 BaGet 容器 env `ApiKey`，轮换后记得同步更新本文。
 
 ## 配置 NuGet.config(派生项目)
 
@@ -49,22 +53,31 @@ push 时通过 `--api-key` 参数传;GET / restore 不需要 key。
 
 ## push framework 包(发包流程)
 
-bump csproj `<Version>` 并构建出 nupkg 后:
+bump csproj `<Version>` → **删 bin/obj 干净重建** → `dotnet pack`（正常变体 + `-p:DisableLicense=true` NoLicense 变体）打出 nupkg 后，把全部 `*.nupkg`（含 `.NoLicense`）推上去：
 
 ```bash
-cd framework/core/nupkgs
+# 内网直连后端（实测可用，2026-06-10）；HTTP 源 push 需临时 NuGet.config 开 allowInsecureConnections
+cat > /tmp/push.config <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="baget" value="http://192.168.10.68/v3/index.json" allowInsecureConnections="true" />
+  </packageSources>
+</configuration>
+XML
 
-# 双变体一起推(防漏一边导致派生项目拉不到)
-for pkg in SB.Framework.*.0.1.0-preview.<N>.nupkg \
-           SB.Framework.*.NoLicense.0.1.0-preview.<N>.nupkg; do
+for pkg in /path/to/nupkgs/*.nupkg; do        # 含正常 + .NoLicense 双变体
   dotnet nuget push "$pkg" \
-    --source https://nuget.saibo.club/v3/index.json \
-    --api-key f0e8a9bb404c0c0e96f02b01c5ee8296 \
+    --source baget --configfile /tmp/push.config \
+    --api-key d77f86fba8cd73cee8e4bcb3938a9fb3 \
     --skip-duplicate
 done
 ```
 
-> `--skip-duplicate` 让重推幂等无害(同版本会被忽略而不是报错)。
+> **干净重建是铁律**：0.4.2 就是因为重打包复用了旧 `bin/obj`，包版本 bump 了但内部程序集版本没变（仍 0.4.1.0），引发派生项目运行时 `FileNotFoundException` 崩溃。详见 CHANGELOG `[0.4.3]`。
+> `--skip-duplicate` 让重推幂等无害(同版本会被忽略而不是报错) —— 注意 BaGet **默认不支持同版本覆盖**，要重发必须 bump 版本号。
+> HTTP 源(`http://192.168.10.68`)push 时 NuGet 会拒绝，须在 NuGet.config 对该 source 设 `allowInsecureConnections="true"`。公网 HTTPS `nuget.saibo.club` 走 CF Tunnel（push 未在本次验证，restore 一直走它）。
 > 2026-05-13 起 **GitLab Packages NuGet 源已废弃**(性能差),所有 saibo 包统一只 push 到 BaGet,**不再**双源同步。派生项目 NuGet.config 也只配 BaGet。
 
 ## restore
@@ -109,9 +122,11 @@ NuGet client 按 `packageSources` 顺序查询:先 BaGet,然后 nuget.org。BaGe
 
 ## 维护信息
 
-- 部署机:`192.168.10.100`(saibo NAS),容器名 `baget`
-- 数据目录:`/vol1/1000/DockerData/BaGet`(FileSystem + SQLite,可整体备份)
-- 重启拉起:NAS 开机后由 `/vol1/1000/DockerData/delay_start_docker.sh` 第二阶段自动 start
-- 反代规则:`npm_master`(NPM) → `baget:80`(saibo_net user-defined bridge)
+- 部署机:`192.168.10.68`,容器名 `baget`(80 端口)
 - 证书:用户上传到 NPM 的 LiteSSL TrustAsia 证书,到期 `2026-08-11`,过期前要续期 + 重新上传到 NPM
 - 镜像:`loicsharma/baget:latest`(每次 docker pull 拿最新)
+
+> ⚠️ 2026-06-10：后端已从旧主机 `192.168.10.100:5555`(saibo NAS)迁移到 `192.168.10.68:80`。以下旧主机内部细节迁移后**未重新核实**,仅留作参考：
+> - 旧数据目录:`/vol1/1000/DockerData/BaGet`(FileSystem + SQLite,可整体备份)
+> - 旧重启拉起:NAS 开机后由 `/vol1/1000/DockerData/delay_start_docker.sh` 第二阶段自动 start
+> - 反代规则:`npm_master`(NPM) → `baget:80`(saibo_net user-defined bridge)
