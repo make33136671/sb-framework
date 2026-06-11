@@ -1,0 +1,100 @@
+<svg viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#3B82F6"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#67E8F9"/>
+      <stop offset="1" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="620" rx="24" fill="#0A0E1A"/>
+  <text x="40" y="52" font-family="'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif"
+    font-size="24" font-weight="800" fill="url(#head)">赛博 / SB — 品牌素材</text>
+  <text x="40" y="76" font-family="'Inter','PingFang SC',system-ui,sans-serif"
+    font-size="13" fill="#64748B">六边节点 · 活泼现代 · 深色科技蓝青</text>
+
+  <!-- Panel 1: dark-bg lockup -->
+  <rect x="40" y="100" width="270" height="240" rx="16" fill="#111827" stroke="#1E293B"/>
+  <text x="62" y="128" font-family="'Inter','PingFang SC',system-ui,sans-serif" font-size="12" font-weight="600" fill="#475569">深色背景</text>
+  <g transform="translate(112,140) scale(0.6)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="url(#g)" stroke="url(#g)" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" letter-spacing="-1" fill="#0A1124">SB</text>
+  </g>
+  <text x="175" y="300" text-anchor="middle" font-family="'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif" font-size="26" font-weight="700" fill="#F1F5F9">赛博</text>
+  <text x="175" y="324" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="11" font-weight="600" letter-spacing="6" fill="#94A3B8">CYBER</text>
+
+  <!-- Panel 2: light-bg lockup -->
+  <rect x="345" y="100" width="270" height="240" rx="16" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <text x="367" y="128" font-family="'Inter','PingFang SC',system-ui,sans-serif" font-size="12" font-weight="600" fill="#94A3B8">浅色背景</text>
+  <g transform="translate(417,140) scale(0.6)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="url(#g)" stroke="url(#g)" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" letter-spacing="-1" fill="#0A1124">SB</text>
+  </g>
+  <text x="480" y="300" text-anchor="middle" font-family="'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif" font-size="26" font-weight="700" fill="#0F172A">赛博</text>
+  <text x="480" y="324" text-anchor="middle" font-family="'Inter',system-ui,sans-serif" font-size="11" font-weight="600" letter-spacing="6" fill="#64748B">CYBER</text>
+
+  <!-- Panel 3: avatar / favicon sizes -->
+  <rect x="650" y="100" width="270" height="240" rx="16" fill="#111827" stroke="#1E293B"/>
+  <text x="672" y="128" font-family="'Inter','PingFang SC',system-ui,sans-serif" font-size="12" font-weight="600" fill="#475569">头像 / favicon 缩放</text>
+  <g transform="translate(672,150) scale(0.5)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="url(#g)" stroke="url(#g)" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" letter-spacing="-1" fill="#0A1124">SB</text>
+  </g>
+  <g transform="translate(790,205) scale(0.28)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="url(#g)" stroke="url(#g)" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" letter-spacing="-1" fill="#0A1124">SB</text>
+  </g>
+  <g transform="translate(855,240) scale(0.16)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="url(#g)" stroke="url(#g)" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" letter-spacing="-1" fill="#0A1124">SB</text>
+  </g>
+
+  <!-- Horizontal lockup band -->
+  <rect x="40" y="360" width="575" height="110" rx="16" fill="#0F172A" stroke="#1E293B"/>
+  <g transform="translate(60,375) scale(0.4)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="url(#g)" stroke="url(#g)" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" letter-spacing="-1" fill="#0A1124">SB</text>
+  </g>
+  <text x="155" y="412" font-family="'Inter','PingFang SC','Microsoft YaHei',system-ui,sans-serif" font-size="34" font-weight="700" fill="#F1F5F9">赛博</text>
+  <text x="157" y="438" font-family="'Inter',system-ui,sans-serif" font-size="13" font-weight="600" letter-spacing="7" fill="#94A3B8">CYBER</text>
+  <text x="595" y="392" text-anchor="end" font-family="'Inter',system-ui,sans-serif" font-size="11" fill="#475569">横版锁定</text>
+
+  <!-- Mono variants -->
+  <rect x="650" y="360" width="270" height="110" rx="16" fill="#111827" stroke="#1E293B"/>
+  <text x="672" y="384" font-family="'Inter','PingFang SC',system-ui,sans-serif" font-size="11" fill="#475569">单色版（印刷 / 盖章）</text>
+  <g transform="translate(680,392) scale(0.35)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="none" stroke="#F1F5F9" stroke-width="14" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="60" font-weight="800" fill="#F1F5F9">SB</text>
+  </g>
+  <g transform="translate(800,392) scale(0.35)">
+    <polygon points="170,100 135,160.62 65,160.62 30,100 65,39.38 135,39.38" fill="#0A1124" stroke="#0A1124" stroke-width="18" stroke-linejoin="round"/>
+    <text x="100" y="103" text-anchor="middle" dominant-baseline="central" font-family="'Inter',system-ui,sans-serif" font-size="66" font-weight="800" fill="#E2E8F0">SB</text>
+  </g>
+
+  <!-- Color palette -->
+  <text x="40" y="512" font-family="'Inter','PingFang SC',system-ui,sans-serif" font-size="14" font-weight="700" fill="#CBD5E1">配色规范</text>
+  <g>
+    <rect x="40" y="528" width="120" height="60" rx="10" fill="#22D3EE"/>
+    <text x="50" y="552" font-family="'Inter',monospace" font-size="13" font-weight="700" fill="#0A1124">Cyan</text>
+    <text x="50" y="572" font-family="'JetBrains Mono',monospace" font-size="12" fill="#0A1124">#22D3EE</text>
+
+    <rect x="172" y="528" width="120" height="60" rx="10" fill="#3B82F6"/>
+    <text x="182" y="552" font-family="'Inter',monospace" font-size="13" font-weight="700" fill="#FFFFFF">Blue</text>
+    <text x="182" y="572" font-family="'JetBrains Mono',monospace" font-size="12" fill="#E0F2FE">#3B82F6</text>
+
+    <rect x="304" y="528" width="120" height="60" rx="10" fill="#0A1124" stroke="#1E293B"/>
+    <text x="314" y="552" font-family="'Inter',monospace" font-size="13" font-weight="700" fill="#F1F5F9">Ink</text>
+    <text x="314" y="572" font-family="'JetBrains Mono',monospace" font-size="12" fill="#94A3B8">#0A1124</text>
+
+    <rect x="436" y="528" width="120" height="60" rx="10" fill="#F1F5F9"/>
+    <text x="446" y="552" font-family="'Inter',monospace" font-size="13" font-weight="700" fill="#0F172A">Light</text>
+    <text x="446" y="572" font-family="'JetBrains Mono',monospace" font-size="12" fill="#475569">#F1F5F9</text>
+
+    <rect x="568" y="528" width="120" height="60" rx="10" fill="#64748B"/>
+    <text x="578" y="552" font-family="'Inter',monospace" font-size="13" font-weight="700" fill="#FFFFFF">Slate</text>
+    <text x="578" y="572" font-family="'JetBrains Mono',monospace" font-size="12" fill="#E2E8F0">#64748B</text>
+  </g>
+</svg>
