@@ -115,7 +115,11 @@ public static class SbFrameworkExtensions
             var excludeControllers = configuration.GetSection("ExcludeControllers").Get<string[]>();
             if (excludeControllers?.Length > 0)
                 options.Conventions.Add(new ControllerExclusionConvention(excludeControllers));
-        }).AddJsonOptions(x => x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+        }).AddJsonOptions(x =>
+        {
+            x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+            x.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
 
         // ★[F-4] Controller 跨程序集发现：框架硬编码，不交插件。必须在 AddControllersWithViews 返回的
         //   mvcBuilder 上链式调用（AddApplicationPart 是 IMvcBuilder 扩展）。这是整个插件化最易塌、
