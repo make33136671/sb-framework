@@ -6,10 +6,11 @@ namespace SB.Feature.AccessToken
     public sealed class AccessTokenOptions
     {
         /// <summary>
-        /// 是否允许签发 / 使用 FullAccess(god)key。默认 false —— 生产建议保持关闭(对应原 MasterKey
-        /// "生产建议关闭"的基调)。关闭时:已存在的 FullAccess key 不再被认证通过;管理端也不允许新签发。
+        /// 是否允许签发 / 使用 FullAccess(god)key。默认 true —— 框架级全局启用(核心设计:Agent / MCP
+        /// 等场景需要 god key 旁路 scope 调用全部端点)。关闭时:已存在的 FullAccess key 不再被认证通过;
+        /// 管理端也不允许新签发。如需在特定项目收紧,可在该项目 appsettings 显式设为 false 覆盖。
         /// </summary>
-        public bool EnableFullAccess { get; set; } = false;
+        public bool EnableFullAccess { get; set; } = true;
 
         /// <summary>新签发 key 的明文前缀。校验按 hash,与前缀无关;识别"是否 api key" 按 sk_ 统一判定。</summary>
         public string KeyPrefix { get; set; } = "sk_";
