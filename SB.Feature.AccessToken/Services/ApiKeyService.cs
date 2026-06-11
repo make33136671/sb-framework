@@ -60,6 +60,17 @@ namespace SB.Feature.AccessToken.Services
                 CreatedBy = createdBy ?? "unknown",
             };
             entity.Id = (int)_fsql.Insert(entity).ExecuteIdentity();
+
+            // FullAccess 列有 InsertValueSql="false"（FreeSql 服务端默认值），INSERT 会忽略 C# 属性值。
+            // 若需要 FullAccess=true，INSERT 后立即用 Set() 覆盖写入。
+            if (fullAccess && entity.Id > 0)
+            {
+                _fsql.Update<ApiKey>()
+                    .Where(k => k.Id == entity.Id)
+                    .Set(k => k.FullAccess, true)
+                    .ExecuteAffrows();
+            }
+
             _logger.LogInformation("created api key: id={Id} name={Name} account={Account} full={Full}",
                 entity.Id, name, accountId, fullAccess);
 

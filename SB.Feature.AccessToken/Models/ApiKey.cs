@@ -48,7 +48,7 @@ namespace SB.Feature.AccessToken.Models
         /// FullAccess(god):忽略 scope、穿透所有端点、并旁路 License(取代原 MasterKey)。
         /// 仅 super 角色可签发,且需功能开关 EnableFullAccess=true 才生效。
         /// </summary>
-        [Column(Name = "FullAccess", IsNullable = false, InsertValueSql = "false")]
+        [Column(Name = "FullAccess", IsNullable = false)]
         public bool FullAccess { get; set; }
 
         /// <summary>逗号分隔的允许来源 IP/CIDR;非空时仅这些来源可用此 key(god key 建议设置)。</summary>
