@@ -122,14 +122,16 @@ for name in "${PROJECTS[@]}"; do
     info "$name 版本: $target_ver(不变)"
   fi
 
-  # 铁律:删 bin/obj 干净重建
+  # 用 dotnet build(项目设了 GeneratePackageOnBuild=true,构建即出包)而非 dotnet pack:
+  # WebApi 是 Web SDK 项目,清掉 obj 后 dotnet pack 会因 staticwebassets 清单缺失报错。
+  # 正常变体 + NoLicense 变体(PackageId / DISABLE_LICENSE 由 -p:DisableLicense 切换)。
+  # 铁律:每个变体前都删 bin/obj 干净重建,确保 DISABLE_LICENSE 常量真正重新编译生效。
+  info "$name 构建出包(正常变体)..."
   rm -rf "$ROOT/$name/bin" "$ROOT/$name/obj"
-
-  # 正常变体 + NoLicense 变体(PackageId 由 -p:DisableLicense 在 csproj 里切换)
-  info "$name 打包(正常变体)..."
-  dotnet pack "$csproj" -c Release -o "$NUPKG_OUT" --nologo -v minimal
-  info "$name 打包(NoLicense 变体)..."
-  dotnet pack "$csproj" -c Release -o "$NUPKG_OUT" --nologo -v minimal -p:DisableLicense=true
+  dotnet build "$csproj" -c Release --nologo -v minimal -p:PackageOutputPath="$NUPKG_OUT"
+  info "$name 构建出包(NoLicense 变体)..."
+  rm -rf "$ROOT/$name/bin" "$ROOT/$name/obj"
+  dotnet build "$csproj" -c Release --nologo -v minimal -p:DisableLicense=true -p:PackageOutputPath="$NUPKG_OUT"
 
   PACKED_SUMMARY+=("$name@$target_ver")
 done
