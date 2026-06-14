@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-06-14
+
+> 仅 `SB.Framework.WebApi`（含 `.NoLicense`）改动，其余包（Core/Models/Services/Analyzers）不变，派生项目只需把 `SB.Framework.WebApi(.NoLicense)` 升到 `0.4.9`。
+
+### Added
+
+- **部署预检门控（零宕机拦坏包）** — `AppController.Deploy` 在原地覆盖 `/app` 之前，先把待部署 zip 解压到临时 staging、拷入线上配置，以冒烟模式（`SB_SMOKE_TEST=1`）用临时端口拉起新包并轮询 `/health`（最长 45s）。冒烟不通过直接拒绝部署，线上进程从未被动过、不掉线。可用环境变量 `SB_DEPLOY_SMOKE=0` 关闭。
+- **冒烟模式** — `SbFrameworkExtensions.IsSmokeTest`：`SB_SMOKE_TEST=1` 时跳过 `SeedDatabase`（DB 迁移）与后台任务运行器（含 License 心跳），但保留 `IBackgroundTaskManager` 的 DI 注册（否则注入它的控制器在冒烟实例里解析失败，会假性拦截部署）。临时实例只读探活，不污染生产。
+- **部署标记** — 部署成功触发重启前在 `/app` 落 `.deploying` 标记，供独立看门狗（派生项目侧 `pm-deploy-guard`）感知"刚部署"，健康未恢复时自动回滚。
+- 设计与运维说明见 `docs/AI_Deploy_Resilience.md`。
+
+### Changed
+
+- `BackgroundTaskSetup.AddBackgroundTasks(bool runTasks = true)` 增加 `runTasks` 形参（冒烟模式传 `false` 只注册管理器、不启动任务运行器）。默认行为不变，向后兼容。
+- 部署原子替换的"受保护文件"清单（`keepConfig=true` 时不覆盖）新增根目录 **`installed.lock`**，防止误打包的安装锁把线上打回未安装态（原有 `appsettings.json` / `appsettings.*.json` 保护不变）。
+
 ## [0.4.6] - 2026-06-10
 
 ### Fixed

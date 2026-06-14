@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO.Compression;
+using System.Net.Sockets;
 using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -189,8 +191,9 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 判断是否为受保护的配置文件(只针对部署根目录的 appsettings.json / appsettings.*.json)。
+    /// 判断是否为受保护的部署文件(只针对部署根目录的 appsettings.json / appsettings.*.json / installed.lock)。
     /// 子目录里同名文件不受保护 — 它们一般是 plugin 自带不会跟运行时配置冲突。
+    /// installed.lock 标记本机已完成安装向导,部署产物若误带会把线上重新打回未安装态,故一并保护。
     /// </summary>
     private static bool IsProtectedConfigFile(string relPath)
     {
@@ -201,8 +204,105 @@ public class AppController : Controller
         if (string.Equals(fileName, "appsettings.json", StringComparison.OrdinalIgnoreCase)) return true;
         if (fileName.StartsWith("appsettings.", StringComparison.OrdinalIgnoreCase) &&
             fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return true;
+        if (string.Equals(fileName, "installed.lock", StringComparison.OrdinalIgnoreCase)) return true;
         return false;
     }
+
+    /// <summary>
+    /// 部署预检冒烟:把待部署 zip 解压到临时 staging,拷入线上运行配置,用临时端口以 SB_SMOKE_TEST=1
+    /// 模式拉起新包,轮询 /health。返回 (是否健康, 详情)。全程不碰 /app 现有文件。
+    /// 冒烟模式下新进程跳过 DB 迁移/后台任务/心跳(见 SbFrameworkExtensions.IsSmokeTest),只读探活。
+    /// </summary>
+    private async Task<(bool ok, string message)> SmokeTestApiPackageAsync(string zipPath, string appDir)
+    {
+        var staging = Path.Combine(appDir, $".smoke-{Guid.NewGuid():N}");
+        Process? proc = null;
+        try
+        {
+            // 1. 解压新包到 staging
+            Directory.CreateDirectory(staging);
+            ZipFile.ExtractToDirectory(zipPath, staging);
+
+            // 2. 拷入线上运行所需文件(配置 / 安装锁 / 客户端密钥),让冒烟实例能像生产一样启动
+            foreach (var f in Directory.EnumerateFiles(appDir, "*", SearchOption.TopDirectoryOnly))
+            {
+                var name = Path.GetFileName(f);
+                var isCfg = name.StartsWith("appsettings", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+                if (isCfg || name.Equals("installed.lock", StringComparison.OrdinalIgnoreCase) || name.Equals("client.key", StringComparison.OrdinalIgnoreCase))
+                {
+                    try { System.IO.File.Copy(f, Path.Combine(staging, name), overwrite: true); } catch { }
+                }
+            }
+
+            // 3. 定位入口 dll(与当前进程同名),挑一个空闲端口
+            var entryDll = Path.GetFileName(Assembly.GetEntryAssembly()?.Location ?? "");
+            if (string.IsNullOrEmpty(entryDll) || !System.IO.File.Exists(Path.Combine(staging, entryDll)))
+                return (false, $"新包内未找到入口 dll: {entryDll}");
+            int port = GetFreeTcpPort();
+
+            // 4. 以冒烟模式拉起
+            var psi = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                WorkingDirectory = staging,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            psi.ArgumentList.Add(Path.Combine(staging, entryDll));
+            psi.ArgumentList.Add("--urls");
+            psi.ArgumentList.Add($"http://127.0.0.1:{port}");
+            psi.Environment["SB_SMOKE_TEST"] = "1";
+            psi.Environment["ASPNETCORE_ENVIRONMENT"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production";
+            var stderr = new System.Text.StringBuilder();
+            proc = new Process { StartInfo = psi };
+            proc.ErrorDataReceived += (_, e) => { if (e.Data != null) lock (stderr) stderr.AppendLine(e.Data); };
+            proc.Start();
+            proc.BeginErrorReadLine();
+            proc.BeginOutputReadLine();
+
+            // 5. 轮询 /health,最多 ~45s
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
+            var deadline = DateTime.UtcNow.AddSeconds(45);
+            while (DateTime.UtcNow < deadline)
+            {
+                if (proc.HasExited)
+                {
+                    var tail = stderr.ToString();
+                    return (false, $"新包启动即退出(code={proc.ExitCode}): {Trunc(tail, 300)}");
+                }
+                try
+                {
+                    var resp = await http.GetAsync($"http://127.0.0.1:{port}/health");
+                    if (resp.IsSuccessStatusCode) return (true, $"健康检查通过(port={port})");
+                }
+                catch { /* 还没起好,继续等 */ }
+                await Task.Delay(1500);
+            }
+            return (false, $"45s 内 /health 未通过(端口 {port});stderr: {Trunc(stderr.ToString(), 300)}");
+        }
+        catch (Exception ex)
+        {
+            return (false, $"冒烟异常: {ex.Message}");
+        }
+        finally
+        {
+            try { if (proc is { HasExited: false }) proc.Kill(entireProcessTree: true); } catch { }
+            try { proc?.Dispose(); } catch { }
+            try { Directory.Delete(staging, recursive: true); } catch { }
+        }
+    }
+
+    private static int GetFreeTcpPort()
+    {
+        var l = new TcpListener(System.Net.IPAddress.Loopback, 0);
+        l.Start();
+        var port = ((System.Net.IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        return port;
+    }
+
+    private static string Trunc(string s, int max) => string.IsNullOrEmpty(s) ? "" : (s.Length <= max ? s : s[..max] + "…");
 
     /// <summary>
     /// [已废弃] 通过分片上传的文件路径部署 API 程序。
@@ -627,6 +727,21 @@ public class AppController : Controller
             if (isApi)
             {
                 var appDir = AppContext.BaseDirectory;
+
+                // ① 预检门控:覆盖 /app 之前,先把新包在临时端口以冒烟模式跑一遍 /health。
+                //    不通过 → 直接失败,/app 从未被动过,线上 API 不掉。可用 SB_DEPLOY_SMOKE=0 关闭。
+                if (!string.Equals(Environment.GetEnvironmentVariable("SB_DEPLOY_SMOKE"), "0", StringComparison.Ordinal))
+                {
+                    var (smokeOk, smokeMsg) = await SmokeTestApiPackageAsync(fullPath, appDir);
+                    if (!smokeOk)
+                    {
+                        await _deployJobService.MarkFailed(job.Id, $"预检未通过(已拦截,线上未改动): {smokeMsg}");
+                        _logger.LogError("Deploy pre-flight smoke test FAILED (jobId={Id}): {Msg}", job.Id, smokeMsg);
+                        return Result.Fail($"预检未通过,已拦截部署(线上保持原样): {smokeMsg}");
+                    }
+                    _logger.LogWarning("Deploy pre-flight smoke test PASSED (jobId={Id})", job.Id);
+                }
+
                 try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
                 ExtractApiAtomic(fullPath, appDir, keepConfig);
@@ -639,6 +754,15 @@ public class AppController : Controller
 
                 await _deployJobService.MarkDeployed(job.Id, job.Target);
                 _logger.LogWarning("API package deployed (jobId={Id}) by {Username}, restarting...", job.Id, username);
+
+                // ② 给独立看门狗(pm-deploy-guard)落"刚部署"标记:重启后若 /health 久不恢复,
+                //    看门狗会自动从 deploy_archive 回滚上一份 Deployed。见 docs/AI_Deploy_Resilience.md。
+                try
+                {
+                    System.IO.File.WriteAllText(Path.Combine(appDir, ".deploying"),
+                        $"{DateTime.UtcNow:o}|job={job.Id}|target={job.Target}");
+                }
+                catch (Exception ex) { _logger.LogWarning(ex, "写 .deploying 标记失败(看门狗回滚不受影响,仅少一个信号)"); }
 
                 AppShutdownHelper.GracefulStop(_appLifetime);
                 return Result.Success(clearCache ? "程序包已更新+缓存已清空,即将重启" : "程序包已更新,即将重启");

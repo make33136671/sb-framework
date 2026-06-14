@@ -21,10 +21,20 @@ namespace SB.Framework.WebApi.Extensions;
 /// </summary>
 public static class SbFrameworkExtensions
 {
+    /// <summary>
+    /// 冒烟检测模式：部署预检时由 deploy 流程用临时端口拉起本进程,只验证"新包能否正常启动"。
+    /// 此模式下绝不触碰生产副作用——跳过 DB 迁移(SeedDatabase)、不启动后台任务系统(含 License 心跳),
+    /// 只构建 Web 宿主 + 映射 /health 供探活。由环境变量 SB_SMOKE_TEST=1 触发。
+    /// 见 docs/AI_Deploy_Resilience.md。
+    /// </summary>
+    public static bool IsSmokeTest =>
+        string.Equals(Environment.GetEnvironmentVariable("SB_SMOKE_TEST"), "1", StringComparison.Ordinal);
+
     public static WebApplicationBuilder AddSbFramework(this WebApplicationBuilder builder)
     {
         var configuration = builder.Configuration;
         AppGlobal.AppSettings = configuration.Get<AppSettings>();
+        var smoke = IsSmokeTest;
 
         ArchiveOldLogs();
 
@@ -79,7 +89,9 @@ public static class SbFrameworkExtensions
             builder.Services.AddCacheService();
             builder.Services.AddEmailServices();
             builder.Services.AddQdrantService(configuration);
-            builder.Services.AddBackgroundTasks();
+            // 冒烟模式不启动后台任务运行器(定时任务 + License 心跳都挂在它下面),避免临时探活实例
+            // 对生产发心跳/跑定时任务;但仍注册 IBackgroundTaskManager 保持 DI 依赖图完整。
+            builder.Services.AddBackgroundTasks(runTasks: !smoke);
             builder.Services.AddLoginRateLimiter();
             builder.Services.AddDatabaseHealthCheck(configuration);
 
@@ -135,6 +147,7 @@ public static class SbFrameworkExtensions
     {
         bool isInstalled = File.Exists(Path.Combine(
             app.Environment.ContentRootPath, "installed.lock"));
+        var smoke = IsSmokeTest;
 
         if (!app.Environment.IsDevelopment())
         {
@@ -194,7 +207,12 @@ public static class SbFrameworkExtensions
             pattern: "{controller=Home}/{action=DownloadApp}/{id?}");
         app.MapRazorPages();
 
-        if (isInstalled) app.SeedDatabase();
+        // 冒烟模式跳过 DB 迁移:预检只验证"新包能启动",绝不在临时实例里改生产 schema。
+        // 真实迁移仍在 flip 后的正式启动时跑。见 docs/AI_Deploy_Resilience.md 的"数据库迁移红线"。
+        if (isInstalled && !smoke) app.SeedDatabase();
+
+        if (smoke)
+            Log.Logger.Warning("[SmokeTest] 冒烟模式启动:已跳过 DB 迁移与后台任务,仅供 /health 探活。");
 
         // ★[F-7] 启动日志：打印已加载 / 被禁用 feature 清单（含原因）
         FeatureRuntime.Catalog?.LogStartupSummary();
