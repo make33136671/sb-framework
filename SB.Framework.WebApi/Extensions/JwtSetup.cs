@@ -42,7 +42,9 @@ namespace SB.Framework.WebApi.Extensions
                     {
                         OnMessageReceived = context =>
                         {
-                            return HandleApiKey(context);
+                            var task = HandleApiKey(context);
+                            UseQueryAccessTokenForWebSocket(context);
+                            return task;
                         }
                     };
                 });
@@ -100,7 +102,12 @@ namespace SB.Framework.WebApi.Extensions
 
                             return Task.CompletedTask;
                         },
-                        OnMessageReceived = context => HandleApiKey(context),
+                        OnMessageReceived = context =>
+                        {
+                            var task = HandleApiKey(context);
+                            UseQueryAccessTokenForWebSocket(context);
+                            return task;
+                        },
                         OnForbidden = context => Task.CompletedTask,
                         OnChallenge = context => Task.CompletedTask,
                         OnAuthenticationFailed = context => Task.CompletedTask
@@ -133,6 +140,27 @@ namespace SB.Framework.WebApi.Extensions
                 context.Fail(result.FailReason ?? "无效的 API Key");
             }
             return Task.CompletedTask;
+        }
+
+        /// <summary>
+        /// WebSocket 握手鉴权 — 浏览器原生 WebSocket 无法设置 Authorization 头,
+        /// 只能把 JWT 放在 query string 的 access_token 里。这里仅在「ws 升级请求」
+        /// 且 API Key 未接管、token 仍为空时,把 query 的 access_token 写入 context.Token,
+        /// 交由 JwtBearer 后续按常规校验。限定 ws 升级是为安全:普通 HTTP 请求不允许
+        /// 用 URL 携带 token(避免出现在访问日志 / Referer 中)。
+        /// 受益端点:/DeviceVnc/Stream(noVNC)、/DeviceStream/ScreenStream(scrcpy)等。
+        /// </summary>
+        private static void UseQueryAccessTokenForWebSocket(MessageReceivedContext context)
+        {
+            // API Key 已成功/失败处理,或 token 已就位 → 不插手
+            if (context.Result != null || !string.IsNullOrEmpty(context.Token))
+                return;
+            if (!context.HttpContext.WebSockets.IsWebSocketRequest)
+                return;
+
+            string accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken))
+                context.Token = accessToken;
         }
     }
 }
