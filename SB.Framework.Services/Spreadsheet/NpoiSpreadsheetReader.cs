@@ -1,15 +1,14 @@
 using System.Globalization;
 using System.Text;
 using NPOI.SS.UserModel;
-using SB.Framework.Core.Attribute;
 
 namespace SB.Framework.Services
 {
     /// <summary>
     /// 基于 NPOI 的 <see cref="ISpreadsheetReader"/> 实现。
     /// Excel(xls/xlsx)经 NPOI WorkbookFactory 自动识别二进制格式;csv 走内置文本解析(支持引号包裹的逗号)。
+    /// 接口绑定在框架管线 AddSbFramework 里显式注册(非 [AutoDependencyInjection],后者只注册具体类型不映射接口)。
     /// </summary>
-    [AutoDependencyInjection]
     public sealed class NpoiSpreadsheetReader : ISpreadsheetReader
     {
         public IReadOnlyList<SpreadsheetSheet> Read(Stream stream, string? fileName = null)

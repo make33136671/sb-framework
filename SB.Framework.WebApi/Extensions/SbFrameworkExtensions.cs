@@ -88,6 +88,8 @@ public static class SbFrameworkExtensions
 
             builder.Services.AddCacheService();
             builder.Services.AddEmailServices();
+            // 通用电子表格读取(xlsx/xls/csv)——框架自注册接口绑定,业务层注入 ISpreadsheetReader 即用
+            builder.Services.AddScoped<SB.Framework.Services.ISpreadsheetReader, SB.Framework.Services.NpoiSpreadsheetReader>();
             builder.Services.AddQdrantService(configuration);
             // 冒烟模式不启动后台任务运行器(定时任务 + License 心跳都挂在它下面),避免临时探活实例
             // 对生产发心跳/跑定时任务;但仍注册 IBackgroundTaskManager 保持 DI 依赖图完整。
