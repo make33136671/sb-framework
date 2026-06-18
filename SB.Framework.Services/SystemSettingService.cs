@@ -349,10 +349,27 @@ namespace SB.Framework.Services
             var setting = GetSystemSettingByKey(definition.Key);
             if (setting != null)
             {
-                // 同步 DataContentConfig（如 Select 选项列表），代码更新后数据库自动跟进
+                // 代码更新后数据库自动跟进:同步 DataContentConfig(如 Select 选项列表)、
+                // DisplayType(如 Input→Switch)、Name。否则存量行会一直停留在旧的显示类型,
+                // 例如 bool 项明明定义成 Switch 却仍渲染成文本框。
+                var changed = false;
                 if (!string.IsNullOrEmpty(definition.DataContentConfig) && setting.DataContentConfig != definition.DataContentConfig)
                 {
                     setting.DataContentConfig = definition.DataContentConfig;
+                    changed = true;
+                }
+                if (setting.DisplayType != definition.DisplayType)
+                {
+                    setting.DisplayType = definition.DisplayType;
+                    changed = true;
+                }
+                if (!string.IsNullOrEmpty(definition.Name) && setting.Name != definition.Name)
+                {
+                    setting.Name = definition.Name;
+                    changed = true;
+                }
+                if (changed)
+                {
                     Update(setting);
                     _cacheService.Set(CachePrefix + definition.Key, setting, CacheExpiration);
                 }

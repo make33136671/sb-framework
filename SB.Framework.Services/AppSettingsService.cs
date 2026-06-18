@@ -23,16 +23,10 @@ namespace SB.Framework.Services
         public int InitOrder => 1000;
         public Type[] GetEntityTypes() => Array.Empty<Type>();
         public List<SystemSettingDefinition> GetSystemSettings() => new();
-        public List<MenuDefinition> GetMenus() => new()
-        {
-            new MenuDefinition
-            {
-                ParentPath = "/system/devtools",
-                Name = "AppSettings", Path = "/system/devtools/app-settings",
-                Component = "/app-settings/index",
-                Title = "配置文件", Icon = "ion:settings-outline", OrderNo = 3,
-            }
-        };
+        // 配置文件功能已统一从「运维工具」页的 Tab 进入，不再注册独立菜单。
+        // 注意:种子是 upsert-only,删此声明不会自动清掉已入库的旧菜单,
+        // 需到「菜单管理」手动删除 /system/devtools/app-settings 这一项。
+        public List<MenuDefinition> GetMenus() => new();
         public void SeedData(IFreeSql fsql) { }
         // === IModuleInitializer 实现结束 ===
 

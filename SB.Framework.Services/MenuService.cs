@@ -81,7 +81,11 @@ namespace SB.Framework.Services
             }
 
             long dataCount = rootMenus.Count;
-            var data = rootMenus.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            // 树形视图应返回完整层级,不对顶级菜单做分页截断(否则顶级菜单显示不全)。
+            // pageSize <= 0 视为不分页;前端默认传大 pageSize,这里再兜底一层。
+            var data = pageSize <= 0
+                ? rootMenus
+                : rootMenus.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
             var treeData = data.Select(m =>
             {

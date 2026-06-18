@@ -19,6 +19,7 @@ namespace SB.Feature.AccessToken
             new MenuDefinition
             {
                 Name = "AccessToken",
+                ParentPath = "/system",
                 Path = "/system/access-token",
                 Component = "/access-token/index",
                 Title = "访问令牌",
@@ -28,6 +29,7 @@ namespace SB.Feature.AccessToken
             new MenuDefinition
             {
                 Name = "AccessTokenAudit",
+                ParentPath = "/system",
                 Path = "/system/access-token-audit",
                 Component = "/access-token/audit",
                 Title = "令牌审计",

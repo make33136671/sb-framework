@@ -161,7 +161,7 @@ public class AppController : Controller
     /// - systemd 拉起的新进程 open(filename) → 看到新 inode → mmap 新内容
     /// 零 race,跨多少个 dll 都安全。
     /// </summary>
-    private static void ExtractApiAtomic(string zipPath, string appDir, bool keepConfig = true)
+    private static void ExtractApiAtomic(string zipPath, string appDir, bool keepConfig = true, bool keepLock = true)
     {
         var staging = Path.Combine(appDir, $".upload-staging-{Guid.NewGuid():N}");
         Directory.CreateDirectory(staging);
@@ -177,6 +177,10 @@ public class AppController : Controller
                 // 防止误打包的配置文件覆盖线上配置(默认开启,生产部署兜底)。
                 if (keepConfig && IsProtectedConfigFile(rel))
                     continue;
+                // keepLock=true 时跳过根目录的 installed.lock,
+                // 防止部署包里的安装标记覆盖线上已安装状态、导致部署后被打回安装向导(默认开启)。
+                if (keepLock && IsProtectedLockFile(rel))
+                    continue;
                 var dest = Path.Combine(appDir, rel);
                 var destDir = Path.GetDirectoryName(dest);
                 if (!string.IsNullOrEmpty(destDir))
@@ -191,9 +195,9 @@ public class AppController : Controller
     }
 
     /// <summary>
-    /// 判断是否为受保护的部署文件(只针对部署根目录的 appsettings.json / appsettings.*.json / installed.lock)。
+    /// 判断是否为受保护的配置文件(只针对部署根目录的 appsettings.json / appsettings.*.json)。
     /// 子目录里同名文件不受保护 — 它们一般是 plugin 自带不会跟运行时配置冲突。
-    /// installed.lock 标记本机已完成安装向导,部署产物若误带会把线上重新打回未安装态,故一并保护。
+    /// installed.lock 由独立的 IsProtectedLockFile + keepLock 开关控制,不在此处。
     /// </summary>
     private static bool IsProtectedConfigFile(string relPath)
     {
@@ -204,7 +208,6 @@ public class AppController : Controller
         if (string.Equals(fileName, "appsettings.json", StringComparison.OrdinalIgnoreCase)) return true;
         if (fileName.StartsWith("appsettings.", StringComparison.OrdinalIgnoreCase) &&
             fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return true;
-        if (string.Equals(fileName, "installed.lock", StringComparison.OrdinalIgnoreCase)) return true;
         return false;
     }
 
@@ -305,6 +308,19 @@ public class AppController : Controller
     private static string Trunc(string s, int max) => string.IsNullOrEmpty(s) ? "" : (s.Length <= max ? s : s[..max] + "…");
 
     /// <summary>
+    /// 判断是否为受保护的安装标记文件(只针对部署根目录的 installed.lock)。
+    /// 该文件标记应用已完成安装向导,被部署包覆盖会导致线上被打回重新安装。
+    /// 由独立开关 keepLock 控制,与 appsettings 的 keepConfig 分离。
+    /// </summary>
+    private static bool IsProtectedLockFile(string relPath)
+    {
+        // 只保护根目录的 installed.lock,子目录的不算
+        var dirName = Path.GetDirectoryName(relPath);
+        if (!string.IsNullOrEmpty(dirName)) return false;
+        var fileName = Path.GetFileName(relPath);
+        return string.Equals(fileName, "installed.lock", StringComparison.OrdinalIgnoreCase);
+    }
+    /// <summary>
     /// [已废弃] 通过分片上传的文件路径部署 API 程序。
     /// 请改用 Upload(target="api") + Deploy(uploadId) 两步流程。
     /// </summary>
@@ -315,7 +331,8 @@ public class AppController : Controller
         [FromForm] string fileName,
         [FromForm] long fileSize,
         [FromForm] bool clearCache = false,
-        [FromForm] bool keepConfig = true)
+        [FromForm] bool keepConfig = true,
+        [FromForm] bool keepLock = true)
     {
         if (string.IsNullOrWhiteSpace(filePath))
             return Result.Fail("文件路径不能为空");
@@ -329,7 +346,7 @@ public class AppController : Controller
         var actualSize = fileSize > 0 ? fileSize : new FileInfo(fullPath).Length;
 
         var job = await _deployJobService.CreateFromFile("api", "API程序", fullPath, displayName, actualSize, username);
-        return await DeployByJob(job, keepConfig: keepConfig, clearCache: clearCache);
+        return await DeployByJob(job, keepConfig: keepConfig, clearCache: clearCache, keepLock: keepLock);
     }
 
     // ==================== 缓存管理 ====================
@@ -658,7 +675,8 @@ public class AppController : Controller
     public async Task<Result> Deploy(
         [FromForm] int uploadId,
         [FromForm] bool keepConfig = true,
-        [FromForm] bool clearCache = false)
+        [FromForm] bool clearCache = false,
+        [FromForm] bool keepLock = true)
     {
         var jobId = uploadId;  // 字段名向后兼容
         var job = await _deployJobService.Select.Where(r => r.Id == jobId).FirstAsync();
@@ -669,7 +687,7 @@ public class AppController : Controller
         if (!System.IO.File.Exists(fullPath))
             return Result.Fail("上传文件已不存在,请重新上传");
 
-        return await DeployByJob(job, keepConfig: keepConfig, clearCache: clearCache);
+        return await DeployByJob(job, keepConfig: keepConfig, clearCache: clearCache, keepLock: keepLock);
     }
 
     /// <summary>
@@ -701,7 +719,8 @@ public class AppController : Controller
     private async Task<Result> DeployByJob(
         DeployJob job,
         bool keepConfig = true,
-        bool clearCache = false)
+        bool clearCache = false,
+        bool keepLock = true)
     {
         var fullPath = _deployJobService.GetFullPath(job);
         if (!System.IO.File.Exists(fullPath))
@@ -744,7 +763,7 @@ public class AppController : Controller
 
                 try { System.IO.File.Delete(Path.Combine(appDir, "license_time.dat")); } catch { }
 
-                ExtractApiAtomic(fullPath, appDir, keepConfig);
+                ExtractApiAtomic(fullPath, appDir, keepConfig, keepLock);
 
                 if (clearCache)
                 {

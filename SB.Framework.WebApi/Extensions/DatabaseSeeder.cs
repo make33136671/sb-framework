@@ -242,6 +242,12 @@ public static class DatabaseSeeder
                             .Where(s => s.Key == def.Key && s.DataContentConfig != def.DataContentConfig)
                             .ExecuteAffrows();
                     }
+                    // 同步 DisplayType（如 Input→Switch），否则存量行会一直停留在旧的显示类型，
+                    // 导致 bool 项明明定义成 Switch 却仍渲染成文本框（数据漂移）。
+                    fsql.Update<SystemSetting>()
+                        .Set(s => s.DisplayType, def.DisplayType)
+                        .Where(s => s.Key == def.Key && s.DisplayType != def.DisplayType)
+                        .ExecuteAffrows();
                     continue;
                 }
 

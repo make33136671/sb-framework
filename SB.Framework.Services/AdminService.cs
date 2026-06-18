@@ -34,6 +34,9 @@ namespace SB.Framework.Services
 
         public List<SystemSettingDefinition> GetSystemSettings() => new()
         {
+#if !DISABLE_LICENSE
+            // 授权设置:仅在启用授权验证(未定义 DISABLE_LICENSE)时注册,
+            // 否则 NoLicense 构建里不应出现「授权设置」分类。
             new SystemSettingDefinition
             {
                 Key = "license_warning_hours",
@@ -46,6 +49,7 @@ namespace SB.Framework.Services
                 Sort = 1,
                 CantDelete = true,
             },
+#endif
             // 数据库备份分类
             // 注：云端中心地址 (CloudConfig.ServerUrl) 在 appsettings.json 里配，安装向导填写
             // 这里只放跟备份策略相关的运行时可调设置
@@ -121,7 +125,10 @@ namespace SB.Framework.Services
                         new() { Name = "BackgroundTask", Path = "/system/devtools/background-task", Component = "/background-task/List", Title = "后台任务", Icon = "ion:timer-outline", OrderNo = 1 },
                         new() { Name = "OpsTools", Path = "/system/devtools/ops", Component = "/ops-tools/index", Title = "运维工具", Icon = "ion:server-outline", OrderNo = 2 },
                         new() { Name = "LoginLog", Path = "/system/devtools/login-log", Component = "/login-log/List", Title = "登录日志", Icon = "ion:log-in-outline", OrderNo = 4 },
+#if !DISABLE_LICENSE
+                        // 授权信息菜单:仅启用授权验证时注册
                         new() { Name = "LicenseStatus", Path = "/system/devtools/license", Component = "/license/Status", Title = "授权信息", Icon = "ion:key-outline", OrderNo = 6 },
+#endif
                         new() { Name = "Deploy", Path = "/system/devtools/deploy", Component = "/deploy/List", Title = "部署管理", Icon = "ion:cloud-upload-outline", OrderNo = 7 },
                     }},
                 }
