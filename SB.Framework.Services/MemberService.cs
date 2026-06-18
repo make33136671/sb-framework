@@ -15,8 +15,12 @@ namespace SB.Framework.Services
         public string ModuleKey => "Member";
         public int InitOrder => 20;
 
-        /// <summary>本程序集可见的 Member Service 类型。</summary>
-        public Type[] GetOwnedTypes() => new[] { typeof(MemberService) };
+        /// <summary>
+        /// Member 服务不声明 owned 类型 —— MemberService 被 AppService 横向依赖，
+        /// 必须始终注册，不能随模块禁用而跳过。
+        /// 仅通过 GetOwnedControllerNames() 移除专属 Controller 端点(404)，服务本身保留。
+        /// </summary>
+        public Type[] GetOwnedTypes() => Array.Empty<Type>();
 
         /// <summary>MemberController 全名（位于 SB.Framework.WebApi，Services 无法 typeof 引用）。</summary>
         public string[] GetOwnedControllerNames() => new[]

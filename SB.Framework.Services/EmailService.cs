@@ -14,11 +14,12 @@ namespace SB.Framework.Services
         public string ModuleKey => "Email";
         public int InitOrder => 30;
 
-        /// <summary>本程序集可见的 Email Service/Provider 类型（跨程序集 Controller 由 GetOwnedControllerNames 声明）。</summary>
-        public Type[] GetOwnedTypes() => new[]
-        {
-            typeof(EmailService), typeof(EmailProviderFactory), typeof(EmailRateLimitService),
-        };
+        /// <summary>
+        /// Email 服务不声明 owned 类型 —— EmailService/EmailProviderFactory/EmailRateLimitService
+        /// 被 ApiController(IVerificationCodeService) 横向依赖，必须始终注册，不能随模块禁用而跳过。
+        /// 仅通过 GetOwnedControllerNames() 移除专属 Controller 端点(404)，服务本身保留。
+        /// </summary>
+        public Type[] GetOwnedTypes() => Array.Empty<Type>();
 
         /// <summary>EmailConfigController 全名（位于 SB.Framework.WebApi，Services 无法 typeof 引用）。</summary>
         public string[] GetOwnedControllerNames() => new[]
