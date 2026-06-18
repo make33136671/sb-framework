@@ -849,17 +849,29 @@ namespace SB.Framework.Services
             return Convert.ToBase64String(bytes);
         }
 
+        /// <summary>按黑名单(ModuleKey 或实现类名,大小写不敏感)剔除模块。null/空 → 原样返回。</summary>
+        public static List<IModuleInitializer> FilterDisabled(
+            List<IModuleInitializer> modules, IReadOnlyCollection<string>? disabledModuleKeys)
+        {
+            if (disabledModuleKeys == null || disabledModuleKeys.Count == 0) return modules;
+            var ban = new HashSet<string>(disabledModuleKeys, StringComparer.OrdinalIgnoreCase);
+            return modules.Where(m =>
+                !ban.Contains(m.ModuleKey) && !ban.Contains(m.GetType().Name)).ToList();
+        }
+
         /// <summary>
         /// 发现所有 IModuleInitializer（feature 化主路径）。
         /// 遍历 catalog.AllScanAssemblies（框架Services → feature(短名排序) → 项目），
         /// 同名模块（ModuleName 相同）后扫覆盖先扫（项目排最后 ⇒ 项目覆盖 feature/框架）。
         /// </summary>
-        public static List<IModuleInitializer> DiscoverModuleInitializers(SB.Framework.Features.FeatureCatalog catalog)
+        public static List<IModuleInitializer> DiscoverModuleInitializers(
+            SB.Framework.Features.FeatureCatalog catalog,
+            IReadOnlyCollection<string>? disabledModuleKeys = null)
         {
             var modules = new Dictionary<string, IModuleInitializer>();
             foreach (var asm in catalog.AllScanAssemblies)
                 ScanModuleInitializers(modules, asm);
-            return modules.Values.OrderBy(m => m.InitOrder).ToList();
+            return FilterDisabled(modules.Values.OrderBy(m => m.InitOrder).ToList(), disabledModuleKeys);
         }
 
         /// <summary>
@@ -867,7 +879,9 @@ namespace SB.Framework.Services
         /// 同名模块（ModuleName 相同）项目版本覆盖框架版本，避免重复初始化。
         /// 新代码一律走 DiscoverModuleInitializers(FeatureCatalog)。
         /// </summary>
-        public static List<IModuleInitializer> DiscoverModuleInitializers(string? projectAssemblyName = null)
+        public static List<IModuleInitializer> DiscoverModuleInitializers(
+            string? projectAssemblyName = null,
+            IReadOnlyCollection<string>? disabledModuleKeys = null)
         {
             // 用 ModuleName 做 key，后扫描的覆盖先扫描的
             var modules = new Dictionary<string, IModuleInitializer>();
@@ -881,7 +895,7 @@ namespace SB.Framework.Services
                 ScanModuleInitializers(modules, Assembly.Load(projectAssemblyName));
             }
 
-            return modules.Values.OrderBy(m => m.InitOrder).ToList();
+            return FilterDisabled(modules.Values.OrderBy(m => m.InitOrder).ToList(), disabledModuleKeys);
         }
 
         private static void ScanModuleInitializers(Dictionary<string, IModuleInitializer> modules, Assembly assembly)
