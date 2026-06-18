@@ -1,4 +1,5 @@
 using FreeSql;
+using Microsoft.Extensions.Configuration;
 using SB.Framework.Models;
 using SB.Framework.Services;
 using SB.Framework.Services.Startup;
@@ -19,13 +20,16 @@ public static class DatabaseSeeder
         // 不再依赖单个 ProjectAssemblyName。catalog 在 AddSbFramework 的 [F-1] 已构建。
         var catalog = SB.Framework.Features.FeatureRuntime.Catalog;
 
+        var config = app.Services.GetRequiredService<IConfiguration>();
+        var disabledModules = config.GetSection("Modules:Disabled").Get<string[]>() ?? Array.Empty<string>();
+
         try
         {
             // 从各模块 IModuleInitializer 同步表结构和声明式数据
-            SyncModuleEntityTypes(fsql, catalog);
-            SyncModuleMenus(fsql, catalog);
-            SyncModuleSystemSettings(fsql, catalog);
-            SyncModuleSeedData(fsql, catalog);
+            SyncModuleEntityTypes(fsql, catalog, disabledModules);
+            SyncModuleMenus(fsql, catalog, disabledModules);
+            SyncModuleSystemSettings(fsql, catalog, disabledModules);
+            SyncModuleSeedData(fsql, catalog, disabledModules);
 
             // 应用 IFreeSqlConfigurator（基座 + 派生）
             app.Services.ApplyFreeSqlConfigurators();
@@ -44,9 +48,9 @@ public static class DatabaseSeeder
     /// <summary>
     /// 从各模块 IModuleInitializer.GetEntityTypes() 收集实体类型，自动同步表结构
     /// </summary>
-    private static void SyncModuleEntityTypes(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog)
+    private static void SyncModuleEntityTypes(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[] disabledModules)
     {
-        var modules = SetupService.DiscoverModuleInitializers(catalog);
+        var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         var entityTypes = modules
             .SelectMany(m => m.GetEntityTypes())
             .Distinct()
@@ -68,9 +72,9 @@ public static class DatabaseSeeder
     /// <summary>
     /// 从各模块 IModuleInitializer.GetMenus() 收集菜单声明，自动同步到数据库
     /// </summary>
-    public static (int created, int updated) SyncModuleMenus(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog)
+    public static (int created, int updated) SyncModuleMenus(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[] disabledModules)
     {
-        var modules = SetupService.DiscoverModuleInitializers(catalog);
+        var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         var allMenuDefs = modules.SelectMany(m => m.GetMenus()).ToList();
         if (allMenuDefs.Count == 0) return (0, 0);
 
@@ -201,9 +205,9 @@ public static class DatabaseSeeder
     /// <summary>
     /// 从各模块 IModuleInitializer.GetSystemSettings() 收集设置声明，自动同步缺失项到数据库
     /// </summary>
-    public static int SyncModuleSystemSettings(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog)
+    public static int SyncModuleSystemSettings(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[] disabledModules)
     {
-        var modules = SetupService.DiscoverModuleInitializers(catalog);
+        var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         var allDefs = modules.SelectMany(m => m.GetSystemSettings()).ToList();
         if (allDefs.Count == 0) return 0;
 
@@ -277,9 +281,9 @@ public static class DatabaseSeeder
     /// <summary>
     /// 执行各模块的 SeedData（幂等，每次启动都安全运行）
     /// </summary>
-    private static void SyncModuleSeedData(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog)
+    private static void SyncModuleSeedData(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[] disabledModules)
     {
-        var modules = SetupService.DiscoverModuleInitializers(catalog);
+        var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         foreach (var module in modules)
         {
             try
