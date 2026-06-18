@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>SB.Feature.AccessToken</PackageId>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Description>SB Feature 统一访问令牌 —— 账号即 token(密码 / API Key 两种认证),scoped key + FullAccess(god)取代静态 MasterKey;吸收 agent token 全部能力。</Description>
   </PropertyGroup>
 
