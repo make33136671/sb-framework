@@ -537,7 +537,7 @@ namespace SB.Framework.Services
                 Username = request.AdminUsername,
                 Password = adminPassword,
                 Name = request.AdminDisplayName,
-                Avatar = "/storage/images/Logo.png",
+                Avatar = "/storage/images/logo.png",
                 RoleId = roleId,
                 Status = AdminStatus.Active,
                 CreatedTime = AppTime.Now,

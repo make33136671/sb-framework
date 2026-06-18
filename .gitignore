@@ -27,12 +27,24 @@ client.key
 # 授权Key生成工具（不交付给客户）
 SB.LicenseGen/
 
-# wwwroot/storage 整个目录都是 install / 运行时生成的本地数据，不入库：
-#   favicon-*.png / favicon.ico / apple-touch-icon.png / app-info.json / images/logo.png  — install 生成
-#   db/             — DatabaseBackup 后台任务生成
+# wwwroot/storage：不要整目录 **/wwwroot/storage/ 一刀切 —— 那会把 SB 基础静态资源也丢掉。
+# install 要求上传 logo，未上传时回退用仓库自带的 SB 基础 logo + 整套图标；首次为全量部署，
+# 这套基础资源必须随代码入库、随部署上传到服务器，否则未传 logo 的环境没有 fallback。
+#
+# 入库（SB 基础静态资源 / fallback 默认值）：
+#   images/logo.png — 基础 Logo
+#   favicon.ico / favicon-*.png / apple-touch-icon.png / android-chrome-*.png — 基础图标全套
+# 不入库（运行时 / install 按客户实例生成）：
+#   app-info.json — 含客户产品名/域名，每次安装按客户生成
+#   db/ — DatabaseBackup 后台任务生成
 #   uploads/ chunks/ — 用户上传产物
 #   remote-backups/ remote-logos/ — 云端接收的其他客户端推过来的数据
-**/wwwroot/storage/
+**/wwwroot/storage/app-info.json
+**/wwwroot/storage/db/
+**/wwwroot/storage/uploads/
+**/wwwroot/storage/chunks/
+**/wwwroot/storage/remote-backups/
+**/wwwroot/storage/remote-logos/
 
 nupkgs/
 
