@@ -9,17 +9,48 @@ namespace SB.Framework.WebApi.Extensions
     public static class ServiceSetup
     {
         /// <summary>
+        /// 收集被禁模块声明拥有的全部 Service/Provider 类型与 Controller 全名，
+        /// 用于跳过服务注册与从路由移除 Controller。
+        /// </summary>
+        /// <param name="catalog">当前 feature catalog（含所有可扫程序集）</param>
+        /// <param name="disabledModuleKeys">Modules:Disabled 黑名单（大小写不敏感）</param>
+        /// <returns>(serviceTypes: 被禁 Service/Provider 类型集, controllerNames: 被禁 Controller 全名集)</returns>
+        public static (IReadOnlySet<Type> serviceTypes, IReadOnlySet<string> controllerNames)
+            CollectDisabledOwnedTypes(FeatureCatalog catalog, string[] disabledModuleKeys)
+        {
+            if (disabledModuleKeys == null || disabledModuleKeys.Length == 0)
+                return (new HashSet<Type>(), new HashSet<string>());
+
+            // 取全部模块(不带黑名单过滤),挑出命中黑名单的,收其 owned types + controller names
+            var all = SetupService.DiscoverModuleInitializers(catalog);
+            var ban = new HashSet<string>(disabledModuleKeys, StringComparer.OrdinalIgnoreCase);
+            var serviceTypes = new HashSet<Type>();
+            var controllerNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var m in all)
+            {
+                if (ban.Contains(m.ModuleKey) || ban.Contains(m.GetType().Name))
+                {
+                    foreach (var t in m.GetOwnedTypes()) serviceTypes.Add(t);
+                    foreach (var n in m.GetOwnedControllerNames()) controllerNames.Add(n);
+                }
+            }
+            return (serviceTypes, controllerNames);
+        }
+
+        /// <summary>
         /// 注册业务服务（feature 化主路径）。
         /// 遍历 catalog.AllScanAssemblies（框架Services → 各feature(短名排序) → 项目程序集），
         /// 对每个程序集扫 [AutoDependencyInjection] 注册。顺序保证"后注册覆盖先注册"：
         /// 项目排最后 ⇒ 项目子类仍覆盖 feature/框架基类。
         /// </summary>
+        /// <param name="bannedTypes">被禁模块声明的 Service/Provider 类型，跳过注册；null/空时行为与旧版完全相同。</param>
         public static IServiceCollection AddBusinessServices(
             this IServiceCollection services,
-            FeatureCatalog catalog)
+            FeatureCatalog catalog,
+            IReadOnlySet<Type>? bannedTypes = null)
         {
             foreach (var asm in catalog.AllScanAssemblies)
-                RegisterServicesFromAssembly(services, asm);
+                RegisterServicesFromAssembly(services, asm, bannedTypes);
             return services;
         }
 
@@ -46,14 +77,19 @@ namespace SB.Framework.WebApi.Extensions
         }
 
         /// <summary>
-        /// 扫描指定程序集，注册所有标记了 [AutoDependencyInjection] 的 Service
+        /// 扫描指定程序集，注册所有标记了 [AutoDependencyInjection] 的 Service。
+        /// bannedTypes 非空时跳过其中的类型（被禁模块 owned types）。
         /// </summary>
-        private static void RegisterServicesFromAssembly(IServiceCollection services, Assembly assembly)
+        private static void RegisterServicesFromAssembly(
+            IServiceCollection services, Assembly assembly,
+            IReadOnlySet<Type>? bannedTypes = null)
         {
             foreach (var type in assembly.ExportedTypes)
             {
                 if (type.IsAbstract || type.IsInterface)
                     continue;
+
+                if (bannedTypes != null && bannedTypes.Contains(type)) continue;
 
                 var attr = type.GetCustomAttribute<AutoDependencyInjectionAttribute>();
                 if (attr == null || !attr.AutoDependencyInjection)

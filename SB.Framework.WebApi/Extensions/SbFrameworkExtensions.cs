@@ -59,6 +59,13 @@ public static class SbFrameworkExtensions
         // 实例化清单 + 应用 EnabledByDefault + 拓扑排序（被禁的程序集已不在 catalog，这里只排已启用的）
         var modules = FeatureModuleActivator.ActivateAndSort(catalog, configuration);
 
+        // ★[F-1b] 读核心模块黑名单 → 收集被禁模块 owned 类型与 Controller 全名，
+        //   用于 [F-2] 跳过 Service 注册、[F-4] 从路由移除 Controller。
+        var disabledModuleKeys = configuration.GetSection("Modules:Disabled").Get<string[]>()
+            ?? Array.Empty<string>();
+        var (bannedServiceTypes, bannedControllerNames) =
+            ServiceSetup.CollectDisabledOwnedTypes(catalog, disabledModuleKeys);
+
         bool isInstalled = File.Exists(Path.Combine(
             builder.Environment.ContentRootPath, "installed.lock"));
 
@@ -84,7 +91,8 @@ public static class SbFrameworkExtensions
 
             // ▲[F-2] 业务服务注册：遍历 catalog.AllScanAssemblies，[AutoDependencyInjection] 自动扫
             //   （框架Services → 各feature(短名排序) → 项目程序集，后注册覆盖先注册）
-            builder.Services.AddBusinessServices(catalog);
+            //   bannedServiceTypes 非空时跳过被禁模块声明的 Service/Provider 类型。
+            builder.Services.AddBusinessServices(catalog, bannedServiceTypes);
 
             builder.Services.AddCacheService();
             builder.Services.AddEmailServices();
@@ -142,6 +150,10 @@ public static class SbFrameworkExtensions
         //   塌了就是"feature Controller 全 404 且无报错"的一环。
         foreach (var asm in catalog.FeatureAssemblies)
             mvc.AddApplicationPart(asm);
+
+        // ★[F-4b] 从路由移除被禁模块的 Controller（按 FullName 匹配，空黑名单时 filter 内部早退无副作用）
+        mvc.ConfigureApplicationPartManager(apm =>
+            apm.FeatureProviders.Add(new DisabledModuleControllerFilter(bannedControllerNames)));
 
         AppTime.Initialize(configuration["TimeZone"]);
         return builder;

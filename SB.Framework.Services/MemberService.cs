@@ -12,7 +12,17 @@ namespace SB.Framework.Services
         #region IModuleInitializer
 
         public string ModuleName => "会员管理";
+        public string ModuleKey => "Member";
         public int InitOrder => 20;
+
+        /// <summary>本程序集可见的 Member Service 类型。</summary>
+        public Type[] GetOwnedTypes() => new[] { typeof(MemberService) };
+
+        /// <summary>MemberController 全名（位于 SB.Framework.WebApi，Services 无法 typeof 引用）。</summary>
+        public string[] GetOwnedControllerNames() => new[]
+        {
+            "SB.Framework.WebApi.Controllers.MemberController",
+        };
 
         public Type[] GetEntityTypes() => new[]
         {

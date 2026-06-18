@@ -11,7 +11,20 @@ namespace SB.Framework.Services
         #region IModuleInitializer
 
         public string ModuleName => "邮件管理";
+        public string ModuleKey => "Email";
         public int InitOrder => 30;
+
+        /// <summary>本程序集可见的 Email Service/Provider 类型（跨程序集 Controller 由 GetOwnedControllerNames 声明）。</summary>
+        public Type[] GetOwnedTypes() => new[]
+        {
+            typeof(EmailService), typeof(EmailProviderFactory), typeof(EmailRateLimitService),
+        };
+
+        /// <summary>EmailConfigController 全名（位于 SB.Framework.WebApi，Services 无法 typeof 引用）。</summary>
+        public string[] GetOwnedControllerNames() => new[]
+        {
+            "SB.Framework.WebApi.Controllers.EmailConfigController",
+        };
 
         public Type[] GetEntityTypes() => new[]
         {
