@@ -5,7 +5,7 @@ namespace SB.Feature.AccessToken
 {
     /// <summary>
     /// 访问令牌功能的声明式初始化(建表 + 菜单)。纯声明、无构造依赖。
-    /// 菜单挂在「系统管理」区,与管理员账号并列 —— 呼应"账号即 token,同一处管理"。
+    /// 菜单挂在「系统管理 → 开发工具」下,与运维工具/后台任务并列。
     /// </summary>
     public sealed class AccessTokenInitializer : IModuleInitializer
     {
@@ -16,10 +16,12 @@ namespace SB.Feature.AccessToken
 
         public List<MenuDefinition> GetMenus() => new()
         {
+            // Path 保持不变(菜单同步按 Path 匹配存量记录),只改 ParentPath 把它重新挂到
+            // 开发工具下 —— 同步会 Update 旧记录的 ParentId,不会新增重复菜单。
             new MenuDefinition
             {
                 Name = "AccessToken",
-                ParentPath = "/system",
+                ParentPath = "/system/devtools",
                 Path = "/system/access-token",
                 Component = "/access-token/index",
                 Title = "访问令牌",
@@ -29,7 +31,7 @@ namespace SB.Feature.AccessToken
             new MenuDefinition
             {
                 Name = "AccessTokenAudit",
-                ParentPath = "/system",
+                ParentPath = "/system/devtools",
                 Path = "/system/access-token-audit",
                 Component = "/access-token/audit",
                 Title = "令牌审计",
