@@ -185,7 +185,9 @@ namespace SB.Framework.Services
                     x.Key,
                     x.CategoryId,
                     x.Name,
-                    x.DisplayType,
+                    // 显式转 int:全局 JsonStringEnumConverter 会把枚举序列化成名字字符串
+                    // (如 "Switch"),前端 displayType:number 的 === 比较就全落 fallback Input。
+                    DisplayType = (int)x.DisplayType,
                     x.CantDelete,
                     x.DataContent,
                     x.DataContentConfig,
