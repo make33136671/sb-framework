@@ -12,6 +12,15 @@ namespace SB.Framework.Models
         /// <summary>模块名称</summary>
         string ModuleName { get; }
 
+        /// <summary>模块英文标识 — 用于 Modules:Disabled 黑名单匹配。默认取实现类名。</summary>
+        string ModuleKey => GetType().Name;
+
+        /// <summary>模块拥有的本程序集可见类型(Service / Provider)— 黑名单关闭时跳过这些服务的 DI 注册。默认空。</summary>
+        Type[] GetOwnedTypes() => Array.Empty<Type>();
+
+        /// <summary>模块拥有的 Controller 全名(跨程序集,Services 无法 typeof WebApi 的 Controller)— 黑名单关闭时按全名从路由移除。默认空。</summary>
+        string[] GetOwnedControllerNames() => Array.Empty<string>();
+
         /// <summary>初始化顺序（越小越先执行，默认 0）</summary>
         int InitOrder => 0;
 
