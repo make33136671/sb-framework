@@ -72,8 +72,9 @@ public static class DatabaseSeeder
     /// <summary>
     /// 从各模块 IModuleInitializer.GetMenus() 收集菜单声明，自动同步到数据库
     /// </summary>
-    public static (int created, int updated) SyncModuleMenus(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[] disabledModules)
+    public static (int created, int updated) SyncModuleMenus(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[]? disabledModules = null)
     {
+        disabledModules ??= Array.Empty<string>();
         var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         var allMenuDefs = modules.SelectMany(m => m.GetMenus()).ToList();
         if (allMenuDefs.Count == 0) return (0, 0);
@@ -205,8 +206,9 @@ public static class DatabaseSeeder
     /// <summary>
     /// 从各模块 IModuleInitializer.GetSystemSettings() 收集设置声明，自动同步缺失项到数据库
     /// </summary>
-    public static int SyncModuleSystemSettings(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[] disabledModules)
+    public static int SyncModuleSystemSettings(IFreeSql fsql, SB.Framework.Features.FeatureCatalog catalog, string[]? disabledModules = null)
     {
+        disabledModules ??= Array.Empty<string>();
         var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         var allDefs = modules.SelectMany(m => m.GetSystemSettings()).ToList();
         if (allDefs.Count == 0) return 0;
