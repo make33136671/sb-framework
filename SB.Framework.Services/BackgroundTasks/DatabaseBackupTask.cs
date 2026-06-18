@@ -45,6 +45,7 @@ namespace SB.Framework.Services.BackgroundTasks
                 if (Status != SB.Framework.Core.BackgroundTask.TaskStatus.Running) return null;
                 using var scope = _scopeFactory.CreateScope();
                 var fsql = scope.ServiceProvider.GetRequiredService<IFreeSql>();
+                if (!GetSettingBool(fsql, "backup_auto_enabled", true)) return null; // 总开关关
                 var intervalHours = GetSettingInt(fsql, "backup_interval_hours", 12);
                 if (intervalHours <= 0) return null; // 用户关闭定时备份
                 var latest = fsql.Select<DatabaseBackup>()
@@ -64,6 +65,7 @@ namespace SB.Framework.Services.BackgroundTasks
             using var scope = _scopeFactory.CreateScope();
             var fsql = scope.ServiceProvider.GetRequiredService<IFreeSql>();
 
+            if (!GetSettingBool(fsql, "backup_auto_enabled", true)) return Task.FromResult(false); // 总开关关
             var intervalHours = GetSettingInt(fsql, "backup_interval_hours", 12);
             if (intervalHours <= 0) return Task.FromResult(false);
 
@@ -99,6 +101,15 @@ namespace SB.Framework.Services.BackgroundTasks
         {
             var s = fsql.Select<SystemSetting>().Where(c => c.Key == key).First();
             return s?.DataContent != null && int.TryParse(s.DataContent, out var n) ? n : def;
+        }
+
+        // Switch 类型存的是 "true"/"false" 字符串(兼容历史 "1"/"0")
+        private static bool GetSettingBool(IFreeSql fsql, string key, bool def)
+        {
+            var s = fsql.Select<SystemSetting>().Where(c => c.Key == key).First();
+            if (s?.DataContent == null) return def;
+            var v = s.DataContent.Trim().ToLowerInvariant();
+            return v == "true" || v == "1";
         }
     }
 }

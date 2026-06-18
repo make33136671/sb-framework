@@ -55,6 +55,18 @@ namespace SB.Framework.Services
             // 这里只放跟备份策略相关的运行时可调设置
             new SystemSettingDefinition
             {
+                Key = "backup_auto_enabled",
+                Name = "启用自动备份",
+                CategoryName = "数据库备份",
+                CategoryIcon = "ion:save-outline",
+                CategorySort = 60,
+                DisplayType = SystemSettingDisplayType.Switch,
+                DefaultValue = "true",
+                Sort = 0,
+                CantDelete = true,
+            },
+            new SystemSettingDefinition
+            {
                 Key = "backup_interval_hours",
                 Name = "自动备份间隔小时数",
                 CategoryName = "数据库备份",
