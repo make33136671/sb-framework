@@ -51,12 +51,16 @@ namespace SB.Framework.Services
             _licenseService = licenseService;
         }
 
-        // 授权未激活时,系统设置里隐藏「授权设置」分类(没开始授权时设置它没意义)。
-        // NoLicense 构建本就没有该分类(种子 #if 控制),licenseService 为空或 IsEnabled=false 时不过滤。
+        // 隐藏「授权设置」分类的条件:只有"启用了授权 且 已激活有效"才显示,其余都隐藏 ——
+        //   - NoLicense 构建(IsEnabled=false):没有授权概念,但 DB 可能残留早期带授权构建种的
+        //     「授权设置」数据,应隐藏;
+        //   - 带授权但未激活(IsEnabled=true 且 !IsValid:未填 Key / Key 无效 / 过期):没开始授权,
+        //     配置「授权到期提醒」没意义,应隐藏。
+        // licenseService 为 null 时按"未启用"处理(隐藏)。
         private bool ShouldHideLicenseSettings()
-            => _licenseService != null
-               && _licenseService.IsEnabled
-               && !_licenseService.CurrentStatus.IsValid;
+            => _licenseService == null
+               || !_licenseService.IsEnabled
+               || !_licenseService.CurrentStatus.IsValid;
 
         private const string LicenseCategoryName = "授权设置";
 

@@ -254,6 +254,11 @@ public static class DatabaseSeeder
                         .Set(s => s.DisplayType, def.DisplayType)
                         .Where(s => s.Key == def.Key && s.DisplayType != def.DisplayType)
                         .ExecuteAffrows();
+                    // 同步 Sort（代码调整配置项顺序后，存量行的排序也自动跟进）
+                    fsql.Update<SystemSetting>()
+                        .Set(s => s.Sort, def.Sort)
+                        .Where(s => s.Key == def.Key && s.Sort != def.Sort)
+                        .ExecuteAffrows();
                     continue;
                 }
 

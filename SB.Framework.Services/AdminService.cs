@@ -62,7 +62,7 @@ namespace SB.Framework.Services
                 CategorySort = 60,
                 DisplayType = SystemSettingDisplayType.Switch,
                 DefaultValue = "true",
-                Sort = 0,
+                Sort = 3,
                 CantDelete = true,
             },
             new SystemSettingDefinition
@@ -98,7 +98,7 @@ namespace SB.Framework.Services
                 CategorySort = 60,
                 DisplayType = SystemSettingDisplayType.InputNumber,
                 DefaultValue = "14",
-                Sort = 3,
+                Sort = 0,
                 CantDelete = true,
             },
         };
