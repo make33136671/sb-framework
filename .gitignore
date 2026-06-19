@@ -52,3 +52,6 @@ nupkgs/
 license_keys/
 license_private.key
 license_public.key
+
+# Claude workflow 临时 worktree（误提交清理，不再追踪）
+.claude/worktrees/
