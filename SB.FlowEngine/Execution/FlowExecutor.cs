@@ -36,7 +36,7 @@ public sealed class FlowExecutor {
                 if (e.Kind != "data" || e.Target != nodeId) continue;
                 if (!nodeMap.TryGetValue(e.Source, out var up)) continue;
                 if (up.ModuleId == "varGet") {
-                    var varName = up.Config.TryGetValue("varName", out var vn) ? vn as string : null;
+                    var varName = up.Config.TryGetValue("varName", out var vn) ? AsString(vn) : null;
                     inputs[e.TargetPort] = varName != null && variables.TryGetValue(varName, out var val) ? val : null;
                 } else if (!ControlIds.Contains(up.ModuleId)) {
                     if (!nodeOutputs.TryGetValue(e.Source, out var outs))
@@ -101,7 +101,7 @@ public sealed class FlowExecutor {
                         break;
                     case "varSet": {
                         var inputs = GatherInputs(pc);
-                        var varName = node.Config.TryGetValue("varName", out var vn) ? vn as string : null;
+                        var varName = node.Config.TryGetValue("varName", out var vn) ? AsString(vn) : null;
                         if (varName != null)
                             variables[varName] = inputs.TryGetValue("value", out var val) ? val : null;
                         options.OnNodeStatus?.Invoke(pc, "success");
@@ -145,6 +145,22 @@ public sealed class FlowExecutor {
         float f => (int)f,
         decimal m => (int)m,
         string s => int.TryParse(s, out var r) ? r : 0,
+        // FlowGraph 经 JSON 反序列化时数值是 JsonElement,需显式取数。
+        System.Text.Json.JsonElement je => je.ValueKind switch {
+            System.Text.Json.JsonValueKind.Number => je.TryGetInt32(out var n) ? n : (int)je.GetDouble(),
+            System.Text.Json.JsonValueKind.String => int.TryParse(je.GetString(), out var sr) ? sr : 0,
+            _ => 0,
+        },
         _ => Convert.ToInt32(value),
+    };
+
+    /// <summary>把 object?(可能是 JsonElement)安全转成 string,用于读 varName 等配置。</summary>
+    private static string? AsString(object? value) => value switch {
+        null => null,
+        string s => s,
+        System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.String
+            ? je.GetString()
+            : je.ValueKind == System.Text.Json.JsonValueKind.Null ? null : je.ToString(),
+        _ => value.ToString(),
     };
 }
