@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SB.FlowEngine</RootNamespace>
+    <AssemblyName>SB.FlowEngine</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>SB.FlowEngine</PackageId>
+    <Version>0.1.0</Version>
+    <Description>SB 图执行引擎(前端 @saibo/flow-engine 的服务端对称实现):读 FlowGraph 执行,内置 if/loop/goto/变量 控制节点,业务节点经 IFlowNodeExecutor 接入</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
+  </ItemGroup>
+</Project>
