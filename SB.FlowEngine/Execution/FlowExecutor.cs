@@ -1,3 +1,4 @@
+using System.Text.Json;
 using SB.FlowEngine.Contracts;
 
 namespace SB.FlowEngine.Execution;
@@ -6,7 +7,7 @@ namespace SB.FlowEngine.Execution;
 /// 与前端 @saibo/flow-engine 执行器语义对齐。</summary>
 public sealed class FlowExecutor {
     private static readonly HashSet<string> ControlIds = new()
-        { "if", "loop", "goto", "label", "varGet", "varSet" };
+        { "if", "loop", "goto", "label", "varGet", "varSet", "wait", "subFlow" };
 
     private readonly Dictionary<string, IFlowNodeExecutor> _executors;
 
@@ -22,6 +23,13 @@ public sealed class FlowExecutor {
         FlowGraph graph, IReadOnlyList<ModuleDefinition> modules,
         FlowExecutionOptions? options = null, CancellationToken ct = default) {
         options ??= new FlowExecutionOptions();
+        return await RunGraphAsync(graph, modules, options, 0, ct);
+    }
+
+    /// <summary>执行一张图。depth 用于 subFlow 递归(0=顶层)。</summary>
+    private async Task<FlowExecutionResult> RunGraphAsync(
+        FlowGraph graph, IReadOnlyList<ModuleDefinition> modules,
+        FlowExecutionOptions options, int depth, CancellationToken ct) {
         var nodeMap = graph.Nodes.ToDictionary(n => n.Id);
         var moduleMap = modules.ToDictionary(m => m.Id);
         var variables = new Dictionary<string, object?>();
@@ -113,15 +121,63 @@ public sealed class FlowExecutor {
                         options.OnNodeStatus?.Invoke(pc, "success");
                         pc = null;
                         break;
+                    case "wait": {
+                        // 通用延时:config.durationMs 毫秒
+                        var ms = ToInt(node.Config.TryGetValue("durationMs", out var dm) ? dm : 0);
+                        if (ms > 0) await Task.Delay(ms, ct);
+                        options.OnNodeStatus?.Invoke(pc, "success");
+                        pc = NextByExec(pc, "out");
+                        break;
+                    }
+                    case "subFlow": {
+                        // 子流程调用:优先 config.inlineGraph,否则用 SubFlowResolver 按 config.flowId 取
+                        if (depth + 1 > options.MaxSubFlowDepth)
+                            throw new FlowExecutionException(
+                                $"子流程递归深度超过上限 {options.MaxSubFlowDepth}(可能存在环)");
+                        var sub = ResolveSubGraph(node, options);
+                        if (sub == null)
+                            throw new FlowExecutionException(
+                                $"子流程节点 {pc} 无法解析子图(缺 inlineGraph 且 SubFlowResolver 未返回)");
+                        var subResult = await RunGraphAsync(sub, modules, options, depth + 1, ct);
+                        steps += subResult.Steps;   // 子流程步数计入总数
+                        options.OnNodeStatus?.Invoke(pc, "success");
+                        pc = NextByExec(pc, "out");
+                        break;
+                    }
                     default: {
-                        // 业务节点
+                        // 业务节点(支持节点级执行机制:retry / retryIntervalMs / stopOnError / delayMs)
                         if (!_executors.TryGetValue(node.ModuleId, out var exec))
                             throw new FlowExecutionException($"未知模块: {node.ModuleId}");
                         var inputs = GatherInputs(pc);
-                        var outs = await exec.ExecuteAsync(
-                            new FlowNodeContext { ModuleId = node.ModuleId, Config = node.Config, Inputs = inputs },
-                            ct) ?? new Dictionary<string, object?>();
-                        nodeOutputs[pc] = outs;
+                        var nodeCtx = new FlowNodeContext { ModuleId = node.ModuleId, Config = node.Config, Inputs = inputs };
+
+                        var retry = ToInt(node.Config.TryGetValue("retry", out var rt) ? rt : 0);
+                        var retryInterval = ToInt(node.Config.TryGetValue("retryIntervalMs", out var ri) ? ri : 0);
+                        var stopOnError = AsBool(node.Config.TryGetValue("stopOnError", out var soe) ? soe : null, defaultValue: true);
+                        var delayMs = ToInt(node.Config.TryGetValue("delayMs", out var dl) ? dl : 0);
+
+                        IReadOnlyDictionary<string, object?>? outs = null;
+                        Exception? lastError = null;
+                        for (var attempt = 0; attempt <= retry; attempt++) {
+                            try {
+                                outs = await exec.ExecuteAsync(nodeCtx, ct) ?? new Dictionary<string, object?>();
+                                lastError = null;
+                                break;
+                            } catch (Exception ex) {
+                                lastError = ex;
+                                if (attempt < retry && retryInterval > 0) await Task.Delay(retryInterval, ct);
+                            }
+                        }
+
+                        if (lastError != null) {
+                            // 重试耗尽仍失败:stopOnError 则上抛(由外层 catch 标记 failed 并终止);
+                            // 否则吞掉错误、用空输出继续往下走
+                            if (stopOnError) throw lastError;
+                            outs = new Dictionary<string, object?>();
+                        }
+
+                        nodeOutputs[pc] = outs!;
+                        if (delayMs > 0) await Task.Delay(delayMs, ct);
                         options.OnNodeStatus?.Invoke(pc, "success");
                         var mod = moduleMap.TryGetValue(node.ModuleId, out var m) ? m : null;
                         var firstOut = mod?.ExecOutputs.FirstOrDefault()?.Id;
@@ -162,5 +218,39 @@ public sealed class FlowExecutor {
             ? je.GetString()
             : je.ValueKind == System.Text.Json.JsonValueKind.Null ? null : je.ToString(),
         _ => value.ToString(),
+    };
+
+    /// <summary>把 object?(可能是 JsonElement)安全转成 bool,缺失/无法解析时取 defaultValue。</summary>
+    private static bool AsBool(object? value, bool defaultValue) => value switch {
+        null => defaultValue,
+        bool b => b,
+        string s => bool.TryParse(s, out var r) ? r : defaultValue,
+        System.Text.Json.JsonElement je => je.ValueKind switch {
+            System.Text.Json.JsonValueKind.True => true,
+            System.Text.Json.JsonValueKind.False => false,
+            System.Text.Json.JsonValueKind.String => bool.TryParse(je.GetString(), out var sr) ? sr : defaultValue,
+            System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined => defaultValue,
+            _ => defaultValue,
+        },
+        _ => defaultValue,
+    };
+
+    /// <summary>解析 subFlow 节点的子图:优先 config.inlineGraph(对象或 JSON),否则按 config.flowId 调 resolver。</summary>
+    private static FlowGraph? ResolveSubGraph(FlowNode node, FlowExecutionOptions options) {
+        if (node.Config.TryGetValue("inlineGraph", out var inline) && inline != null) {
+            switch (inline) {
+                case FlowGraph g: return g;
+                case System.Text.Json.JsonElement je when je.ValueKind == System.Text.Json.JsonValueKind.Object:
+                    return je.Deserialize<FlowGraph>(SubFlowJsonOpts);
+            }
+        }
+        var flowId = node.Config.TryGetValue("flowId", out var fid) ? AsString(fid) : null;
+        if (!string.IsNullOrEmpty(flowId) && options.SubFlowResolver != null)
+            return options.SubFlowResolver(flowId);
+        return null;
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions SubFlowJsonOpts = new() {
+        PropertyNameCaseInsensitive = true,
     };
 }
