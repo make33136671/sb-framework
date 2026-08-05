@@ -85,9 +85,11 @@ Payload 字段（`LicensePayload`）：
 
 ## 6. 时间回退检测（`TimeRegressionGuard`）
 
-- 持久化文件：`license_time.dat`（`{ticks}.{HMAC}`），HMAC 密钥 = SHA256(`公钥 + "|" + 本机HardwareId`)——即使拿到公钥也无法在别的机器伪造。
-- 启动时校验：存储时间比当前时间快 >5 分钟 → 判定回退；HMAC 校验失败 → 视为篡改。
-- 运行时：当前时间 < 内存最后时间 -5 分钟 → 回退 403；每 10 分钟持久化一次。
+- 持久化文件（**双位置**）：主文件 `license_time.dat`（产物根目录）+ 备份文件 `%LOCALAPPDATA%/SB_Framework/license_time.dat`（取不到时回退产物目录 `license_time.backup.dat`）。内容均为 `{ticks}.{HMAC}`。
+- HMAC 密钥 = SHA256(`公钥 + "|" + 本机HardwareId`)——即使拿到公钥也无法在别的机器伪造。
+- 启动时校验：主/备份**任一**文件存储时间比当前时间快 >5 分钟 → 判定回退；**任一**文件 HMAC 校验失败/解析失败 → 视为篡改。
+- 运行时：当前时间 < 内存最后时间 -5 分钟 → 回退 403；每 10 分钟双文件持久化一次。
+- **双位置意义**：删主文件 + 回拨时钟无法绕过（备份仍在应用数据目录持有旧时间）。两处都删（且能找到备份位置）= 绕过，属于接受的残余风险。
 - 文件读写失败不阻塞启动（降级）。
 
 ## 7. 客户端流程（`VerificationController` → `admin/Verification/*`，JwtAdmin，Status 除外）
@@ -111,23 +113,28 @@ Payload 字段（`LicensePayload`）：
 - **公开验证 API**：`VerifyController`（`/api/verify/*`，AllowAnonymous）：`Heartbeat` / `Request` / `Verify` / `Check` / `Download`。
 - **私钥目录优先级**：`SB_LICENSE_KEY_DIR` 环境变量 > 插件 Options.KeyDirectory > ContentRoot。密钥对自动生成（`GenerateLicenseKeyFile`），私钥不入库不提交（`.gitignore` 忽略 `license_*.key`）。
 - **典型部署**：`LicenseManage` 装在 **NoLicense 主包**上（自己不被授权束缚 + 能给下游签发）。
+- **⚠️ 强制身份绑定**（`GenerateLicense` 校验）：签发时**至少绑定一项身份**（`Domains` / `ClientKey` / `HardwareId` 任一非空），否则拒绝签发。防"空白授权"——无任何校验字段的 Key 可在任意机器原样使用。`QuickGenerate` 本就要求 ClientKey/HardwareId 至少一项。
 
 ## 10. 公钥嵌入与 NoLicense 变体
 
 - `SB.Framework.WebApi.csproj` 的 `EmbedLicensePublicKey` Target 在**构建时**从 `license_public.key` 读公钥，写入 `BuildInfo.LicensePublicKey`（`GenerateLicenseKeyFile` Task 首次自动生成 RSA-2048 密钥对）。
-- `.NoLicense` 变体：`EmbedEmptyLicenseKey` 置空公钥 → `AddLicense` 收到空公钥仍注册 `MissingKeyLicenseService`（**不是** NullLicenseService）→ ⚠️ 但 `NoLicense` 变体在 `SbFrameworkExtensions` 中走 `#if !DISABLE_LICENSE → NullLicenseService()` 分支（`IsEnabled=false`），不挂中间件。
-- 正常版 + 缺公钥 = **全站 403**（保护生效）；NoLicense 版 = 授权逻辑物理关闭。
+- **运行时优先用内嵌公钥**（`LicenseSetup.AddLicenseService`）：`BuildInfo.LicensePublicKey` 非空即使用编译进 DLL 的公钥；仅内嵌为空（旧产物/缺密钥）才回退读产物目录 `license_public.key` 文件。→ **替换 `license_public.key` 文件 + 自签无法绕过**（验签用内嵌公钥）。
+- `.NoLicense` 变体：`EmbedEmptyLicenseKey` 置空公钥；`SbFrameworkExtensions` 走 `#if !DISABLE_LICENSE → NullLicenseService()` 分支（`IsEnabled=false`），不挂中间件，授权逻辑物理关闭。`LicenseSetup.AddLicenseService` 的 `#if DISABLE_LICENSE` 分支同样注册 `NullLicenseService`（一致语义）。
+- 正常版 + 缺公钥（内嵌与文件均为空）→ 注册 `MissingKeyLicenseService`，**全站 403**（保护生效）。
 
 ## 11. 已知缺口（安全现状）
 
+> 目标威胁模型：**防"顺手党"**（改文件 / 改时间 / 复制授权 / AI 几分钟绕过），不防逆向工程 IL 的开发者。
+
 | # | 缺口 | 现状 | 说明 |
 |---|------|------|------|
-| 1 | 机器不绑定 | 部分防护 | 仅当签发时写入 `ClientKey`/`HardwareId` 才校验；空字段即不绑定，`scp` 产物可换机运行 |
-| 2 | 系统时间调回 | 已防护 | `TimeRegressionGuard`（5 分钟容差） |
-| 3 | 反编译改 DLL | **无防护** | ⚠️ 旧 Obfuscar 混淆**已移除**，源码仓库无 `obfuscar.xml`/`obfuscate.sh`；`dnSpy` 可篡改。这是 0.4.x 相对旧版的安全回退 |
-| 4 | 替换公钥自签 | 部分 | 需同时拿到私钥才可自签；替换 `license_public.key` 需重新构建 |
-| 5 | `-p:DisableLicense=true` 构建 | 固有 | NoLicense 变体有意关闭授权（商业上受控） |
+| 1 | 机器不绑定 | ✅ 已封 | `GenerateLicense` 强制绑定至少一项身份（域名/ClientKey/HardwareId），无"空白授权"可签发；签发绑定后跨机复制过不了身份校验 |
+| 2 | 系统时间调回 | ✅ 已封 | `TimeRegressionGuard`（5 分钟容差 + 双文件持久化）；删主文件回拨时钟会被备份文件拦住 |
+| 3 | 反编译改 DLL | 接受 | 非目标威胁模型（逆向党）；若需提高可恢复 Obfuscar 混淆 |
+| 4 | 替换授权证书/自签 | ✅ 已封 | 运行时优先用**内嵌公钥**（编译进 DLL），替换 `license_public.key` 文件无效 |
+| 5 | `-p:DisableLicense=true` 构建 | 固有 | NoLicense 变体有意关闭授权（商业上受控，按项目授予） |
 | 6 | 心跳被屏蔽（拔网/hosts） | 已防护 | 48h 宽限期后 403（需配置 `CloudServerUrl`） |
+| 7 | 删除主+备份时间文件再回拨 | 接受 | 残余风险：需找到 `%LOCALAPPDATA%/SB_Framework/` 并删两处，已超出"顺手党"范畴 |
 
 ## 12. 已移除项（旧文档误留）
 
