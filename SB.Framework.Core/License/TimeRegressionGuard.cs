@@ -6,7 +6,8 @@ namespace SB.Framework.Core.License
 {
     /// <summary>
     /// 系统时间回退检测器。
-    /// 通过持久化最后已知时间戳（HMAC 签名保护），检测系统时钟是否被回拨。
+    /// 通过持久化最后已知时间戳（HMAC 签名保护）检测系统时钟是否被回拨。
+    /// 时间戳同时写入主文件与应用数据目录备份，删单个文件无法重置检测状态。
     /// </summary>
     public static class TimeRegressionGuard
     {
@@ -16,11 +17,33 @@ namespace SB.Framework.Core.License
         private static bool _regressionDetected;
         private static byte[] _hmacKey = Array.Empty<byte>();
         private static readonly string _timeFilePath = Path.Combine(AppContext.BaseDirectory, "license_time.dat");
+        private static readonly string _backupFilePath = GetBackupFilePath();
         private const int ToleranceMinutes = 5;
         private const int UpdateIntervalMinutes = 10;
 
         /// <summary>
-        /// 初始化：加载持久化的时间戳并执行首次检测
+        /// 备份时间戳路径：优先用户本地应用数据目录，避免顺手党删掉主文件后回拨时钟。
+        /// 取不到应用数据目录（如无 HOME 的 Linux 服务）时回退到产物目录。
+        /// </summary>
+        private static string GetBackupFilePath()
+        {
+            var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (string.IsNullOrEmpty(baseDir))
+                return Path.Combine(AppContext.BaseDirectory, "license_time.backup.dat");
+            var appDir = Path.Combine(baseDir, "SB_Framework");
+            try
+            {
+                Directory.CreateDirectory(appDir);
+                return Path.Combine(appDir, "license_time.dat");
+            }
+            catch
+            {
+                return Path.Combine(AppContext.BaseDirectory, "license_time.backup.dat");
+            }
+        }
+
+        /// <summary>
+        /// 初始化：加载主/备份两个持久化时间戳并执行首次检测
         /// </summary>
         public static void Initialize(string? publicKey = null)
         {
@@ -33,22 +56,12 @@ namespace SB.Framework.Core.License
 
             try
             {
-                if (File.Exists(_timeFilePath))
-                {
-                    var storedTime = ReadTimeFile();
-                    if (storedTime.HasValue)
-                    {
-                        if (storedTime.Value > now.AddMinutes(ToleranceMinutes))
-                        {
-                            _regressionDetected = true;
-                        }
-                    }
-                    else
-                    {
-                        // 文件被篡改（HMAC 校验失败），视为时间回退
-                        _regressionDetected = true;
-                    }
-                }
+                var (tampered, lastKnown) = ReadTimeFiles();
+                // 任一文件被篡改(HMAC 校验失败 / 解析失败)视为时间回退
+                if (tampered)
+                    _regressionDetected = true;
+                else if (lastKnown.HasValue && lastKnown.Value > now.AddMinutes(ToleranceMinutes))
+                    _regressionDetected = true;
             }
             catch
             {
@@ -58,7 +71,7 @@ namespace SB.Framework.Core.License
             _lastKnownTime = now;
             _lastWriteTime = now;
             _initialized = true;
-            WriteTimeFile(now);
+            WriteTimeFiles(now);
         }
 
         /// <summary>
@@ -87,7 +100,7 @@ namespace SB.Framework.Core.License
             // 定期持久化
             if (now > _lastWriteTime.AddMinutes(UpdateIntervalMinutes))
             {
-                WriteTimeFile(now);
+                WriteTimeFiles(now);
                 _lastWriteTime = now;
             }
 
@@ -97,36 +110,70 @@ namespace SB.Framework.Core.License
         /// <summary>是否已检测到时间回退</summary>
         public static bool IsRegressionDetected => _regressionDetected;
 
-        private static DateTime? ReadTimeFile()
+        /// <summary>
+        /// 读取主/备份两个时间文件，返回 (是否篡改, 两份中最近的有效时间)。
+        /// 某文件不存在视为"无候选"（如首次运行），不算篡改；存在但校验失败视为篡改。
+        /// </summary>
+        private static (bool Tampered, DateTime? LastKnown) ReadTimeFiles()
+        {
+            bool tampered = false;
+            DateTime? lastKnown = null;
+
+            TryRead(_timeFilePath, ref tampered, ref lastKnown);
+            TryRead(_backupFilePath, ref tampered, ref lastKnown);
+
+            return (tampered, lastKnown);
+        }
+
+        private static void TryRead(string path, ref bool tampered, ref DateTime? lastKnown)
         {
             try
             {
-                var content = File.ReadAllText(_timeFilePath).Trim();
+                if (!File.Exists(path)) return;
+
+                var content = File.ReadAllText(path).Trim();
                 var parts = content.Split('.');
-                if (parts.Length != 2) return null;
+                if (parts.Length != 2)
+                {
+                    tampered = true;
+                    return;
+                }
 
                 var ticks = long.Parse(parts[0]);
                 var storedHmac = parts[1];
 
                 // 校验 HMAC
                 var expectedHmac = ComputeHmac(parts[0]);
-                if (storedHmac != expectedHmac) return null; // 篡改
+                if (storedHmac != expectedHmac)
+                {
+                    tampered = true; // 篡改
+                    return;
+                }
 
-                return new DateTime(ticks, DateTimeKind.Utc);
+                var time = new DateTime(ticks, DateTimeKind.Utc);
+                if (!lastKnown.HasValue || time > lastKnown.Value)
+                    lastKnown = time;
             }
             catch
             {
-                return null;
+                // 解析失败视为篡改
+                tampered = true;
             }
         }
 
-        private static void WriteTimeFile(DateTime utcTime)
+        private static void WriteTimeFiles(DateTime utcTime)
+        {
+            WriteTimeFile(_timeFilePath, utcTime);
+            WriteTimeFile(_backupFilePath, utcTime);
+        }
+
+        private static void WriteTimeFile(string path, DateTime utcTime)
         {
             try
             {
                 var ticks = utcTime.Ticks.ToString();
                 var hmac = ComputeHmac(ticks);
-                File.WriteAllText(_timeFilePath, $"{ticks}.{hmac}");
+                File.WriteAllText(path, $"{ticks}.{hmac}");
             }
             catch
             {
