@@ -17,8 +17,9 @@ namespace SB.Framework.WebApi.Extensions
         /// 构建参数 <c>-p:DisableLicense=true</c> 会定义 <c>DISABLE_LICENSE</c> 常量，
         /// 此时直接注册 <see cref="NullLicenseService"/>（永久授权，不做验证）。
         ///
-        /// 默认构建下从产物目录下的 <c>license_public.key</c> 物理文件获取公钥。
-        /// 文件不存在则降级为 <see cref="NullLicenseService"/>。
+        /// 默认构建下优先使用<see cref="SB.Framework.BuildInfo.LicensePublicKey"/>
+        /// （构建时把 license_public.key 内嵌进程序集，无法被替换文件绕过）；
+        /// 内嵌为空（旧产物/缺密钥）才回退到产物目录的 <c>license_public.key</c> 物理文件。
         /// </summary>
         public static IServiceCollection AddLicenseService(this IServiceCollection services)
         {
@@ -29,9 +30,14 @@ namespace SB.Framework.WebApi.Extensions
             services.AddScoped<ILicenseVerifyClient, LicenseVerifyClient>();
 
 #if DISABLE_LICENSE
-            return services.AddLicense(null);
+            services.AddSingleton<ILicenseService>(new NullLicenseService());
+            return services;
 #else
-            var publicKeyXml = LoadPublicKeyFromFile();
+            // 优先内嵌公钥（编译进 DLL）：顺手党替换 license_public.key 文件后，
+            // 自己签名仍会被内嵌公钥拒绝 —— 堵死"替换授权证书 + 自签"绕过路径。
+            var publicKeyXml = !string.IsNullOrEmpty(SB.Framework.BuildInfo.LicensePublicKey)
+                ? SB.Framework.BuildInfo.LicensePublicKey
+                : LoadPublicKeyFromFile();
             return services.AddLicense(publicKeyXml);
 #endif
         }
