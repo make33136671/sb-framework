@@ -3,6 +3,8 @@
 > 状态：设计稿 v2（2026-06-07）。本文取代 v1（v1 的「显式 `AddXxxFeature()` 注册 + `SB.Framework.Feature.*` 命名」已被推翻，理由见 §1.4）。
 > 适用范围：`SB.Framework.*` 基础框架 + 其派生项目（PM / Nexus / vshop 等）。
 > 本文是要长期遵循的地基文档。所有 `SB.Feature.*` 功能包按本文范式扩展。
+>
+> ⚠️ **一致性勘误（2026-08-05）**：§6.3 原文描述的 `MasterKeyMiddleware` / `X-Master-Key` 万能密钥 **已从源码移除**，由 `SB.Feature.AccessToken` 插件的 **FullAccess(god) API Key** 取代（可吊销/审计/IP 白名单）。§6.3 的"运维后门"归类结论保留，但实现范式改为 AccessToken，详见 §6.3 末尾修订。其余章节（发现层 / 清单层 / 数据装配层 / 装配时序 / 包发布）与源码一致。
 
 ---
 
@@ -634,8 +636,8 @@ public static WebApplication UseSbFramework(this WebApplication app)
     app.UseStaticFiles();
     app.UseMiddleware<SetupMiddleware>();
     app.UseRouting();
-    if (!string.IsNullOrEmpty(AppGlobal.AppSettings?.MasterKey))
-        app.UseMiddleware<MasterKeyMiddleware>();   // 运维后门，条件挂载，不动（§6）
+    // 旧 MasterKeyMiddleware 已移除。运维后门由 AccessToken 插件 FullAccess key 承担：
+    // LicenseMiddleware 内部对 FullAccess key 直接放行（见 LicenseMiddleware.cs:80-91），无需额外中间件。
     app.UseAuthorization();
 
     // ★[F-5] feature 自定义中间件：固定锚点 = UseAuthorization 之后、MapControllers 之前
@@ -770,10 +772,9 @@ public class LicenseManageService    // 不再 : IModuleInitializer
 
 ```
 UseStaticFiles
-→ [#if !DISABLE_LICENSE] LicenseMiddleware     ← 主权闸门（最外层,插件够不到）
+→ [#if !DISABLE_LICENSE] LicenseMiddleware     ← 主权闸门（最外层,插件够不到;FullAccess key 在此放行）
 → SetupMiddleware
 → UseRouting
-→ [MasterKeyMiddleware (条件挂)]                ← 运维后门(§6.3)
 → UseAuthorization
 → ★ 插件中间件锚点 [F-5]（所有插件中间件在此,License 内侧）
 → MapControllers
@@ -801,18 +802,20 @@ UseStaticFiles
 
 唯一运维约束：签发后台须持有私钥（`license_private.key`），且该私钥须与下游项目内嵌的公钥配对——这是 License 体系本来的约定。
 
-### 6.3 MasterKey 归类：第二档"运维后门"，新架构零改动
+### 6.3 运维后门归类：第二档，实现已迁至 AccessToken FullAccess
 
-**【已决策】MasterKey 既不是插件，也不走 `#if` 双变体，保持现状不动。**
+> **【一致性修订 2026-08-05】**：旧 `MasterKeyMiddleware` / `AppSettings.MasterKey` / `X-Master-Key` **已从源码移除**。下述"运维后门"分类结论仍成立，但实现方式改为 `SB.Feature.AccessToken` 的 FullAccess key。
 
-源码事实：`AppSettings.MasterKey` 是配置字段（安装向导写入），**无 `#if` 包裹**；中间件**条件挂载**（`if (!string.IsNullOrEmpty(MasterKey)) app.UseMiddleware<MasterKeyMiddleware>()`）；空字符串 = 通道物理不挂载 = 后门关闭。它凌驾于授权验证之上（`LicenseMiddleware` 内部也认 `X-Master-Key` 绕过所有限制）。
+旧设计（已移除）：`AppSettings.MasterKey` 是配置字段（安装向导写入），中间件条件挂载（`if (!string.IsNullOrEmpty(MasterKey))`），空字符串 = 通道不挂载 = 后门关闭。它凌驾于授权验证之上（`LicenseMiddleware` 内部也认 `X-Master-Key` 绕过所有限制）。
+
+**现行实现**（`SB.Feature.AccessToken`）：`ApiKey.FullAccess = true`（god key）——忽略 scope、穿透所有端点、旁路 License（`LicenseMiddleware` 对 FullAccess key 直接放行，见 `LicenseMiddleware.cs:80-91`）。能力上等价于旧 MasterKey，且**可吊销、可审计（`SB_ApiKey_Audit`）、可配 IP 白名单**。仅 `super` 角色可签发，且需功能开关 `EnableFullAccess=true`。
 
 在"功能开关三档"里的精确归位：
 - 第 1 档**主权**（编译期 `#if` + 双变体，客户不能关）= **授权验证 License**。
-- 第 2 档**运维后门**（配置开关，运维可关，框架内置中间件条件挂载）= **MasterKey**。
+- 第 2 档**运维后门**（由框架作者/运维持有，不暴露给最终用户）= **AccessToken FullAccess key**。
 - 第 3 档**纯功能性**（独立 NuGet 插件，引则有）= **`SB.Feature.*`**。
 
-MasterKey 配置保持顶级 `AppSettings.MasterKey`，**不进 `Features` 节**（它不是插件配置）。
+FullAccess key 配置走插件（`SB_ApiKey` 表 + `EnableFullAccess` 开关），**不进 `Features` 配置节**（不是插件静态配置）。
 
 ### 6.4 主权/插件经 LicensePayload 隐式耦合（须显式承认）
 
@@ -856,7 +859,7 @@ MasterKey 配置保持顶级 `AppSettings.MasterKey`，**不进 `Features` 节**
 设计要点（已决策）：
 - `Disabled` 用 **FeatureName**（运维友好，与日志/`ModuleName` 一致）。
 - 每个插件配置子节直接挂 `Features.{FeatureName}` 下，**不另起顶级节**：① 一眼看出是插件配置；② 卸载后残留集中好清理；③ 不污染主权 `AppSettings` 顶级类。
-- 主权/云端配置**不进** `Features` 节：`CloudConfig.ServerUrl`、`LicenseConfig.Key`、`MasterKey` 保持顶级（它们属于客户端侧 License / 运维后门，与"是否装了某插件"无关）。
+- 主权/云端配置**不进** `Features` 节：`CloudConfig.ServerUrl`、`LicenseConfig.Key` 保持顶级（它们属于客户端侧 License，与"是否装了某插件"无关）。旧 `MasterKey` 顶级字段**已移除**，运维后门能力由 AccessToken 插件的 FullAccess key 承担。
 
 ### 7.2 插件读自身配置：强类型 Options，框架自动绑定
 

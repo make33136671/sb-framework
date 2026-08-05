@@ -1,195 +1,142 @@
 # License 授权系统
 
-## 概述
+> 本文档为**授权子系统事实源**，逐项对照源码生成（`SB.Framework.Core/License/` + `SB.Framework.Services/` + `SB.Feature.LicenseManage/` + `VerificationController`）。
+> ⚠️ 旧文档描述的 `Wuxing.LicenseGen`、`SB.LicenseGen` CLI、Obfuscar 混淆、`ENABLE_LICENSE_MANAGE` 编译开关 **均已不存在**，详见文末"已移除项"。
 
-基于 RSA 非对称加密的授权机制。项目内只含公钥（验签），私钥由开发者保管，客户无法自行生成授权 Key。
+## 1. 架构
 
-## 架构
+基于 **RSA-2048 非对称签名**：程序只含公钥（验签），私钥由授权签发端（LicenseManage 插件）保管。客户无法自行生成授权 Key。
 
 | 组件 | 位置 | 作用 |
 |------|------|------|
-| `LicenseMiddleware` | `SB.Core/License/LicenseMiddleware.cs` | 请求拦截，过期/无效返回 403 |
-| `LicenseService` | `SB.Core/License/LicenseService.cs` | 核心验签 + 身份验证逻辑 |
-| `LicenseResult` / `LicensePayload` | `SB.Core/License/LicenseResult.cs` | 解析结果 + Payload 模型 |
-| `HardwareIdService` | `SB.Core/License/HardwareIdService.cs` | 硬件指纹生成（MAC+CPU+主板+磁盘） |
-| `ClientKeyService` | `SB.Core/License/ClientKeyService.cs` | ClientKey 生成 |
-| `LicenseClientService` | `SB.Services/LicenseClientService.cs` | 客户端 Refresh/ApplyKey/CheckUpdate |
-| `LicenseManageService` | `SB.Services/LicenseManageService.cs` | 授权管理服务器端生成与管理 |
-| `LicenseRecord` | `SB.Models/LicenseRecord.cs` | 授权记录模型 + `LicenseVerifyMode` 枚举 |
-| `Wuxing.LicenseGen` | `Wuxing.LicenseGen/Program.cs`（不交付） | 离线私钥签名，生成授权 Key |
+| `LicenseMiddleware` | `SB.Framework.Core/License/LicenseMiddleware.cs` | 请求拦截，过期/无效/时间回退/心跳超时返回 403 |
+| `LicenseService`（+ `ILicenseService`） | `SB.Framework.Core/License/LicenseService.cs` | RSA 验签 + 身份校验 + 实时过期检测 |
+| `LicenseResult` / `LicensePayload` | `SB.Framework.Core/License/LicenseResult.cs` | 解析结果 / 签名 Payload 模型 |
+| `LicenseServiceExtensions` | `SB.Framework.Core/License/LicenseServiceExtensions.cs` | `AddLicense` / `UseLicense` / `AddHeartbeatChecker` |
+| `TimeRegressionGuard` | `SB.Framework.Core/License/TimeRegressionGuard.cs` | 时间回退检测（HMAC 保护的持久化时间戳） |
+| `ClientKeyService` / `HardwareIdService` | `SB.Framework.Core/License/` | 客户端标识生成 |
+| `DomainMatcher` / `DomainExpander` | `SB.Framework.Core/License/` | 域名匹配（支持 `*.example.com`） |
+| `ILicenseVerifyClient` | `SB.Framework.Core/License/ILicenseVerifyClient.cs` | 吊销查询接口（Core 层定义，避免引用 Services） |
+| `LicenseClientService` | `SB.Framework.Services/LicenseClientService.cs` | 客户端：申请/查询/下载/离线应用授权 |
+| `LicenseVerifyClient` | `SB.Framework.Services/LicenseVerifyClient.cs` | 节流异步吊销查询（1h 节流） |
+| `LicenseHeartbeatTask` | `SB.Framework.Services/LicenseHeartbeatTask.cs` | 心跳后台任务 + `IHeartbeatGracePeriodChecker` 实现 |
+| `LicenseManageService` | `SB.Feature.LicenseManage/`（插件） | 服务端：RSA 密钥管理 / 签发 / 吊销 / 审批 |
 
-## 配置
+## 2. 配置（appsettings.json）
 
-`appsettings.json`:
-
-```json
+```jsonc
 {
-  "LicenseConfig": {
-    "Key": "Base64(payload).Base64(signature)"
-  }
+  "LicenseConfig": { "Key": "Base64(payload).Base64(signature)" },
+  "CloudConfig": { "ServerUrl": "https://cloud.saibo.club" },   // 授权服务器根地址（授权/备份共用）
+  "ProductEn": "your-product"                                     // 验签时校验产品名
 }
 ```
 
-## 授权 Key 格式
+- `LicenseConfig` **只有 `Key`**（无 `WhitelistPaths` 等项——中间件白名单已硬编码）。
+- 授权服务器地址**统一走 `CloudConfig.ServerUrl`**，客户端拼接子路径：`{ServerUrl}/api/verify/*`。
+- 心跳宽限期参数（`_intervalMinutes=5`、`_graceHours=48`）**硬编码在 `LicenseHeartbeatTask` 中，不从配置读取**（防用户禁用）。
+
+## 3. 授权 Key 格式
 
 ```
-Base64(JSON payload) . Base64(RSA-SHA256 signature)
+Base64(JSON payload) . Base64(RSA-SHA256 PKCS1 签名)
 ```
 
-Payload 内容:
-```json
-{
-  "Product": "wuxing",
-  "ExpiresAt": "2027-03-14 13:57:52",
-  "IssuedAt": "2026-03-14 13:57:52",
-  "VerifyMode": 2,
-  "ClientKey": "",
-  "HardwareId": ""
-}
-```
+Payload 字段（`LicensePayload`）：
 
-## 中间件行为
-
-- 放行路径: `/health`, `/api/setup/*`, `LicenseConfig.WhitelistPaths` 配置项
-- 授权无效或过期: 返回 HTTP 403
-  ```json
-  {"code": -1, "message": "系统授权已过期或无效，请联系管理员", "type": "error", "data": null}
-  ```
-- 仅在 `installed.lock` 存在时启用
-
-## 生成授权 Key（开发者操作）
-
-```bash
-cd Wuxing.LicenseGen
-
-# 首次：生成密钥对 + 1年有效期 Key
-dotnet run
-
-# 使用已有私钥，指定天数
-dotnet run -- --key private.xml --days 7
-
-# 使用已有私钥，指定到期日期
-dotnet run -- --key private.xml --expires 2027-06-30
-```
-
-## 运维模式（短周期授权）
-
-生成 7 天 Key，每 6 天更新，保证不停机：
-
-| 天数 | 操作 |
+| 字段 | 说明 |
 |------|------|
-| 第 0 天 | `--days 7` 生成 Key，发给客户 |
-| 第 6 天 | 再次 `--days 7` 生成新 Key，客户替换后重启 |
+| `Product`（JSON 名）→ `ProductEn` | 产品英文名，验签时校验 |
+| `ProductCn` | 产品中文名 |
+| `Domain` | **旧字段**，仅供老 Key 兼容解析；新 Key 用 `Domains` |
+| `Domains` | 绑定域名列表（支持 `*.example.com` 通配）；null/空 = 不验证域名 |
+| `ClientKey` / `HardwareId` | 绑定机器标识；null/空 = 不校验该项 |
+| `VerifyMode` | **已废弃**，新验证逻辑不再读取（见 §5） |
+| `IssuedAt` / `ExpiresAt` | 签发/到期时间 |
+| `AllowedRoutes` | 到期后仍可访问的路由前缀列表 |
+| `AllowAdminAfterExpiry` | 到期后是否放行 `/admin/*` |
+| `AllowClientApiAfterExpiry` | 到期后是否放行 `/api/*` |
 
-## 安全说明
+## 4. 中间件行为（`LicenseMiddleware`）
 
-- 项目代码中仅包含 RSA 公钥，只能验证签名
-- 私钥 `private.xml` 由开发者保管，不进入版本库
-- `Wuxing.LicenseGen/` 已加入 `.gitignore`，不会被提交
+执行顺序（对每个请求）：
 
----
+1. **硬编码白名单直接放行**（不可配置，防篡改）：
+   `/health`、`/api/setup/`、`/api/verify/`、`/storage/`、`/admin/Verification/`、`/admin/Entitlement/`、`/admin/Setup/`、`/admin/Auth/Login`、`/admin/Auth/GetInfo`、`/admin/Menu/All`
+2. **FullAccess(god) API Key 放行**：`IApiKeyAuthenticator` 鉴权通过且 `IsFullAccess` → 绕过所有限制（取代旧静态 MasterKey）。
+3. **时间回退检测**：`TimeRegressionGuard.Check()` 触发 → 403 `{"code":-1,"message":"检测到系统时间回退...","type":"license_invalid"}`。
+4. **授权有效**：继续检查
+   - **域名校验**：`Domains` 非空时按 `Host` 匹配，不匹配 → 403；
+   - **吊销检查（fire-and-forget）**：`ILicenseVerifyClient.TryVerifyAsync`，1h 节流、3s 超时、异常静默（不影响请求）；服务端返回 `revoked=true` → 清空本地 Key + 刷新；
+   - **心跳宽限期**：`CloudServerUrl` 已配置且超过 48h 无成功心跳 → 403。
+5. **授权过期**：按 `AllowAdminAfterExpiry` / `AllowClientApiAfterExpiry` / `AllowedRoutes` 策略部分放行，否则 403。
+6. 拦截响应统一：`HTTP 403`，`{"code":-1,"message":...,"type":"license_invalid","data":null}`。
 
-## 安全防护路线图
+> 中间件仅在 `installed.lock` 存在（已安装）且非 Development 时挂载（`UseSbFramework` 中 `if (!env.IsDevelopment()) app.UseLicense()`）。`AddLicense` 注册了 `ILicenseService`。
 
-### 当前现状
+## 5. 验签与身份校验（`LicenseService`）
 
-**已有的两个有效机制：**
-1. RSA 签名验证（防止客户改 expiresAt 延期 —— 改了签名对不上）
-2. 本地到期时间比较（`AppTime.UtcNow > expiresAt`）
+- `Validate(licenseKey, expectedProduct)`：纯签名验证。
+- `ValidateWithIdentity(licenseKey, clientKey, hardwareId, expectedProduct)`：签名 + 身份校验。
+- **身份校验逻辑**（`VerifyIdentity`）：**Payload 中字段非空就校验、空则跳过**。`VerifyMode` 不再读取（废弃）。
+- **实时过期**：`CurrentStatus` 每次访问时若 `AppTime.UtcNow > ExpiresAt` 动态转 `IsExpired=true`。
+- **签名失败诊断**：返回公钥指纹 + Payload 解析 + 字节长度，帮助定位"签发端与当前端不是同一对密钥"。
+- 公钥为空（授权启用但缺公钥）→ 注册 `MissingKeyLicenseService`，所有请求视为授权无效（`IsEnabled=true`）。
 
-### 已知绕过漏洞
+## 6. 时间回退检测（`TimeRegressionGuard`）
 
-| # | 攻击方式 | 难度 | 当前防护 |
-|---|----------|------|----------|
-| 1 | `scp -r` 产物到新服务器 | 低 | 无（key 不绑机器） |
-| 2 | `date -s "2026-01-01"` 调回系统时间 | 低 | 无（依赖本地 OS 时间） |
-| 3 | dnSpy 反编译 SB.API.dll 去掉 LicenseMiddleware 拦截 | 中 | 无（未混淆） |
-| 4 | 替换 `license_public.key` 为自己的公钥 + 自签 | 中 | 无（公钥就是个文件） |
-| 5 | `-p:DisableLicense=true` 构建 | 中 | 无（编译常量可被改） |
-| 6 | 调 `/admin/License/ApplyKey` 强写 appsettings | 高 | 有限（依赖签名完整性） |
+- 持久化文件：`license_time.dat`（`{ticks}.{HMAC}`），HMAC 密钥 = SHA256(`公钥 + "|" + 本机HardwareId`)——即使拿到公钥也无法在别的机器伪造。
+- 启动时校验：存储时间比当前时间快 >5 分钟 → 判定回退；HMAC 校验失败 → 视为篡改。
+- 运行时：当前时间 < 内存最后时间 -5 分钟 → 回退 403；每 10 分钟持久化一次。
+- 文件读写失败不阻塞启动（降级）。
 
-### 双验证漏洞说明
+## 7. 客户端流程（`VerificationController` → `admin/Verification/*`，JwtAdmin，Status 除外）
 
-`LicensePayload.VerifyMode` 默认值硬编码为 `2`（`SB.Core/License/LicenseResult.cs:90`），但 `Wuxing.LicenseGen` 生成 payload 时未写入 `ClientKey` / `HardwareId`。反序列化后 VerifyMode 保留默认值 2 → 前端显示"双验证"，而验证逻辑 `LicenseService.VerifyIdentity` 对空值直接跳过 → 实际不校验。
+| Action | 行为 |
+|--------|------|
+| `Status`（AllowAnonymous） | `LicenseClientService.GetStatus()`：授权状态 + 客户端标识（clientKey/hardwareId）+ 服务器/程序时区 + cloudServerUrl |
+| `RequestLicense` | POST `{ServerUrl}/api/verify/Request`（form：domain/clientKey/hardwareId/serverIP） |
+| `CheckUpdate` | GET `{ServerUrl}/api/verify/Check?clientKey&hardwareId[&actualDomain]`（允许传入 serverUrl 临时覆盖） |
+| `ApplyLicense` | GET `{ServerUrl}/api/verify/Download?recordId` → 验签 → 写 `appsettings.json` → `Refresh` |
+| `ApplyKey` | **离线**：`LicenseService.Validate` → 写 `appsettings.json` → `Refresh` |
 
-### 威胁矩阵
+## 8. 吊销与心跳
 
-| 场景 | 当前能否阻止 | 需要哪层防护 |
-|------|-------------|-------------|
-| 客户拿到 root，把程序移植到其他服务器 | 不能 | 层 1: 机器绑定 |
-| 客户拿到 root，你失去服务器控制权 | 不能 | 层 2: 在线激活/心跳/吊销 |
-| 调系统时间回退 | 不能 | 层 3: 时间回退检测 |
-| 反编译去掉 LicenseMiddleware | 不能 | 层 4: 代码混淆 |
+- **吊销**（`LicenseVerifyClient`）：每请求触发、成功后 1h 节流（失败 60s 冷却）；`POST {ServerUrl}/api/verify/Verify`，响应 `data.revoked=true` → 清空 `LicenseConfig.Key` 并 `Refresh("")`。
+- **心跳**（`LicenseHeartbeatTask`）：每 5 分钟 `POST {ServerUrl}/api/verify/Heartbeat`（JSON）；`status=active` 写 `license_heartbeat.dat`（HMAC 保护）；`revoked` → Refresh；宽限期 48h（`IsGracePeriodExceeded`）。
 
----
+## 9. 服务端签发（`SB.Feature.LicenseManage` 插件）
 
-### 层 1: 机器绑定（最高优先级） ✅ 已完成
+- **签发入口**：`EntitlementController`（`admin/Entitlement/*`，JwtAdmin）：`GetPublicKey` / `RegenerateKeyPair` / `ClientList` / `ClientEdit` / `RequestList` / `ApproveRequest` / `RejectRequest` / `RecordList` / `IssueLicense`(FromBody) / `QuickGenerate`(FromBody) / `DeleteClient` / `RevokeLicense` / `VerifyLogList`。
+- **公开验证 API**：`VerifyController`（`/api/verify/*`，AllowAnonymous）：`Heartbeat` / `Request` / `Verify` / `Check` / `Download`。
+- **私钥目录优先级**：`SB_LICENSE_KEY_DIR` 环境变量 > 插件 Options.KeyDirectory > ContentRoot。密钥对自动生成（`GenerateLicenseKeyFile`），私钥不入库不提交（`.gitignore` 忽略 `license_*.key`）。
+- **典型部署**：`LicenseManage` 装在 **NoLicense 主包**上（自己不被授权束缚 + 能给下游签发）。
 
-**目标**: 挡住 scp 移植（场景 A）
+## 10. 公钥嵌入与 NoLicense 变体
 
-**实施方案**:
-- `SB.LicenseGen/Program.cs` CLI 工具，支持 `--client-key`、`--hardware-id`、`--verify-mode`、`--domain`、`--days`、`--expires`、`--output` 等参数
-- 生成 payload 时把身份字段写入 JSON，签名算法与 `LicenseManageService.GenerateLicense()` 一致
-- 依赖现有 `HardwareIdService`（`SB.Core/License/HardwareIdService.cs`，已实现 MAC+CPU+主板+磁盘采集）
-- 前端离线授权流程：客户复制 client info JSON → 管理员用 LicenseGen 生成绑定机器的 key → 客户导入
-- 验证逻辑已存在（`LicenseService.VerifyIdentity`），不用改后端
+- `SB.Framework.WebApi.csproj` 的 `EmbedLicensePublicKey` Target 在**构建时**从 `license_public.key` 读公钥，写入 `BuildInfo.LicensePublicKey`（`GenerateLicenseKeyFile` Task 首次自动生成 RSA-2048 密钥对）。
+- `.NoLicense` 变体：`EmbedEmptyLicenseKey` 置空公钥 → `AddLicense` 收到空公钥仍注册 `MissingKeyLicenseService`（**不是** NullLicenseService）→ ⚠️ 但 `NoLicense` 变体在 `SbFrameworkExtensions` 中走 `#if !DISABLE_LICENSE → NullLicenseService()` 分支（`IsEnabled=false`），不挂中间件。
+- 正常版 + 缺公钥 = **全站 403**（保护生效）；NoLicense 版 = 授权逻辑物理关闭。
 
-**完成时间**: 2026-04-13
+## 11. 已知缺口（安全现状）
 
----
+| # | 缺口 | 现状 | 说明 |
+|---|------|------|------|
+| 1 | 机器不绑定 | 部分防护 | 仅当签发时写入 `ClientKey`/`HardwareId` 才校验；空字段即不绑定，`scp` 产物可换机运行 |
+| 2 | 系统时间调回 | 已防护 | `TimeRegressionGuard`（5 分钟容差） |
+| 3 | 反编译改 DLL | **无防护** | ⚠️ 旧 Obfuscar 混淆**已移除**，源码仓库无 `obfuscar.xml`/`obfuscate.sh`；`dnSpy` 可篡改。这是 0.4.x 相对旧版的安全回退 |
+| 4 | 替换公钥自签 | 部分 | 需同时拿到私钥才可自签；替换 `license_public.key` 需重新构建 |
+| 5 | `-p:DisableLicense=true` 构建 | 固有 | NoLicense 变体有意关闭授权（商业上受控） |
+| 6 | 心跳被屏蔽（拔网/hosts） | 已防护 | 48h 宽限期后 403（需配置 `CloudServerUrl`） |
 
-### 层 2: 在线激活 + 心跳 + 吊销（最强控制力） ✅ 已完成
+## 12. 已移除项（旧文档误留）
 
-**目标**: 挡住失控场景（客户拿到 root 且你无法远程访问）
-
-**实施方案**:
-- 部署独立授权服务器（`-p:EnableLicenseManage=true` 构建 + 独立域名 + 独立 DB）
-- 客户端后台任务 `LicenseHeartbeatTask` 按配置间隔心跳 `/api/license/Heartbeat`
-- 服务端 `LicenseManageService.ProcessHeartbeat()` 校验客户端状态，返回 active / revoked / unknown
-- 心跳失败超过宽限期（默认 48h）→ `LicenseMiddleware` 拦截返回 403
-- 授权服务器管理后台已有"吊销"按钮 → 下次心跳收到停服指令 → 客户端自动 Refresh 失效
-- 客户拔网 / hosts 屏蔽 → 宽限期后自动失效
-- 配置项：`LicenseConfig.HeartbeatIntervalMinutes`（默认 0 禁用）、`HeartbeatGraceHours`（默认 48）
-
-**完成时间**: 2026-04-13
-
----
-
-### 层 3: 时间回退检测 ✅ 已完成
-
-**目标**: 挡住 `date -s` 调时间
-
-**实施方案**:
-- `TimeRegressionGuard`（`SB.Core/License/TimeRegressionGuard.cs`）启动时加载 `license_time.dat`（存储 UTC ticks）
-- 当前时间 < 上次记录超过 5 分钟容差 → 判定时间回退 → 403 拦截
-- 每 10 分钟自动更新存储的时间戳
-- 集成到 `LicenseMiddleware`，在授权检查之前执行
-- 在 `LicenseServiceExtensions.AddLicense()` 中初始化（仅授权启用时）
-
-**完成时间**: 2026-04-13
-
----
-
-### 层 4: 代码混淆（提高反编译门槛） ✅ 已完成
-
-**目标**: 挡住 dnSpy 直接改 DLL
-
-**实施方案**:
-- 使用 Obfuscar（免费开源 .NET 混淆器）
-- 配置文件 `obfuscar.xml`：对 `SB.Core.dll` 和 `SB.API.dll` 进行重命名 + 字符串加密
-- 一键脚本 `obfuscate.sh`：构建 → 混淆 → 替换 → 清理
-- 跳过规则：保留 Controllers、Middleware、Extensions、Config 类（DI 和路由依赖名称）
-- 安装：`dotnet tool install --global Obfuscar.GlobalTool`
-
-**完成时间**: 2026-04-13
-
----
-
-### 实施完成情况
-
-| 阶段 | 层级 | 状态 | 完成时间 |
-|------|------|------|----------|
-| 第 1 阶段 | 层 1 机器绑定 | ✅ 已完成 | 2026-04-13 |
-| 第 2 阶段 | 层 3 时间检测 | ✅ 已完成 | 2026-04-13 |
-| 第 3 阶段 | 层 2 在线激活 + 心跳 | ✅ 已完成 | 2026-04-13 |
-| 第 4 阶段 | 层 4 代码混淆 | ✅ 已完成 | 2026-04-13 |
+| 旧描述 | 现状 |
+|--------|------|
+| `Wuxing.LicenseGen` CLI | **不存在**（命名来自更早 fork） |
+| `SB.LicenseGen` 离线签名 CLI | **目录不存在**（`.gitignore` 保留条目，实际已移除）；签发改由 `LicenseManage` 插件的 `QuickGenerate`/`IssueLicense` |
+| Obfuscar 混淆（层4） | **已移除**，无 `obfuscar.xml` / `obfuscate.sh` |
+| `-p:EnableLicenseManage=true` / `-p:EnableBackupReceive=true` 编译开关 | **已移除**，改 NuGet 插件引用即启用 |
+| `LicenseConfig.WhitelistPaths` 配置 | **已移除**，白名单硬编码于中间件 |
+| `X-Master-Key` / `MasterKeyMiddleware` | **已移除**，由 AccessToken 插件 FullAccess key 取代 |
+| `VerifyMode` 双验证逻辑 | **已废弃**，`VerifyIdentity` 改为"非空即校验、空则跳过"；旧"双验证漏洞"描述已不适用 |

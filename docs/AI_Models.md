@@ -1,379 +1,455 @@
 # Entity Models & Enums
 
-All tables prefixed `SB_`. All entities with `ISoftDelete` have global filter on `IsDeleted`.
+> 本文档为**实体事实源**，逐类对照源码生成（25 个表实体）。若与旧文档冲突，以此为准。
+> 所有表前缀 `SB_`（除 `BackgroundTaskLog` 为 `SYS_`）。实现 `ISoftDelete` 的实体自动应用全局过滤 `IsDeleted == false`。
+
+## 核心接口与统一类型
+
+### IEntity（`SB.Framework.Models/IEntity.cs`）
+
+```csharp
+public interface IEntity { int Id { get; set; } }
+```
+
+### ISoftDelete（`SB.Framework.Models/ISoftDelete.cs`）
+
+```csharp
+public interface ISoftDelete { bool IsDeleted { get; set; } }
+```
+
+实现 `ISoftDelete` 的实体：**Admin、AdminRole、Member、Menu、ApiKey**。`LicenseClient` 有 `IsDeleted` 字段但**未实现**该接口。
+
+### IModuleInitializer（`SB.Framework.Models/IModuleInitializer.cs`）
+
+模块声明式装配接口。`GetEntityTypes / GetSystemSettings / GetMenus` 必须**纯声明**（不访问实例字段），因为安装向导 `GetUninitializedObject` 创建实例时**不调构造函数**。
+
+```csharp
+public interface IModuleInitializer
+{
+    string ModuleName { get; }
+    string ModuleKey => GetType().Name;          // Modules:Disabled 黑名单匹配
+    Type[] GetOwnedTypes() => Array.Empty<Type>();
+    string[] GetOwnedControllerNames() => Array.Empty<string>();
+    int InitOrder => 0;                          // 越小越先执行
+    Type[] GetEntityTypes() => Array.Empty<Type>();
+    List<SystemSettingDefinition> GetSystemSettings() => new();
+    List<MenuDefinition> GetMenus() => new();
+    void SeedData(IFreeSql fsql) { }
+}
+```
+
+### Result（`SB.Framework.Models/Result.cs`）
+
+统一响应 `{ code, message, data }`（`Data` 为 null 时 JSON 忽略）：
+
+| 静态方法 | 行为 |
+|----------|------|
+| `Success(object data)` | `{ Code=0, Message="ok", Data }` |
+| `Success(string message, object data = null)` | `{ Code=0, Message=message, Data }` |
+| `Fail(string message = "操作失败", int code = -1)` | `{ Code=code, Message=message }` |
+| `Page(object items, long total, string message = "ok")` | `{ Code=0, Data={ items, total } }` |
+
+### MenuDefinition（`SB.Framework.Models/MenuDefinition.cs`）
+
+`ParentPath?`（挂载到已存在菜单 Path，null=顶级）、`Name`、`Path`（唯一标识）、`Component`（顶级用 "LAYOUT"）、`Title`、`Icon`、`OrderNo`、`Redirect?`、`HideInMenu`、`Children`。
 
 ---
 
-## Admin (SB_Admin)
+## 一、Admin 域
 
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| ParentId | int | |
-| Username | string(50) | |
-| Password | string(200) | BCrypt hash or plaintext |
-| RoleId | int, FK | |
-| Name | string | |
-| Nickname | string(50) | optional |
-| Avatar | string | URL |
-| Status | AdminStatus enum | |
-| AuthenticatorKey | string | Google 2FA secret, optional |
-| AuthenticatorBindTime | DateTime? | |
-| CreatedTime | DateTime | auto `now()` |
-| LastOnlineTime | DateTime? | |
-| IsDeleted | bool | soft delete |
+### Admin — 表 `SB_Admin` · `IEntity, ISoftDelete`
 
-## AdminRole (SB_AdminRole)
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK identity | 主键 |
+| ParentId | int (=0) | 父级 Id（树） |
+| Username | string(50) | 用户名 |
+| Password | string(200) | BCrypt hash 或明文（按 PasswordConfig.StorageMode） |
+| RoleId | int | 角色 Id |
+| AdminRole | AdminRole | 导航 `[Navigate(RoleId)]` |
+| Name | string | 名称 |
+| Nickname | string?(50) | 客服昵称（对外展示，保护真实账号） |
+| Avatar | string | 头像 |
+| Status | AdminStatus (=Active) | 0=Active, 1=Disabled |
+| AuthenticatorKey | string? | Google 2FA 秘钥 |
+| AuthenticatorBindTime | DateTime? | 验证器绑定时间 |
+| CreatedTime | DateTime | `now()`，不可更新 |
+| LastOnlineTime | DateTime? | 最后登录时间 |
+| AccountType | AccountType (=Human, InsertValueSql="0") | 0=Human(密码登录), 1=Service(仅 API Key) |
+| IsDeleted | bool | 软删除 |
 
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| Name | string(50) | |
-| RoleKey | string(50) | unique identifier |
-| IsDeleted | bool | |
+### AdminRole — 表 `SB_AdminRole` · `IEntity, ISoftDelete`
 
-## AdminRoleMenu (SB_AdminRoleMenu)
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| Name | string(50) | 角色名称 |
+| RoleKey | string(50) | 角色标识 |
+| Admins | List\<Admin\> | 导航 `[Navigate(ManyToMany=typeof(AdminRole))]` |
+| RoleMenu | List\<AdminRoleMenu\> | 导航 `[Navigate(AdminRoleMenu.RoleId)]` |
+| IsDeleted | bool | 软删除 |
 
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| RoleId | int, FK | |
-| MenuId | int, FK | |
+### AdminRoleMenu — 表 `SB_AdminRoleMenu` · **无接口**（主键仍为 Id）
 
-## Menu (SB_Menu)
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| RoleId | int | 角色 ID |
+| MenuId | int | 菜单 ID |
+| AdminRole / Menu | 导航 | `[Navigate]` |
 
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| ParentId | int | |
-| Name | string(100) | route name |
-| Path | string(200) | route path |
-| Component | string | component path |
-| Redirect | string | optional |
-| Title | string(100) | display title |
-| Icon | string | icon name |
-| OrderNo | int | sort order |
-| HideInMenu | bool | |
-| IgnoreKeepAlive | bool | |
-| IsDeleted | bool | |
+### Member — 表 `SB_Member` · `IEntity, ISoftDelete`
 
-## Member (SB_Member)
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| Username | string | 用户名 |
+| Password | string | 密码 |
+| Avatar | string | 头像 |
+| Name | string | 名称 |
+| Status | UserStatus（**以字符串存储** MapType=string） | 0=Active, 1=Banned |
+| CreatedTime | DateTime | `now()`，不可更新 |
+| LastOnlineTime | DateTime | `now()` |
+| PaymentPassword | string? | 支付密码 |
+| CreditScore | int (=100) | 信用分 |
+| RealNameStatus | RealNameStatus (=Unverified) | 实名状态 |
+| InvitationCode | string? | 邀请码 |
+| ParentId | int? | 邀请人 ID |
+| AncestryPath | string?(500) | 祖先路径 `/1/5/` |
+| IsDeleted | bool | 软删除 |
 
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| Username | string | |
-| Password | string | hashed |
-| Name | string | display name |
-| Avatar | string | URL |
-| Status | UserStatus enum | |
-| RealNameStatus | RealNameStatus enum | |
-| CreditScore | int | default 100 |
-| InvitationCode | string | optional |
-| ParentId | int? | referrer |
-| AncestryPath | string | format: `/1/5/`, optional |
-| PaymentPassword | string | hashed, optional |
-| CreatedTime | DateTime | auto |
-| LastOnlineTime | DateTime | auto |
-| IsDeleted | bool | |
+### MemberRealName — 表 `SB_MemberRealName` · `IEntity`
 
-## MemberRealName (SB_MemberRealName)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| MemberId | int, FK | |
-| RealName | string | |
-| IdNumber | string | |
-| IdFrontImage | string | URL |
-| IdBackImage | string | URL |
-| Status | RealNameStatus enum | |
-| RejectReason | string | optional |
-| SubmitTime | DateTime | auto |
-| ReviewTime | DateTime? | |
-| ReviewedBy | int? | Admin.Id |
-
-## LoginLog (SB_LoginLog)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| UserId | int | |
-| UserType | int | 0=Member, 1=Admin |
-| Username | string(100) | |
-| IpAddress | string(50) | optional |
-| UserAgent | string(500) | optional |
-| Status | int | 0=Success, 1=Failed |
-| CreateTime | DateTime | auto |
-
-## SystemSetting (SB_SystemSetting)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| CategoryId | int, FK | |
-| Key | string(100) | |
-| Name | string(100) | display name |
-| DisplayType | SystemSettingDisplayType enum | |
-| DataContent | string | value, optional |
-| DataContentConfig | string | JSON options config |
-| CantDelete | bool | |
-| Sort | int | |
-
-## SystemSettingCategory (SB_SystemSettingCategory)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| Key | string | |
-| Name | string | |
-| Icon | string | optional |
-| Sort | int | |
-
-## EmailConfig (SB_EmailConfig)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| SmtpServer | string | |
-| SmtpPort | int | |
-| Username | string | |
-| Password | string | AES encrypted |
-| FromEmail | string | |
-| FromName | string | |
-| EnableSsl | bool | |
-| IsActive | bool | |
-| CreatedAt | DateTime | auto |
-| UpdatedAt | DateTime | auto |
-
-## EmailTemplate (SB_EmailTemplate)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| Code | string | unique |
-| Name | string | |
-| Subject | string | |
-| Body | string | HTML |
-| IsActive | bool | |
-| CreatedAt | DateTime | auto |
-| UpdatedAt | DateTime | auto |
-
-## EmailLog (SB_EmailLog)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| TemplateId | int? | |
-| Recipient | string | |
-| Subject | string | |
-| Status | EmailStatus enum | |
-| ErrorMessage | string | optional |
-| CreatedTime | DateTime | auto |
-
-## EmailVerificationCode (SB_EmailVerificationCode)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| Email | string | |
-| Code | string | |
-| Type | VerificationCodeType enum | |
-| IsUsed | bool | |
-| CreatedTime | DateTime | auto |
-| ExpiresAt | DateTime | |
-
-## ChunkUpload (SB_ChunkUpload)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| UploadId | string(32) | GUID |
-| FileName | string(500) | |
-| FileSize | long | |
-| FileMd5 | string(32) | |
-| ChunkSize | int | |
-| TotalChunks | int | |
-| Status | ChunkUploadStatus enum | |
-| FilePath | string(500) | after merge |
-| CreatedAt | DateTime | auto |
-| CompletedAt | DateTime? | |
-
-## ChunkUploadPart (SB_ChunkUploadPart)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| UploadId | string, FK | |
-| ChunkIndex | int | |
-| Size | long | |
-| CreatedAt | DateTime | auto |
-
-## DatabaseBackup (SB_DatabaseBackup)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| DatabaseName | string(100) | |
-| FileName | string(200) | |
-| FilePath | string(500) | |
-| FileSize | long | |
-| Duration | int | milliseconds |
-| CreatedBy | string(100) | username or "MasterKey" |
-| CreatedTime | DateTime | auto |
-| Remark | string(500) | optional |
-
-## BackgroundTaskLog (SB_BackgroundTaskLog)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| TaskName | string | |
-| Source | LogSource enum | |
-| LogLevel | TaskLogLevel enum | |
-| Message | string | |
-| CreatedTime | DateTime | auto |
-
-## LicenseClient (SB_License_Client)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| Name | string(200) | |
-| Domain | string(500) | |
-| ServerIP | string(100) | optional |
-| ClientKey | string(100) | UUID, optional |
-| HardwareId | string(200) | hash, optional |
-| Remark | string(500) | optional |
-| Status | int | 0=Normal, 1=Disabled |
-| CreatedTime | DateTime | auto |
-| UpdatedTime | DateTime | auto |
-
-## LicenseRecord (SB_License_Record)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| ClientId | int, FK | |
-| Domain | string(500) | |
-| ClientKey | string(100) | optional |
-| HardwareId | string(200) | optional |
-| VerifyMode | LicenseVerifyMode enum | |
-| IssuedAt | DateTime | |
-| ExpiresAt | DateTime | |
-| AllowedRoutes | string(2000) | JSON array, optional |
-| LicenseData | string(text) | RSA signed |
-| IsDownloaded | bool | |
-| Status | int | 0=Valid, 1=Revoked |
-| CreatedTime | DateTime | auto |
-
-## LicenseRequest (SB_License_Request)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| ClientId | int, FK | |
-| Domain | string(500) | |
-| ServerIP | string(100) | optional |
-| ClientKey | string(100) | optional |
-| HardwareId | string(200) | optional |
-| Status | LicenseRequestStatus enum | |
-| RejectReason | string(500) | optional |
-| RecordId | int? | FK to LicenseRecord |
-| CreatedTime | DateTime | auto |
-| ProcessedTime | DateTime? | |
-
-## LicenseVerifyLog (SB_License_VerifyLog)
-
-| Field | Type | Note |
-|-------|------|------|
-| Id | int, PK, Identity | |
-| ClientId | int, FK | |
-| Domain | string(500) | |
-| ServerIP | string(100) | optional |
-| ClientKey | string(100) | optional |
-| HardwareId | string(200) | optional |
-| LicenseValid | bool | |
-| Message | string(500) | optional |
-| CreatedTime | DateTime | auto |
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| MemberId | int | 会员 Id |
+| RealName | string | 真实姓名 |
+| IdNumber | string | 身份证号 |
+| IdFrontImage / IdBackImage | string | 证件照 |
+| Status | RealNameStatus（字符串存储, =Reviewing） | 0=Unverified,1=Reviewing,2=Verified,3=Rejected |
+| RejectReason | string? | 拒绝原因 |
+| SubmitTime | DateTime | `now()`，不可更新 |
+| ReviewTime | DateTime? | 审核时间 |
+| ReviewedBy | int? | 审核人 |
 
 ---
 
-## Enums
+## 二、Menu 域
 
-### AdminStatus
-| Value | Name |
-|-------|------|
-| 0 | Active |
-| 1 | Disabled |
+### Menu — 表 `SB_Menu` · `IEntity, ISoftDelete`
 
-### UserStatus
-| Value | Name |
-|-------|------|
-| 0 | Active |
-| 1 | Banned |
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| ParentId | int | 父级 Id |
+| ParentMenu | Menu | 导航 |
+| Name | string(100) | 名称 |
+| Path | string(200) | 路由路径 |
+| Component | string | 组件路径 |
+| Redirect | string | 重定向 |
+| Title | string(100) | 显示标题 |
+| Icon | string | 图标 |
+| OrderNo | int | 排序 |
+| HideInMenu | bool | 菜单中隐藏 |
+| IgnoreKeepAlive | bool | 忽略 keep-alive |
+| IsDeleted | bool | 软删除 |
 
-### RealNameStatus
-| Value | Name |
-|-------|------|
-| 0 | Unverified |
-| 1 | Reviewing |
-| 2 | Verified |
-| 3 | Rejected |
+---
 
-### EmailStatus
-| Value | Name |
-|-------|------|
-| 0 | Pending |
-| 1 | Sent |
-| 2 | Failed |
+## 三、系统设置域
 
-### VerificationCodeType
-| Value | Name |
-|-------|------|
-| 0 | Register |
-| 1 | ResetPassword |
+### SystemSetting — 表 `SB_SystemSetting` · `IEntity`
 
-### SystemSettingDisplayType
-| Value | Name | Description |
-|-------|------|-------------|
-| 0 | Input | Text input |
-| 1 | InputTextArea | Multiline text |
-| 2 | RadioGroup | Radio buttons |
-| 3 | Select | Dropdown |
-| 4 | CheckboxGroup | Checkboxes |
-| 5 | Switch | Toggle switch |
-| 6 | ImageUpload | Single image |
-| 7 | InputNumber | Number input |
-| 8 | InputPassword | Password input |
-| 9 | DatePicker | Date picker |
-| 10 | TimePicker | Time picker |
-| 11 | RangePicker | Date range |
-| 12 | Rate | Star rating |
-| 13 | AutoComplete | Autocomplete |
-| 14 | Mentions | Mention input |
-| 15 | TreeSelect | Tree select |
-| 16 | IconPicker | Icon picker |
-| 17 | MultiImageUpload | Multiple images |
-| 18 | FileUpload | File upload |
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| CategoryId | int | 分类 |
+| Category | SystemSettingCategory? | 导航 |
+| Key | string(100) | 设置系统键 |
+| Name | string(100) | 显示名 |
+| DisplayType | SystemSettingDisplayType | 见枚举 |
+| CantDelete | bool | 禁止删除 |
+| DataContent | string?(max) | 设置值 |
+| DataContentConfig | string(max) | 选项配置 JSON |
+| Sort | int | 排序 |
 
-### ChunkUploadStatus
-| Value | Name |
-|-------|------|
-| 0 | Uploading |
-| 1 | Completed |
-| 2 | Expired |
+**`SystemSettingDefinition`**（非表，供 `GetOrCreate` 自动注册）：Key/Name/CategoryName/CategoryIcon/CategorySort/DisplayType/DefaultValue/DataContentConfig/CantDelete/Sort。
 
-### LicenseVerifyMode
-| Value | Name |
-|-------|------|
-| 0 | ClientKeyOnly |
-| 1 | HardwareIdOnly |
-| 2 | Both |
+### SystemSettingCategory — 表 `SB_SystemSetting_Category` · `IEntity`
 
-### LicenseRequestStatus
-| Value | Name |
-|-------|------|
-| 0 | Pending |
-| 1 | Approved |
-| 2 | Rejected |
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| Name | string(50) | 设置名称 |
+| Icon | string | 图标 |
+| Sort | int | 排序 |
+| SystemSettingList | List\<SystemSetting\> | 导航 |
+
+---
+
+## 四、邮件域
+
+### EmailConfig — 表 `SB_EmailConfig` · `IEntity`
+SmtpServer / SmtpPort / Username / Password / FromEmail / FromName / EnableSsl / IsActive / CreatedAt(`now()`不可更新) / UpdatedAt
+
+### EmailLog — 表 `SB_EmailLog` · `IEntity`
+TemplateId / ToEmail / Subject / Body(text) / Status(EmailStatus, **字符串存储**) / ErrorMessage? / Provider?(50) / SentAt? / CreatedAt(`now()`不可更新)
+
+### EmailTemplate — 表 `SB_EmailTemplate` · `IEntity`
+Code / Name / Subject / Body(text) / IsActive / CreatedAt(`now()`不可更新) / UpdatedAt
+
+### EmailVerificationCode — 表 `SB_EmailVerificationCode` · `IEntity`
+Email / Code / Type(VerificationCodeType) / VerifyCount / IsUsed / VerifiedAt? / IpAddress?(50) / ExpireAt / CreatedAt(`now()`不可更新)
+
+---
+
+## 五、上传域
+
+### ChunkUpload — 表 `SB_ChunkUpload` · `IEntity`
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| UploadId | string(32) | 上传标识（GUID） |
+| FileName | string(500) | 原始文件名 |
+| FileSize | long | 字节 |
+| FileMd5 | string(32) | 文件 MD5 |
+| ChunkSize | int | 每片字节 |
+| TotalChunks | int | 总分片数 |
+| Status | ChunkUploadStatus (=Uploading) | 0=上传中,1=已完成,2=已过期 |
+| FilePath | string(500) | 合并后相对路径 |
+| CreatedAt | DateTime | `now()` |
+| CompletedAt | DateTime? | 完成时间 |
+
+### ChunkUploadPart — 表 `SB_ChunkUpload_Part` · `IEntity`
+UploadId(32) / ChunkIndex / ChunkSize / UploadedAt(`now()`)
+
+---
+
+## 六、备份域
+
+### DatabaseBackup — 表 `SB_DatabaseBackup` · `IEntity`
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| DatabaseName | string(100) | 数据库名 |
+| FileName | string(200) | 备份文件名 |
+| FilePath | string(500) | 相对路径 `/storage/db/xxx.zip` |
+| FileSize | long | 字节 |
+| Duration | int | 耗时（毫秒） |
+| CreatedBy | string(100) | 操作人（管理员用户名或访问令牌账号） |
+| CreatedTime | DateTime | `now()`，不可更新 |
+| Remark | string?(500) | 备注 |
+| Md5 | string?(64) | 备份 MD5（完整性校验/防篡改/去重） |
+| RemoteUploadStatus | string?(16) | null=未上传 / "success" / "failed" |
+| RemoteUploadTime | DateTime? | 云端上传成功时间 (UTC) |
+| RemoteUploadError | string?(max) | 失败原因 |
+| RemoteUploadUrl | string?(500) | 实际上传 URL |
+
+### BackupRemoteRecord — 表 `SB_BackupRemoteRecord` · `IEntity`（`SB.Feature.BackupReceive` 项目根）
+
+客户端经 `POST /api/BackupReceive/Upload` 上传时落盘+写记录。**不开放删除接口**。
+ProductEn(50) / ProductCn(100) / PrimaryDomain?(200) / LogoPath?(500) / ClientIp(64, 经 X-Forwarded-For) / FileName(200) / FilePath(500) / FileSize / Md5?(64) / BackupTime(UTC) / ReceivedTime(`now()`不可更新, UTC)
+
+---
+
+## 七、授权域（License）
+
+> 签发端 `SB.Feature.LicenseManage` **无自有实体**，全部复用 `SB.Framework.Models` 的 License 实体。
+
+### LicenseClient — 表 `SB_License_Client` · `IEntity`（**未实现 ISoftDelete**，有 IsDeleted 字段）
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| ProductEn / ProductCn | string?(200) | 产品标识/名称 |
+| Domain | string(500) | 声明域名（客户端 PrimaryDomain） |
+| LastActualDomain | string?(500) | 最近 Verify/Check 上报实际域名；不一致标色 |
+| ServerIP | string?(100) | 服务器 IP |
+| ClientKey | string?(100) | 客户端密钥（UUID） |
+| HardwareId | string?(200) | 硬件 ID 哈希 |
+| MachineName / OsDescription / MacAddresses | string? | 机器信息 |
+| ProcessorCount | int? | CPU 核心数 |
+| Remark | string?(500) | 备注 |
+| Status | int (=0) | 0=正常, 1=禁用 |
+| IsDeleted | bool (=false) | 软删除标记（与 Status 语义不同） |
+| LastHeartbeat | DateTime? | 最后心跳 |
+| CreatedTime / UpdatedTime | DateTime | `now()` |
+
+### LicenseRecord — 表 `SB_License_Record` · `IEntity`
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| ClientId / Client | int / 导航 | 关联客户 |
+| VerifyMode | LicenseVerifyMode (=Both) | 0=仅ClientKey,1=仅HardwareId,2=双验证。服务注释标注"已废弃，仅保留申请时兼容" |
+| Domains | string?(text) | 绑定域名列表 JSON；null=不验证 |
+| ProductEn | string?(100) | 绑定产品；null=不验证 |
+| ClientKey / HardwareId | string? | 绑定凭据 |
+| IssuedAt / ExpiresAt | DateTime | 签发/到期 |
+| AllowedRoutes | string?(2000) | 到期后可访问路由前缀 JSON |
+| AllowAdminAfterExpiry / AllowClientApiAfterExpiry | bool (=false) | 到期后放行后台/客户端 API |
+| LicenseData | string(text) | 签名后的授权文件内容 |
+| IsDownloaded | bool (=false) | 客户端是否已下载 |
+| Status | int (=0) | 0=有效, 1=已吊销 |
+| CreatedTime | DateTime | `now()`，不可更新 |
+
+### LicenseRequest — 表 `SB_License_Request` · `IEntity`
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| ClientId / Client | int / 导航 | 关联客户 |
+| Domain | string(500) | 申请时域名 |
+| ServerIP / ClientKey / HardwareId | string? | 申请时信息 |
+| Status | LicenseRequestStatus (=Pending) | 0=待审批,1=已批准,2=已拒绝 |
+| RejectReason | string?(500) | 拒绝原因 |
+| RecordId / Record | int? / 导航 | 批准后关联授权记录 |
+| CreatedTime | DateTime | `now()`，不可更新 |
+| ProcessedTime | DateTime? | 处理时间 |
+
+### LicenseVerifyLog — 表 `SB_License_VerifyLog` · `IEntity`
+
+ClientId/Client(导航) / Domain / ActualDomain? / ServerIP? / ClientKey? / HardwareId? / LicenseValid / ProductEn?(100) / ProductCn?(200) / ExpiresAt? / Message?(500) / CreatedTime(`now()`不可更新)
+
+---
+
+## 八、后台任务 / 日志域
+
+### BackgroundTaskLog — 表 `SYS_BackgroundTaskLog` · `IEntity`（⚠️ 前缀是 `SYS_` 非 `SB_`）
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| Source | LogSource (=Task) | 0=定时任务, 1=系统异常 |
+| TaskName | string(200) | 任务名 |
+| LogLevel | TaskLogLevel | 0=Error,1=Warning,2=Info |
+| Message | string(2000) | 消息 |
+| Exception | string?(text) | 异常堆栈 |
+| CreatedTime | DateTime | `now()`，不可更新 |
+| ExecutionRecordId | string?(50) | 执行记录 |
+
+### LoginLog — 表 `SB_LoginLog` · `IEntity`
+
+UserId / UserType(0=H5会员,1=Admin) / Username(100) / IpAddress?(50) / UserAgent?(500) / Status(0=成功,1=失败) / CreateTime(`now()`不可更新)
+
+### DeployJob — 表 `SB_DeployJob` · `IEntity`
+
+> 状态机：`Uploaded → Deploying → Deployed | Failed`，`Deployed → RolledBack`。回滚产生新行，`RollbackOfJobId` 指向被回滚 job。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| Target | string(50) | api 或 DeployConfig key |
+| TargetName | string(100) | 目标显示名 |
+| FileName | string(200) / FileSize long / StoragePath string(500) | 文件信息 |
+| Status | string(20, =“Uploaded”) | 字符串常量（非枚举），见下 |
+| ErrorMessage | string?(1000) | 失败原因 |
+| UploadedBy / DeployedBy / RolledBackBy | string(100)? | 操作人 |
+| UploadedAt / DeployStartedAt? / DeployFinishedAt? / RolledBackAt? | DateTime | 时间轴 |
+| PreviousJobId | int? | 本次覆盖的 job（回滚目标） |
+| RollbackOfJobId | int? | 本 job 是哪个 job 的回滚 |
+| Remark | string?(500) | 备注 |
+
+`DeployJobStatus`（static class 常量）：`Uploaded / Deploying / Deployed / Failed / RolledBack`。
+
+---
+
+## 九、插件域（SB.Feature.AccessToken）
+
+### ApiKey — 表 `SB_ApiKey` · `IEntity, ISoftDelete` · 带 `[Index]`
+
+索引：`idx_apikey_token_hash`(唯一)、`idx_apikey_account`、`idx_apikey_name`、`idx_apikey_updated`。
+
+> API Key 挂在某个账号（SB_Admin）上的凭据。**明文只在签发时回显一次**，库中只存 sha256/HMAC hash。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| Id | int PK | 主键 |
+| AccountId | int | 归属账号 SB_Admin.Id |
+| Name | string(100) | 名称 |
+| TokenHash | string(64) | sha256/HMAC(明文) hex；明文不入库 |
+| TokenPrefix | string(16) | 明文前 12 位，list 显示用 |
+| Scopes | string?(500) | 逗号分隔 scope；null=所有 `[Scope]` 端点放行 |
+| FullAccess | bool | **god**：忽略 scope、穿透所有端点、旁路 License；仅 super 可签发 |
+| IpAllowlist | string?(500) | 允许 IP/CIDR |
+| ExpiresAt | DateTime? | 过期时间 |
+| LastUsedAt | DateTime? | 最后使用 |
+| RateLimitPerMinute | int? | 每分钟上限（0/null=不限） |
+| Notes | string?(2000) | 备注 |
+| CreatedBy / ModifiedBy | string(50)? | 操作人 |
+| RevokeReason | string?(500) | 吊销原因 |
+| CreatedTime / UpdatedTime? | DateTime | 时间轴 |
+| IsDeleted | bool | 软删除 |
+
+### ApiKeyAuditLog — 表 `SB_ApiKey_Audit` · `IEntity` · 带 `[Index]`
+
+索引：`idx_apikey_audit_key` / `idx_apikey_audit_time` / `idx_apikey_audit_action`。
+
+> 记录签发/吊销/更新/鉴权失败/限流等关键事件；成功的每次 "Used" 不逐条写（仅 LastUsedAt 节流更新）。
+
+KeyId（未命中为 0） / KeyName(100) / TokenPrefix(16) / Action(20: Created/Revoked/Updated/AuthFailed/Denied/RateLimited/Throttled/Expired) / Result(10: Success/Denied) / IpAddress?(45) / RequestPath?(500) / DenyReason?(200) / Operator?(50) / CreatedTime
+
+---
+
+## 十、DTO（非表，`SB.Framework.Models/Dto/`）
+
+| DTO | 字段 |
+|-----|------|
+| HeartbeatRequest | ClientKey? / HardwareId? / Domain? / LicenseKeyHash? / ProductEn? / ProductCn? / MachineName? / OsDescription? / ProcessorCount? / MacAddresses? / ServerIP? |
+| IssueLicenseRequest | ClientId / ExpiresAt / Domains? / ProductEn? / ClientKey? / HardwareId? / AllowedRoutes? / AllowAdminAfterExpiry / AllowClientApiAfterExpiry |
+| QuickGenerateRequest | ProductEn? / ProductCn? / ClientKey? / HardwareId? / Domain? / MachineName? / Days? / ExpiresAt? / VerifyMode(=2) |
+| DatabaseConfigDto | DbType="MySql" / Server="127.0.0.1" / Port="3306" / Database="Saibo" / User="root" / Password |
+| RedisConfigDto | Connection="localhost:6379" / InstanceName="SB:" |
+| DeployProjectDto | Name / Key / Path |
+| SetupRequest | Database / WipeDatabase=false / EnableCache=false / CacheProvider="Memory" / Redis / PasswordStorageMode="Encrypted" / ProductCn="管理系统" / ProductEn="sb" / PrimaryDomain? / CachePrefix="sb:" / LogoBase64? / TimeZone="Asia/Shanghai" / CorsAllowAll=true / CorsOrigins / AdminUsername="admin" / AdminPassword / AdminDisplayName="超级管理员" / CloudServerUrl? / DeployProjects |
+| UploadConfigDto | MaxFileSizeMB / ChunkThresholdMB / MaxConcurrent / AllowedExtensions / UrlPrefix |
+| VbenMenu + Meta | 前端菜单树：Id/ParentId/Path/Name/Component(空→"PARENT")/Redirect/Meta(Title/Icon/OrderNo/HideInMenu/IgnoreKeepAlive)/Title/OrderNo |
+
+---
+
+## 十一、枚举总表
+
+### 全局枚举（`SB.Framework.Models/Enums.cs`）
+
+| 枚举 | 成员 |
+|------|------|
+| UserStatus | Active=0, Banned=1 |
+| RealNameStatus | Unverified=0, Reviewing=1, Verified=2, Rejected=3 |
+| EmailStatus | Pending=0, Sent=1, Failed=2 |
+| VerificationCodeType | Register=0, ResetPassword=1 |
+
+### 文件内联枚举
+
+| 枚举 | 定义 | 所在文件 |
+|------|------|---------|
+| AdminStatus | Active=0, Disabled=1 | Admin.cs |
+| AccountType | Human=0, Service=1 | Admin.cs |
+| SystemSettingDisplayType | Input=0..FileUpload=18（共 19 项：Input/InputTextArea/RadioGroup/Select/CheckboxGroup/Switch/ImageUpload/InputNumber/InputPassword/DatePicker/TimePicker/RangePicker/Rate/AutoComplete/Mentions/TreeSelect/IconPicker/MultiImageUpload/FileUpload） | SystemSetting.cs |
+| ChunkUploadStatus | Uploading=0, Completed=1, Expired=2 | ChunkUpload.cs |
+| TaskLogLevel | Error=0, Warning=1, Info=2 | BackgroundTaskLog.cs |
+| LogSource | Task=0, Exception=1 | BackgroundTaskLog.cs |
+| LicenseVerifyMode | ClientKeyOnly=0, HardwareIdOnly=1, Both=2 | LicenseRecord.cs |
+| LicenseRequestStatus | Pending=0, Approved=1, Rejected=2 | LicenseRequest.cs |
+| DeployJobStatus | static class 常量（字符串） | DeployJob.cs |
+
+### Qdrant 类型（非表，`SB.Framework.Models/Qdrant/`）
+
+- `QdrantDistance`：Cosine=0, Euclid=1, Dot=2, Manhattan=3
+- `QdrantOptions`（配置段 `Sb:Qdrant`）：Host="localhost", Port=6334, UseHttps, ApiKey?
+- `SearchHit`：Id(Guid), Score, Payload
+- `VectorPoint`：Id(Guid), Vector, Payload?
+
+---
+
+## 关键事实
+
+1. 共 **25 个表实体**：21 个在 Models 根目录，2 个在 AccessToken 插件，1 个 BackupRemoteRecord（BackupReceive 项目根），LoginLog。LicenseManage **无自有实体**。
+2. 实现 `ISoftDelete`：Admin、AdminRole、Member、Menu、ApiKey。`LicenseClient` 有 `IsDeleted` 但未实现接口。
+3. `AdminRoleMenu` 未实现 `IEntity`（主键仍为 Id）。
+4. **实体/属性无 `[Obsolete]` 标记**（仅 AppController 4 个 action 有）。
+5. `StringLength=-2`（max/text）：SystemSetting.DataContent、SystemSetting.DataContentConfig、DatabaseBackup.RemoteUploadError。
+6. 字符串存储枚举列：Member.Status、MemberRealName.Status、EmailLog.Status。
+7. ⚠️ `BackgroundTaskLog` 表前缀是 **`SYS_`**（非 `SB_`）——写 SQL/文档时注意。

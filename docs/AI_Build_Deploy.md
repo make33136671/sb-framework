@@ -1,136 +1,124 @@
 # Build & Deploy
 
+> 本文档为**构建/部署事实源**，已按源码更新。若与旧文档冲突，以此为准。
+
 ## Requirements
 
-- .NET 8.0 SDK
-- MySQL 5.7+
-- Redis 6.0+ (optional)
-- Node.js 18+ / pnpm 10.22+ (frontend)
+- **.NET 10.0 SDK**（所有框架工程 `net10.0`；Analyzers `netstandard2.0`）
+- MySQL 5.7+（或 PostgreSQL）
+- Redis 6.0+（可选）
+- Node.js >=20 / pnpm >=10（前端，见 sb-framework-admin）
 
 ## Port Allocation
 
-Project reserved range: **6010 - 6019**
+项目预留范围：**6010 - 6019**
 
-| Component | Port |
-|-----------|------|
-| sb-api | 6010 |
-| sb-admin | 6012 |
+| 组件 | 端口 |
+|------|------|
+| 后端（DevHost） | 6010 |
+| 前端（web-antd） | 6012 |
 
-## Backend Commands
+## 一、框架本身构建
+
+### 编译整个解决方案
 
 ```bash
-# Build
-dotnet build                              # Debug
-dotnet build -c Release                   # Release
-
-# Development
-dotnet run --project SB.API               # HTTP:6010, HTTPS:7292
-dotnet watch run --project SB.API         # Hot reload
-
-# Publish
-dotnet publish SB.API -c Release -o ./dist
-
-# Production run
-dotnet SB.API.dll --urls='http://127.0.0.1:6010'
+dotnet build sb-framework.sln
 ```
 
-## Build Parameters
+### 打包推 NuGet（`scripts/pack-push.sh`）
 
-➜ 详见 [AI_Conventions.md §10](AI_Conventions.md) — `-p:DisableLicense` / `-p:EnableLicenseManage` / `-p:EnableBackupReceive` 三个开关 + 常见组合命令。
-
-## 派生项目 SemVer 自动版本号(推荐脚本)
-
-派生 application 项目(`sb-apps-pm` / `sb-apps-nexus` / 等)应该在自己仓库根目录放一个 `build-publish.sh`,让 `dotnet publish` 自动生成语义化版本号,使 `/admin/App/Info` 返回的 `version` 字段真实反映"代码改了多少次",而不是永远 `1.0.0+<sha>`。
-
-**版本号规则**:`Version = <PREFIX>.<git commit 总数>`,例如 `1.0.157`。每次新 commit → patch 自动 +1。bump minor/major 用 `VERSION_PREFIX=1.1 ./build-publish.sh` 覆盖默认 PREFIX。
-
-**关键 dotnet 参数**:`-p:Version=$VERSION` + `-p:IncludeSourceRevisionInInformationalVersion=false`(关掉 SourceLink 默认追加 commit sha,让 `InformationalVersion` 干净等于 `Version`)。
-
-**模板脚本**:
+把框架子项目编译成 NuGet 包（**正常 + NoLicense 双变体**），推送到 BaGet 私有源。改完框架必须走这步，派生项目才能 restore 到新版本。
 
 ```bash
-#!/bin/bash
-# <App> API 构建发布脚本
-set -e
-cd "$(dirname "$0")"
+./scripts/pack-push.sh --bump                              # 所有可打包项目 patch+1 后推送
+./scripts/pack-push.sh --project SB.Framework.WebApi --bump # 只发 WebApi
+./scripts/pack-push.sh --project SB.Framework.Core --version 0.5.0
+./scripts/pack-push.sh --project SB.Framework.WebApi --no-push  # 只打包不推送
+```
 
+- 可打包项目：Models / Core / Services / WebApi / Analyzers / Feature.AccessToken / Feature.BackupReceive / Feature.LicenseManage（**DevHost 不打包**）。
+- **铁律**（来自 CHANGELOG 0.4.3 事故）：每次发包**必须删 bin/obj 干净重建**，否则包版本 bump 但内部程序集版本未变，派生项目运行时 `FileNotFoundException` 崩溃。脚本默认强制清理。
+- 源：默认公网 `https://nuget.saibo.club/v3/index.json`；内网用 `--source-http`。API key 优先取环境变量 `SB_BAGET_API_KEY`。
+
+### 本地调试
+
+```bash
+cd SB.Framework.DevHost
+dotnet run --urls=http://localhost:6010
+curl http://localhost:6010/api/Setup/Status   # {"code":0,"data":{"installed":false}}
+```
+
+## 二、派生项目构建（`scripts/sb-build.sh`）
+
+`sb-build.sh` 是赛博体系所有 .NET 项目的标准化构建入口（派生项目可直接复用）：
+
+```bash
+./sb-build.sh --project <csproj路径> [options]
+# 常用：
+./sb-build.sh --project src/App.WebApi                 # 默认: 清dist + 删config + 打zip + 跳过License
+./sb-build.sh --project src/App.WebApi --version 2.0.0
+./sb-build.sh --project src/App.WebApi --with-license  # 注入 License 公钥(需 SB_LICENSE_KEY_DIR)
+./sb-build.sh --project src/App.WebApi --rid linux-x64
+./sb-build.sh --project src/App.WebApi --deploy /opt/apps/pm/api --restart   # 直接部署
+```
+
+关键默认：清空 dist、删除 appsettings*.json 与 wwwroot（防覆盖线上）、保留 `installed.lock`、打 zip、**默认 `--no-license`**（`-p:DisableLicense=true`）。
+
+### 派生项目 SemVer 自动版本号（推荐）
+
+在派生应用仓库根放 `build-publish.sh`，让 `/admin/App/Info` 返回真实版本：
+
+```bash
 PREFIX=${VERSION_PREFIX:-1.0}
 PATCH=$(git rev-list --count HEAD 2>/dev/null || echo 0)
 VERSION="$PREFIX.$PATCH"
 
-echo "=== <App> publish version $VERSION ==="
-
-DIST=../dist/api
-rm -rf $DIST && mkdir -p $DIST
-
-dotnet publish <App.WebApi.csproj 路径> \
-  -c Release -o $DIST \
+dotnet publish <App.WebApi.csproj> -c Release -o dist \
   -p:Version=$VERSION \
   -p:IncludeSourceRevisionInInformationalVersion=false \
   --nologo -v minimal
-
-# 默认过滤:appsettings + wwwroot(线上配置/资源不要覆盖)
-cd $DIST
-rm -f appsettings.json appsettings.*.json
-rm -rf wwwroot
-
-# 打 zip(zip 内直接是产物,无外层目录)
-cd .. && rm -f api.zip && (cd api && zip -qr ../api.zip .)
-
-echo "✓ Done. Version: $VERSION"
 ```
 
-参考实现:
-- [sb-apps-pm/build-publish.sh](https://gitlab.saibo.club/saibo/apps/sb-apps-pm/-/blob/main/build-publish.sh)
-- [sb-apps-nexus/build-publish.sh](https://gitlab.saibo.club/saibo/apps/sb-apps-nexus/-/blob/main/build-publish.sh)
+参考实现：`sb-apps-pm/build-publish.sh`、`sb-apps-nexus/build-publish.sh`。
 
-## Frontend Commands
+## 三、安装向导（首次运行）
 
-```bash
-cd sb-admin
-pnpm install                   # Install dependencies
-pnpm dev:antd                  # Dev server (http://localhost:5173)
-pnpm build:antd                # Production build → dist/
-```
+`installed.lock` 不存在时进入安装模式：
 
-## Setup Wizard (First Run)
+1. 访问 `http://<host>:<port>/setup/index.html`
+2. 配置：产品信息 → 数据库 → 缓存 → 部署 → 密码 → 管理员 → 确认
+3. 安装 → 建表、种子数据、更新 `appsettings.json`、创建 `installed.lock`
+4. **重启后生效**（Install 成功后延迟优雅重启）
 
-When `installed.lock` does not exist, the system enters setup mode.
+**重装**：删除 `installed.lock` 后重启。
 
-1. Access `http://<host>:<port>/setup/index.html`
-2. Configure: database connection, Redis (optional), admin account, CORS, password mode
-3. Install → creates tables, seeds data, updates `appsettings.json`, creates `installed.lock`
-4. **Restart required** to load new config
-
-**Re-install:** delete `installed.lock` and restart.
-
-### Setup API
-
-All at `/api/Setup/[action]`, AllowAnonymous:
+### Setup API（`/api/Setup/[action]`，AllowAnonymous）
 
 | Action | Method | Body |
 |--------|--------|------|
 | Status | GET | — |
-| TestDatabase | POST | `{ Server, Port, Database, User, Password }` |
-| TestRedis | POST | `{ Connection, InstanceName }` |
-| Install | POST | SetupRequest JSON (see AI_API_Reference.md) |
+| TestDatabase | POST | FromBody `{ DbType, Server, Port, Database, User, Password }` |
+| TestRedis | POST | FromBody `{ Connection, InstanceName }` |
+| Install | POST | FromBody SetupRequest（见 AI_Models.md） |
 
-## Deployment
+## 四、部署
 
-### Linux (systemd)
+### Linux（systemd）
 
-1. Publish: `dotnet publish SB.API -c Release -o ./dist`
-2. Upload `dist/` to server
-3. Create systemd service:
+```bash
+./scripts/sb-build.sh --project <App.WebApi.csproj> --with-license --rid linux-x64
+# 上传 dist/ 到服务器，创建 systemd 服务：
+```
 
 ```ini
 [Unit]
-Description=SB API
+Description=SB App API
 After=network.target
 
 [Service]
-WorkingDirectory=/opt/sb-api
-ExecStart=/usr/bin/dotnet SB.API.dll --urls=http://127.0.0.1:6010
+WorkingDirectory=/opt/apps/<app>/api
+ExecStart=/usr/bin/dotnet <App>.WebApi.dll --urls=http://127.0.0.1:6010
 Restart=always
 RestartSec=10
 User=www-data
@@ -139,58 +127,62 @@ User=www-data
 WantedBy=multi-user.target
 ```
 
-4. `systemctl enable sb-api && systemctl start sb-api`
+### 应用内远程部署（`scripts/deploy-via-api.sh`）
 
-### In-App Deployment
+不用 ssh/rsync，直接把 zip POST 给已运行的框架，框架原子替换 + 优雅重启：
 
-The `AppController` supports hot deployment:
+```bash
+# 两步流程（AppController）：Upload → Deploy
+./deploy-via-api.sh --url https://pm.saibo.club --token sk_xxx --zip api.zip
+./deploy-via-api.sh --url https://pm.saibo.club --token sk_xxx --zip api.zip --clear-cache --wait
+```
 
-- **UploadApi**: Upload zip → extract → replace files → auto-restart (200MB limit)
-- **UploadProject**: Upload frontend zip → extract to configured directory (200MB limit)
-- **DeployTargets**: List deployable frontend projects
-- **Restart**: Graceful app restart
+- 认证：`Authorization: Bearer <sk_ 访问令牌>`。部署接口未声明 Scope，**需要 FullAccess key 或密码 JWT**。
+- `keepConfig=true`（默认）时 `appsettings*.json` / `installed.lock` 不被覆盖。
+- **冒烟预检**（零宕机拦坏包）：`AppController.Deploy` 先解压到 staging、以 `SB_SMOKE_TEST=1` 冒烟模式拉起新包轮询 `/health`（最长 45s），不通过直接拒绝部署。可用 `SB_DEPLOY_SMOKE=0` 关闭。
+- 回滚：admin → 部署作业列表，对 Deployed 记录回滚；或 `POST /App/Deploy` 传旧 jobId。
 
-### Database Backup
+> `[Obsolete]` 的单接口（`UploadApi` / `DeployApiByPath` / `UploadProject` / `DeployProjectByPath`）已废弃，请走 `Upload` + `Deploy` 两步流程。
 
-- Admin UI: Database Management page
-- API: `POST /api/Database/Backup` with `X-Master-Key` header
-- Requires `mysqldump` available in PATH
+### 数据库备份
 
-## Logging
+- 统一入口 `DatabaseBackupService.BackupAndUploadAsync`（定时任务 / Admin 手动 / API `POST /api/Database/Backup`）。
+- 需 `mysqldump` 在 PATH 中（`CheckBackup` 可检测）。
+- 可选推送云端（`CloudConfig.ServerUrl` + BackupReceive 插件接收）。
 
-Serilog rolling file configuration:
-- `logs/error-{Date}.txt` — Error level
-- `logs/info-{Date}.txt` — Info level
-- `logs/warning-{Date}.txt` — Warning level
-- Old logs auto-archived to timestamped subfolder on startup
-- Development: additional console output
+## 五、日志
 
-## New Feature Workflow
+Serilog NDJSON（CLEF 格式，`Serilog.Formatting.Compact`）：
 
-### 1. Entity
+| 文件 | 级别 |
+|------|------|
+| `logs/error-{yyyyMMdd}.ndjson` | Error |
+| `logs/info-{yyyyMMdd}.ndjson` | Info |
+| `logs/warning-{yyyyMMdd}.ndjson` | Warning |
+
+- 启动前旧日志自动归档到时间戳子目录。
+- 字段：`@t`(UTC) / `@mt` / `@l` / `@x` / `SourceContext` / 自定义属性。
+- Development 额外控制台输出。
+- AI 诊断：`GET /admin/LogViewer/Diag` 返回 NDJSON 流（`date/level/tail/contains`）。
+
+## 六、新功能工作流
+
+### 1. 实体（派生项目 `Sb.Apps.<App>.Models`）
 
 ```csharp
-// SB.Models/YourEntity.cs
-[Table(Name = "SB_YourEntity")]
+[Table(Name = "sb_<app>_entity")]        // 派生表前缀 sb_<app>_
 public class YourEntity : IEntity, ISoftDelete
 {
-    [Column(IsPrimary = true, IsIdentity = true)]
     public int Id { get; set; }
-
     [Column(StringLength = 100)]
-    public string Name { get; set; }
-
-    [Column(DbType = "timestamp", InsertValueSql = "now()")]
-    public DateTime CreatedTime { get; set; }
-
+    public string Name { get; set; } = string.Empty;
     public bool IsDeleted { get; set; }
 }
 ```
 
-### 2. Service
+### 2. 服务
 
 ```csharp
-// SB.Services/YourEntityService.cs
 [AutoDependencyInjection]
 public class YourEntityService : BaseCrudService<YourEntity>
 {
@@ -199,83 +191,35 @@ public class YourEntityService : BaseCrudService<YourEntity>
 }
 ```
 
-### 3. Controller
+### 3. 控制器
 
 ```csharp
-// SB.API/Controllers/YourEntityController.cs
 [ApiController, Authorize(AuthenticationSchemes = "JwtAdmin"), Route("[controller]/[action]")]
-public class YourEntityController : Controller
+public class YourEntityController : ControllerBase
 {
     private readonly YourEntityService _service;
-
     public YourEntityController(YourEntityService service) => _service = service;
 
     [HttpGet]
-    public async Task<IActionResult> List(string field, string order, int page = 1, int pageSize = 20)
-        => Ok(await _service.GetPageAsync(page, pageSize, field, order));
-
-    [HttpGet]
-    public async Task<IActionResult> Detail(int id)
-        => Ok(Result.Success(await _service.GetAsync(id)));
+    public async Task<Result> List(int page = 1, int pageSize = 20) => ...;
 
     [HttpPost]
-    public async Task<IActionResult> Add([FromForm] YourEntity entity)
-        => Ok(await _service.AddAsync(entity));
-
-    [HttpPost]
-    public async Task<IActionResult> Edit([FromForm] YourEntity entity)
-        => Ok(await _service.EditAsync(entity));
-
-    [HttpPost]
-    public async Task<IActionResult> Del([FromForm] int id)
-        => Ok(await _service.DeleteAsync(id));
+    public async Task<Result> Add([FromForm] YourEntity entity) => ...;  // admin 用 [FromForm]（SB0002）
 }
 ```
 
-### Key Conventions
+### 4. 模块装配
 
-- English names only
-- `[AutoDependencyInjection]` for singleton registration
-- `[FromForm]` for form data, `[FromBody]` for JSON
-- JWT claims: `User.UserId()`, `User.UserName()`, `User.UserType()`, `User.Role()`
-- Sensitive data: `EncryptionUtil` with AES-256
-- Table prefix: `SB_`
+实现 `IModuleInitializer`（`GetEntityTypes` / `GetMenus` / `GetSystemSettings` / `SeedData`），框架启动自动建表 + 同步菜单/设置/种子。
 
-## Code Obfuscation
+### 关键约定
 
-To protect license-related logic from reverse engineering (e.g., dnSpy), the project uses [Obfuscar](https://github.com/obfuscar/obfuscar) for build-time obfuscation of `SB.Core.dll` and `SB.API.dll`.
+- 英文命名；`[AutoDependencyInjection]` 自动注册（Scoped）。
+- **禁止 `[FromBody]`**（SB0002，除非 `[AllowJsonBody]`）；**禁止 `DateTime.Now`**（SB0001，用 `AppTime.Now`）。
+- JWT claims：`User.Id()` / `User.Username()` / `User.UserType()` / `User.Role()`。
+- 敏感数据：`EncryptionUtil`（AES-256）。
+- 表前缀：基座 `sb_`，派生 `sb_<app>_`。
 
-### Install
+## 七、冒烟模式（部署预检）
 
-```bash
-dotnet tool install --global Obfuscar.GlobalTool
-```
-
-### Usage
-
-```bash
-./obfuscate.sh
-```
-
-This script:
-1. Runs `dotnet publish SB.API -c Release -o ./dist`
-2. Runs Obfuscar against the published output using `obfuscar.xml`
-3. Replaces `SB.Core.dll` and `SB.API.dll` in `./dist` with obfuscated versions
-4. Cleans up the temporary `dist_obfuscated` directory
-
-### What It Does
-
-- **Renames** internal types, methods, fields, properties, and events to unreadable Unicode names
-- **Encrypts strings** (including license keys, validation logic strings) in both assemblies
-- **Preserves** controllers, middleware, extensions, DI-registered types, and config classes so the app runs correctly
-
-### Configuration
-
-The obfuscation config is in `obfuscar.xml` at the project root. Key skip rules:
-- `SB.API.Controllers`, `SB.API.Middleware`, `SB.API.Extensions` — routing and DI rely on type names
-- `SB.Core.AppSettings`, `SB.Core.AppGlobal`, `SB.Core.LicenseConfig` — used by DI and config binding
-- Types matching `*Config$` in `SB.Core` — deserialized from JSON config
-
-### Limitations
-
-Obfuscation raises the barrier for casual reverse engineering but is not absolute protection. A determined attacker with sufficient time can still deobfuscate .NET assemblies. It is one layer in a defense-in-depth strategy.
+环境变量 `SB_SMOKE_TEST=1`：跳过 `SeedDatabase`（DB 迁移）与后台任务运行器（含 License 心跳），但保留 `IBackgroundTaskManager` 的 DI 注册（否则注入它的控制器解析失败）。临时实例只读探活 `/health`，不污染生产。

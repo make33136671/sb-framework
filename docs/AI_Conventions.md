@@ -1,6 +1,6 @@
 # SB Conventions（开发规范 / 已踩过的坑）
 
-> 这份文档面向 AI 和派生项目开发者。所有从 sb 框架 fork 出去的下游项目继承同一套基座代码，必然继承同样的约定和坑——遵守这里的规范就能少走弯路。
+> 这份文档面向 AI 和派生项目开发者。所有消费 SB Framework（NuGet 包）的下游项目继承同一套基座，必然继承同样的约定和坑——遵守这里的规范就能少走弯路。
 
 ---
 
@@ -161,7 +161,7 @@ public class XxxService : BaseCrudService<XxxEntity>, IModuleInitializer
 ## 4. 后台任务（BackgroundTask）
 
 ### 注册
-所有 sb-api 部署默认带的任务在 `BackgroundTaskRegistrationService.StartAsync` 注册：
+所有框架部署默认带的任务在 `BackgroundTaskRegistrationService.StartAsync` 注册：
 ```csharp
 var task = new XxxTask(logger, fsql, scopeFactory);
 _taskManager.RegisterTask("Xxx", task);
@@ -241,7 +241,7 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 ## 7. 数据库备份
 
 ### 统一入口
-**三个备份触发点**（定时任务 / Admin 手动 / MasterKey API）共用 `DatabaseBackupService.BackupAndUploadAsync`：
+**三个备份触发点**（定时任务 / Admin 手动 / API Key）共用 `DatabaseBackupService.BackupAndUploadAsync`：
 1. `CreateBackup` 本地 dump + zip + insert
 2. 启用了 `backup_upload_enabled` + `CloudConfig.ServerUrl` → `TryUploadLatestAsync` 推到云端
 3. 按 `backup_keep_local_count` 清理超期本地
@@ -277,11 +277,11 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 - `dbServer` 改 → 自动同步 `redisConnection=dbServer:6379`
 - `userEdited` 跟踪：用户改过的字段不再被自动推断覆盖
 
-### MasterKey
-- 默认关闭（`EnableMasterKey: false`）
-- 启用时安装成功页一次性显示 GUID，写入 `appsettings.MasterKey`
-- 客户端通过 `X-Master-Key` 请求头调任意接口绕过 JWT
-- **生产环境建议关闭**
+### 访问令牌（AccessToken 插件）
+- 由 `SB.Feature.AccessToken` 插件提供：账号即 token（密码 / API Key 两种认证）
+- API Key 支持 scoped key（`Scopes` RBAC）与 **FullAccess(god) key**（旁路 License，取代旧 MasterKey，可吊销/审计）
+- 明文 token 只在签发时回显一次；安装向导 / 后台可签发，`super` 角色可签 FullAccess
+- 带 IP 白名单、过期时间、每分钟限流；审计日志 `SB_ApiKeyAuditLog`
 
 ### 部署项目
 - 进入「部署」步骤自动预填两个：admin / h5
@@ -294,17 +294,14 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 
 ### 默认（客户交付）
 - 授权验证 ON（不传 `-p:DisableLicense=true`）
-- 授权管理 OFF（不传 `-p:EnableLicenseManage=true`）
-- 备份接收端 OFF（不传 `-p:EnableBackupReceive=true`）
+- 授权管理 / 备份接收 / 访问令牌：由 **NuGet 插件**（`SB.Feature.*`）决定，引用即启用
 
 ### 编译开关
 | Flag | 作用 |
 |------|------|
-| `-p:DisableLicense=true` | 关闭授权验证 |
-| `-p:EnableLicenseManage=true` | 包含授权管理（License 服务端角色） |
-| `-p:EnableBackupReceive=true` | 包含备份接收（备份服务端角色） |
+| `-p:DisableLicense=true` | 关闭授权验证（同时切换包为 `.NoLicense` 变体：PackageId 后缀 + `DISABLE_LICENSE` 编译符号 + 空公钥嵌入） |
 
-Debug 模式默认开启所有 `Enable*`，方便联调。
+> 旧 `-p:EnableLicenseManage` / `-p:EnableBackupReceive` 编译开关已废弃，改为 NuGet 插件（`SB.Feature.LicenseManage` / `SB.Feature.BackupReceive`），引用即启用、`Features:Disabled` 可关。
 
 ### 默认过滤
 构建产物时**默认排除**：
@@ -361,7 +358,7 @@ Debug 模式默认开启所有 `Enable*`，方便联调。
 
 ---
 
-### 13.1 前端组件（`sb-admin/apps/web-antd/src/components/<目录>`）
+### 13.1 前端组件（`sb-framework-admin/apps/web-antd/src/components/<目录>`）
 
 ```ts
 import { TimeTag } from '#/components/TimeTag';
@@ -385,9 +382,9 @@ import { TimeTag } from '#/components/TimeTag';
 
 ---
 
-### 13.2 后端可复用资产（`sb-api/SB.Core/`）
+### 13.2 后端可复用资产（`SB.Framework.Core/`）
 
-#### `SB.Core/Util/`（工具类）
+#### `SB.Framework.Core/Util/`（工具类）
 
 | 类 | 用途 |
 |----|------|
@@ -401,10 +398,10 @@ import { TimeTag } from '#/components/TimeTag';
 | `ImageUtil` | 图像处理 |
 | `FaviconGenerator` | Logo / Favicon / app-info.json 生成（安装向导用） |
 
-#### `SB.Core/Expand/`（C# Extension methods）
+#### `SB.Framework.Core/Expand/`（C# Extension methods）
 
 ```csharp
-using SB.Core.Expand;
+using SB.Framework.Core.Expand;
 ```
 
 | 扩展 on | 关键方法 |
@@ -415,48 +412,52 @@ using SB.Core.Expand;
 | `string` (image url) | `path.ToAbsoluteUrl(ctx)` / `url.ToRelativePath()` |
 | `string` | `str.TrimStartsPrefix(prefix)` |
 
-写新业务时先 grep `SB.Core/Expand/` 看有没有现成扩展，避免重复造轮子。
+写新业务时先 grep `SB.Framework.Core/Expand/` 看有没有现成扩展，避免重复造轮子。
 
-#### `SB.Core/Attribute/`
+#### `SB.Framework.Core/Attribute/`
 
 | 属性 | 用途 |
 |------|------|
 | `[AutoDependencyInjection]` | Service 自动 DI 注册（默认 Scoped），配 `BaseCrudService<T>` 用 |
+| `[AllowJsonBody]` | 豁免 SB0002：允许该 action/controller 使用 `[FromBody]` |
 
-#### `SB.Core/BackgroundTask/`
+#### `SB.Framework.Core/BackgroundTask/`
 
 | 类 | 用途 |
 |----|------|
 | `BaseBackgroundTask` | 后台任务基类（详见 §4） |
 | `TaskExecutionRecord` / `TaskLogLevel` / `TaskStatus` | 任务执行模型 |
 
-#### `SB.Core/FreeSql/BaseRepositoryExtensions.cs`
+#### `SB.Framework.Core/FreeSql/BaseRepositoryExtensions.cs`
 FreeSql 仓储扩展（`OrderByPropertyName` 等 ApplySorting helper）。
 
-#### `SB.Core/License/`
+#### `SB.Framework.Core/License/`
 License 子系统 — 详见 [AI_License_System.md](AI_License_System.md)。
 业务一般通过 `AppGlobal.AppSettings.GetLicenseServerUrl()` helper 调用，不直接碰内部类。
 
-#### `SB.Core/Middleware/` + `SB.API/Middleware/`
+#### `SB.Framework.Core/Middleware/` + `SB.Framework.WebApi/Middleware/`
 
 | 中间件 | 用途 |
 |-------|------|
 | `GlobalExceptionMiddleware` | 全局异常拦截 → 统一 `Result.Fail` |
 | `QueryCountMiddleware` | 数据库查询计数（debug header 显示 N 次 SQL） |
-| `MasterKeyMiddleware` | `X-Master-Key` 请求头校验 |
+| `ApiKeyMiddleware` | 全局把有效 `sk_` API Key 设为归属账号身份，`/agent/*` 与 `/admin/*` 统一 Bearer 访问（由 `SB.Feature.AccessToken` 插件提供） |
 | `SetupMiddleware` | 未安装时把请求重定向到 `/setup/index.html` 安装向导 |
 
-#### `SB.API/Extensions/`（启动配置 Setup 类）
-框架内部基础设施，业务一般不动。Fork 时若需扩展见 [AI_Fork_Guide.md](AI_Fork_Guide.md)。
+> 旧 `MasterKeyMiddleware` 已废弃，被 AccessToken 插件的 FullAccess(god) API Key 取代。
+
+#### `SB.Framework.WebApi/Extensions/`（启动配置 Setup 类）
+框架内部基础设施，业务一般不动。派生项目接入见 [AI_Downstream_Guide.md](AI_Downstream_Guide.md)。
 关键：`AdminRoutePrefixConvention`（自动 `/admin/` 前缀）、`ControllerExclusionConvention`（编译时排除 controller）、`ServiceSetup`（`[AutoDependencyInjection]` 扫描）、`DatabaseSeeder`（启动 seed 菜单/设置/种子数据）。
 
-#### `SB.Analyzers`
+#### `SB.Framework.Analyzers`
 
 | 分析器 | 作用 |
 |--------|------|
 | `BanDateTimeNowAnalyzer` + `CodeFix` | 编译期禁用 `DateTime.Now`（错误码 `SB0001`，自动修成 `AppTime.Now`） |
+| `BanFromBodyAnalyzer` | 编译期禁用 `[FromBody]`（错误码 `SB0002`，除非 action/controller 标 `[AllowJsonBody]`） |
 
-#### 框架基类（`SB.Services/`）
+#### 框架基类（`SB.Framework.Services/` + `SB.Framework.Core/`）
 
 | 类 | 用途 |
 |----|------|
@@ -475,7 +476,7 @@ AppGlobal.AppSettings.GetBackupUploadUrl()     // 拼 {ServerUrl}/api/BackupRece
 
 ### 13.3 派生项目维护本清单
 
-派生项目 fork 这套 docs 后，**在 13.1 / 13.2 末尾追加自己抽出来的组件 / Util**，例如：
+派生项目维护本清单时，**在 13.1 / 13.2 末尾追加自己抽出来的组件 / Util**，例如：
 
 ```md
 ### 13.1 前端组件
@@ -503,9 +504,9 @@ AppGlobal.AppSettings.GetBackupUploadUrl()     // 拼 {ServerUrl}/api/BackupRece
 
 | 档位 | 判定标准 | 典型功能 | 开关机制 |
 |------|---------|---------|---------|
-| **主权功能** | 客户不能自行关闭；关闭即破坏商业控制（授权到期、防盗版） | 授权验证 `LicenseMiddleware`、授权管理 `LicenseManageService` | **编译期 `#if`**，由构建参数 `-p:DisableLicense=true` / `-p:EnableLicenseManage=true` 决定，产物中物理不存在关闭分支 |
-| **运维后门** | 由框架作者/运维持有，不暴露给最终用户；泄漏不会破坏授权但有安全风险 | `MasterKeyMiddleware`（绕过 JWT 的万能密钥）| **运行时配置驱动**：`AppSettings.MasterKey` 非空则框架内部自动装入管线，空则物理不装；派生项目只改 `appsettings.json`，无需写代码 |
-| **纯功能性** | 客户开关无所谓，关了是他自己损失，不影响商业控制 | 云端备份、邮件、限流参数、Qdrant | **`appsettings.json` 配置**，或显式 `app.UseXxx()` 调用 |
+| **主权功能** | 客户不能自行关闭；关闭即破坏商业控制（授权到期、防盗版） | 授权验证 `LicenseMiddleware` | **编译期 `#if DISABLE_LICENSE`**，由构建参数 `-p:DisableLicense=true` 决定（同时切换 `.NoLicense` 包变体），产物中物理不存在关闭分支 |
+| **运维后门** | 由框架作者/运维持有，不暴露给最终用户；泄漏不会破坏授权但有安全风险 | AccessToken 插件的 **FullAccess(god) API Key**（穿透 JWT + 旁路 License，取代旧 MasterKey） | **插件 + 角色约束**：`SB.Feature.AccessToken` 提供，`super` 角色可签发、可吊销、可审计，建议配 IP 白名单 |
+| **纯功能性** | 客户开关无所谓，关了是他自己损失，不影响商业控制 | 插件（云端备份、授权管理）、邮件、限流参数、Qdrant | **NuGet 插件引用即启用**（`Features:Disabled` 可关），或 `appsettings.json` 配置 |
 
 ### 14.2 两套交付场景对照
 
@@ -518,25 +519,14 @@ AppGlobal.AppSettings.GetBackupUploadUrl()     // 拼 {ServerUrl}/api/BackupRece
 
 ```
 新功能要不要让客户关闭？
-├── 不能关（关了我失控）→ 主权功能 → #if 编译期，写进 UseSbFramework/AddSbFramework 内部
-├── 可以关，但是运维/作者持有的后门 → 运维后门 → AppSettings 非空自动装，空不装
-└── 随便关，纯功能性 → appsettings.json 或显式调用
+├── 不能关（关了我失控）→ 主权功能 → #if DISABLE_LICENSE 编译期，写进 UseSbFramework/AddSbFramework 内部
+├── 可以关，但是运维/作者持有的后门 → 运维后门 → AccessToken 插件 FullAccess key（角色约束 + 可吊销 + IP 白名单）
+└── 随便关，纯功能性 → 做成 SB.Feature.* 插件（引用即启用、Features:Disabled 可关）或 appsettings.json 配置
 ```
 
-### 14.4 运维后门的实现范式（以 MasterKey 为模板）
+### 14.4 运维后门的实现范式（当前以 AccessToken FullAccess 为模板）
 
-```csharp
-// SbFrameworkExtensions.cs - UseSbFramework 内部
-// 有配置则自动装入管线，空则不装——派生项目无需写任何代码
-if (!string.IsNullOrEmpty(AppGlobal.AppSettings?.MasterKey))
-    app.UseMiddleware<MasterKeyMiddleware>();
-```
-
-派生项目只需在 `appsettings.json` 配置（自用系统）或留空（客户环境）：
-```json
-{
-  "MasterKey": "64c0c764c90242f3b65eb20daaff4597"
-}
-```
-
-**后续新增同类运维后门功能，照此范式复制**：中间件写在框架里、`AppSettings` 加配置项、`UseSbFramework` 里判空自动装。
+- 旧「MasterKey 万能密钥」（`AppSettings.MasterKey` + `MasterKeyMiddleware` + `X-Master-Key` 头）**已废弃**，源码中不再存在。
+- 取代方案：`SB.Feature.AccessToken` 插件的 `ApiKey.FullAccess = true`（god key）——忽略 scope、穿透所有端点、旁路 License。
+- 签发权限：仅 `super` 角色，且需功能开关 `EnableFullAccess=true` 才生效；支持吊销（审计 `SB_ApiKeyAuditLog`）与 IP 白名单。
+- **新增同类运维后门功能**：优先复用 AccessToken 的 scoped key / FullAccess key 机制，不要在框架里自造静态密钥中间件。
