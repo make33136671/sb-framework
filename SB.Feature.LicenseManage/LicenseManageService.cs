@@ -443,6 +443,11 @@ namespace SB.Feature.LicenseManage
             var clientKey = string.IsNullOrWhiteSpace(req.ClientKey) ? null : req.ClientKey.Trim();
             var hardwareId = string.IsNullOrWhiteSpace(req.HardwareId) ? null : req.HardwareId.Trim();
 
+            // 防"空白授权": 至少绑定一项身份(域名 / ClientKey / HardwareId)。
+            // 否则签名 Payload 无任何校验字段, 授权可在任意机器原样使用 —— 复制合法授权即可绕过。
+            if (domains.Count == 0 && string.IsNullOrEmpty(clientKey) && string.IsNullOrEmpty(hardwareId))
+                return Result.Fail("授权必须绑定至少一项身份: 域名 / ClientKey / HardwareId, 否则授权可被复制到任意机器使用");
+
             // 3. 读取私钥, 签名 Payload
             var privatePath = Path.Combine(GetKeyDir(), PrivateKeyFile);
             if (!File.Exists(privatePath)) GenerateKeyPair();
