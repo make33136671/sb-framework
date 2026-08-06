@@ -57,7 +57,7 @@ namespace SB.Framework.Models
         /// <summary>
         /// 管理员状态
         /// </summary>
-        [Column(Name = "Status")]
+        [Column(Name = "Status", MapType = typeof(string))]
         public AdminStatus Status { get; set; } = AdminStatus.Active;
 
         /// <summary>
@@ -95,7 +95,7 @@ namespace SB.Framework.Models
         /// 账号类型：Human=可密码登录的人；Service=仅供 API Key 使用的服务账号
         /// （无可用密码、禁止密码登录）。现有行默认 0=Human，向后兼容。
         /// </summary>
-        [Column(Name = "AccountType", IsNullable = false, InsertValueSql = "0")]
+        [Column(Name = "AccountType", MapType = typeof(string), IsNullable = false, InsertValueSql = "'Human'")]
         public AccountType AccountType { get; set; } = AccountType.Human;
 
         /// <summary>
