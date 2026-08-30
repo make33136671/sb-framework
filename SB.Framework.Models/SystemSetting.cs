@@ -25,14 +25,14 @@ namespace SB.Framework.Models
         /// </summary>
         [Required, StringLength(100)]
         [Column(Name = "Key")]
-        public string Key { get; set; }
+        public string Key { get; set; } = null!;
 
         /// <summary>
         /// 设置名称
         /// </summary>
         [Required, StringLength(100)]
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
 
         /// <summary>
@@ -57,7 +57,7 @@ namespace SB.Framework.Models
         /// 设置数据选项
         /// </summary>
         [Column(Name = "DataContentConfig", StringLength = -2)]
-        public string DataContentConfig { get; set; }
+        public string DataContentConfig { get; set; } = null!;
 
         /// <summary>
         /// 显示排序

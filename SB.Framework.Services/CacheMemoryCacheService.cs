@@ -23,7 +23,9 @@ namespace SB.Framework.Services
 
         public T Get<T>(string key)
         {
-            return _cache.TryGetValue(key, out T value) ? value : default;
+            return _cache.TryGetValue(key, out object? value) && value is T result
+                ? result
+                : default!;
         }
 
         public void Set<T>(string key, T value, TimeSpan? expiration = null)

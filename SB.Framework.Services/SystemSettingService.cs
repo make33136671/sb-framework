@@ -26,7 +26,7 @@ namespace SB.Framework.Services
         IHttpContextAccessor _httpContextAccessor;
         ICacheService _cacheService;
         // 可选:NoLicense 构建里没有授权设置分类,带授权构建里用它判断"未激活则隐藏授权设置"
-        readonly SB.Framework.Core.License.ILicenseService _licenseService;
+        readonly SB.Framework.Core.License.ILicenseService? _licenseService;
 
         private const string CachePrefix = "SystemSetting:";
         private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(30);
@@ -43,7 +43,7 @@ namespace SB.Framework.Services
             public const string BaseHost = "BaseHost";
         }
 
-        public SystemSettingService(IFreeSql fsql, ILogger<SystemSettingService> logger, IHttpContextAccessor httpContextAccessor, ICacheService cacheService, SB.Framework.Core.License.ILicenseService licenseService = null) : base(fsql, logger)
+        public SystemSettingService(IFreeSql fsql, ILogger<SystemSettingService> logger, IHttpContextAccessor httpContextAccessor, ICacheService cacheService, SB.Framework.Core.License.ILicenseService? licenseService = null) : base(fsql, logger)
         {
             _fsql = fsql;
             _httpContextAccessor = httpContextAccessor;

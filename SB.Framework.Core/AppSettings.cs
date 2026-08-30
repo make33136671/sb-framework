@@ -2,7 +2,7 @@
 {
     public static class AppGlobal
     {
-        public static AppSettings AppSettings { get; set; }
+        public static AppSettings AppSettings { get; set; } = null!;
 
         /// <summary>
         /// 获取当前环境对应的 appsettings 文件路径。
@@ -23,7 +23,7 @@
         /// <summary>
         /// 产品中文名称
         /// </summary>
-        public string ProductCn { get; set; }
+        public string ProductCn { get; set; } = null!;
 
         /// <summary>
         /// 产品英文名称（小写字母+数字，用于路径前缀、缓存前缀、License Product）
@@ -76,22 +76,22 @@
         /// <summary>
         /// 程序启动端口信息
         /// </summary>
-        public WebHost WebHost { get; set; }
+        public WebHost WebHost { get; set; } = null!;
 
         /// <summary>
         /// Admin Jwt加密授权信息
         /// </summary>
-        public JwtAdmin JwtAdmin { get; set; }
+        public JwtAdmin JwtAdmin { get; set; } = null!;
 
         /// <summary>
         /// Api Jwt加密授权信息
         /// </summary>
-        public JwtAPI JwtAPI { get; set; }
+        public JwtAPI JwtAPI { get; set; } = null!;
 
         /// <summary>
         /// 数据库配置信息
         /// </summary>
-        public DbConfig DbConfig { get; set; }
+        public DbConfig DbConfig { get; set; } = null!;
 
         /// <summary>
         /// 登录频率限制配置
@@ -147,7 +147,7 @@
         /// <summary>
         /// 运行地址
         /// </summary>
-        public string Host { get; set; }
+        public string Host { get; set; } = null!;
 
         /// <summary>
         /// 运行端口号
@@ -160,19 +160,19 @@
         /// <summary>
         ///
         /// </summary>
-        public string Key { get; set; }
+        public string Key { get; set; } = null!;
         /// <summary>
         ///
         /// </summary>
-        public string Issuer { get; set; }
+        public string Issuer { get; set; } = null!;
         /// <summary>
         ///
         /// </summary>
-        public string Audience { get; set; }
+        public string Audience { get; set; } = null!;
         /// <summary>
         ///
         /// </summary>
-        public string Expires { get; set; }
+        public string Expires { get; set; } = null!;
     }
 
     public class JwtAPI
@@ -180,19 +180,19 @@
         /// <summary>
         /// 
         /// </summary>
-        public string Key { get; set; }
+        public string Key { get; set; } = null!;
         /// <summary>
         /// 
         /// </summary>
-        public string Issuer { get; set; }
+        public string Issuer { get; set; } = null!;
         /// <summary>
         /// 
         /// </summary>
-        public string Audience { get; set; }
+        public string Audience { get; set; } = null!;
         /// <summary>
         /// 
         /// </summary>
-        public string Expires { get; set; }
+        public string Expires { get; set; } = null!;
     }
 
     public class DbConfig
@@ -205,37 +205,37 @@
         /// <summary>
         /// 数据库服务器地址
         /// </summary>
-        public string Server { get; set; }
+        public string Server { get; set; } = null!;
 
         /// <summary>
         /// 端口号
         /// </summary>
-        public string Port { get; set; }
+        public string Port { get; set; } = null!;
 
         /// <summary>
         /// 数据库名称
         /// </summary>
-        public string Database { get; set; }
+        public string Database { get; set; } = null!;
 
         /// <summary>
         /// 数据库用户名
         /// </summary>
-        public string User { get; set; }
+        public string User { get; set; } = null!;
 
         /// <summary>
         /// 数据库密码
         /// </summary>
-        public string Password { get; set; }
+        public string Password { get; set; } = null!;
 
         /// <summary>
         /// 自动同步数据库结构,正式环境中慎用
         /// </summary>
-        public string AutoSyncStructure { get; set; }
+        public string AutoSyncStructure { get; set; } = null!;
 
         /// <summary>
         /// 是否在控制台输出Sql日志
         /// </summary>
-        public string MonitorSqlCommandForLog { get; set; }
+        public string MonitorSqlCommandForLog { get; set; } = null!;
 
         /// <summary>
         /// 慢查询阈值（毫秒），超过此值的查询将记录为Warning日志
@@ -390,17 +390,17 @@
         /// <summary>
         /// 显示名称，如 "Admin管理后台"
         /// </summary>
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>
         /// 唯一标识，如 "admin"
         /// </summary>
-        public string Key { get; set; }
+        public string Key { get; set; } = null!;
 
         /// <summary>
         /// 部署目录绝对路径，如 "/www/wwwroot/sb_admin/"
         /// </summary>
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
     }
 
     /// <summary>
@@ -420,3 +420,4 @@
     }
 
 }
+

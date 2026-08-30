@@ -1,4 +1,4 @@
-using SB.Framework.Core.BackgroundTask;
+﻿using SB.Framework.Core.BackgroundTask;
 using TaskStatus = SB.Framework.Core.BackgroundTask.TaskStatus;
 
 namespace SB.Framework.Services;
@@ -26,3 +26,4 @@ public interface IBackgroundTaskManager
     List<BackgroundTaskInfo> GetAllTasks();
     Task ReloadParameters(string name);
 }
+

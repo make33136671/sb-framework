@@ -23,9 +23,12 @@ namespace SB.Framework.WebApi.Extensions
                     }
                     else
                     {
-                        policy.AllowAnyOrigin()
+                        // 不用 AllowAnyOrigin()：SignalR 等客户端默认 credentials=include，
+                        // 通配符 * 与凭据请求不兼容；回显任意 Origin + AllowCredentials 覆盖全放行场景。
+                        policy.SetIsOriginAllowed(_ => true)
                               .AllowAnyMethod()
-                              .AllowAnyHeader();
+                              .AllowAnyHeader()
+                              .AllowCredentials();
                     }
                 });
             });

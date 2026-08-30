@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -18,13 +18,13 @@ namespace SB.Framework.Models
         [Column(Name = "ClientId")]
         public int ClientId { get; set; }
         [Navigate(nameof(ClientId))]
-        public LicenseClient Client { get; set; }
+        public LicenseClient Client { get; set; } = null!;
 
         /// <summary>
         /// 申请时的域名
         /// </summary>
         [Column(Name = "Domain", StringLength = 500)]
-        public string Domain { get; set; }
+        public string Domain { get; set; } = null!;
 
         /// <summary>
         /// 申请时的服务器 IP
@@ -62,7 +62,7 @@ namespace SB.Framework.Models
         [Column(Name = "RecordId", IsNullable = true)]
         public int? RecordId { get; set; }
         [Navigate(nameof(RecordId))]
-        public LicenseRecord Record { get; set; }
+        public LicenseRecord Record { get; set; } = null!;
 
         [Column(Name = "CreatedTime", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime CreatedTime { get; set; }
@@ -84,3 +84,4 @@ namespace SB.Framework.Models
         Rejected = 2
     }
 }
+

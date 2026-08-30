@@ -34,14 +34,45 @@ namespace SB.Framework.Services
         public bool IsInstalled() => File.Exists(LockFilePath);
 
         /// <summary>
-        /// 推断 admin / h5 部署路径
-        /// 规则：取 API 的 ContentRoot 最后一段（如 sb_test_api），
-        /// 去掉 _api 后缀，与同级 *_admin / *_h5 拼装
-        /// 推断不出（如开发环境 SB.API）则返回空字符串，让用户手填
+        /// 推断部署路径和数据库默认值
+        /// Docker 模式：检测 DOTNET_RUNNING_IN_CONTAINER，返回容器内固定路径和 PostgreSQL 默认值
+        /// 传统模式：取 API 的 ContentRoot 最后一段（如 sb_test_api），去掉 _api 后缀拼装同级路径
         /// </summary>
         public Result GetDeployHints()
         {
             var apiPath = _env.ContentRootPath?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? "";
+
+            // 检测 Docker 环境：.NET 官方镜像自动设置 DOTNET_RUNNING_IN_CONTAINER=true
+            var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
+                || apiPath.StartsWith("/app/", StringComparison.OrdinalIgnoreCase);
+
+            if (isDocker)
+            {
+                var pgPassword = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD") ?? "";
+                var pgDb = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "";
+
+                string dockerAdminPath = Directory.Exists("/app/admin-ui") ? "/app/admin-ui" : "";
+                string dockerUserPath = Directory.Exists("/app/user-ui") ? "/app/user-ui" : "";
+
+                return Result.Success(new
+                {
+                    isDocker = true,
+                    apiPath,
+                    adminPath = dockerAdminPath,
+                    h5Path = dockerUserPath,
+                    database = !string.IsNullOrEmpty(pgPassword) ? new
+                    {
+                        dbType = "PostgreSql",
+                        server = "127.0.0.1",
+                        port = "5432",
+                        database = pgDb,
+                        user = "postgres",
+                        password = pgPassword
+                    } : null
+                });
+            }
+
+            // 传统部署：从 ContentRootPath 推断同级 *_admin / *_h5
             var folderName = Path.GetFileName(apiPath);
             var parentDir = Path.GetDirectoryName(apiPath) ?? "";
             string adminPath = "", h5Path = "";
@@ -51,7 +82,7 @@ namespace SB.Framework.Services
                 adminPath = Path.Combine(parentDir, prefix + "_admin");
                 h5Path = Path.Combine(parentDir, prefix + "_h5");
             }
-            return Result.Success(new { apiPath, adminPath, h5Path });
+            return Result.Success(new { isDocker = false, apiPath, adminPath, h5Path });
         }
 
         /// <summary>
@@ -59,7 +90,7 @@ namespace SB.Framework.Services
         /// </summary>
         public Result TestDatabaseConnection(DatabaseConfigDto config)
         {
-            IFreeSql fsql = null;
+            IFreeSql? fsql = null;
             try
             {
                 var dataType = ParseDataType(config.DbType);
@@ -91,7 +122,7 @@ namespace SB.Framework.Services
         /// </summary>
         private Result? TryCreateDatabase(DatabaseConfigDto config)
         {
-            IFreeSql serverFsql = null;
+            IFreeSql? serverFsql = null;
             try
             {
                 var dataType = ParseDataType(config.DbType);
@@ -209,7 +240,9 @@ namespace SB.Framework.Services
                 !System.Text.RegularExpressions.Regex.IsMatch(request.ProductEn, @"^[a-z][a-z0-9]{1,19}$"))
                 return Result.Fail("产品英文名称只允许小写字母和数字，2-20字符，字母开头");
 
-            IFreeSql fsql = null;
+            IFreeSql? fsql = null;
+            string? appSettingsBackup = null;
+            HashSet<string>? tablesBeforeSync = null;
             try
             {
                 // 2. 如果数据库不存在，先创建
@@ -243,6 +276,8 @@ namespace SB.Framework.Services
                 var entityTypes = modules.SelectMany(m => m.GetEntityTypes()).Distinct().ToArray();
                 if (entityTypes.Length > 0)
                 {
+                    // 快照已有表名，用于安装失败时回滚
+                    tablesBeforeSync = GetExistingTableNames(fsql, request.Database.Database, request.Database.DbType);
                     fsql.CodeFirst.SyncStructure(entityTypes);
                     _logger.LogInformation("安装向导: 数据表创建/同步成功 ({Count} 个实体)", entityTypes.Length);
                 }
@@ -254,6 +289,8 @@ namespace SB.Framework.Services
                 // 6. 更新 appsettings.json
                 var jwtAdminKey = GenerateJwtKey();
                 var jwtApiKey = GenerateJwtKey();
+                var appSettingsPath = AppGlobal.GetAppSettingsPath(_env.ContentRootPath, _env.EnvironmentName);
+                appSettingsBackup = File.ReadAllText(appSettingsPath);
                 UpdateAppSettings(request, jwtAdminKey, jwtApiKey);
                 _logger.LogInformation("安装向导: 配置文件更新成功");
 
@@ -271,11 +308,12 @@ namespace SB.Framework.Services
                 var symlinkResults = CreateStorageSymlinks(request.DeployProjects);
 
                 // 9. 创建 installed.lock
+                var appVersion = Assembly.GetEntryAssembly()?.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "1.0.0";
                 var lockContent = System.Text.Json.JsonSerializer.Serialize(new
                 {
                     InstalledAt = AppTime.Now,
                     InstalledBy = request.AdminUsername,
-                    Version = "1.0.0",
+                    Version = appVersion,
                     Modules = modules.Select(m => m.ModuleName).ToArray()
                 });
                 File.WriteAllText(LockFilePath, lockContent);
@@ -296,7 +334,29 @@ namespace SB.Framework.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "安装过程中发生错误");
+                _logger.LogError(ex, "安装过程中发生错误，开始回滚");
+
+                // 回滚 1: 删除安装过程中新建的表
+                if (fsql != null && tablesBeforeSync != null)
+                {
+                    RollbackCreatedTables(fsql, request.Database.Database, request.Database.DbType, tablesBeforeSync);
+                }
+
+                // 回滚 2: 还原 appsettings.json
+                if (appSettingsBackup != null)
+                {
+                    try
+                    {
+                        var path = AppGlobal.GetAppSettingsPath(_env.ContentRootPath, _env.EnvironmentName);
+                        File.WriteAllText(path, appSettingsBackup);
+                        _logger.LogInformation("安装向导回滚: 配置文件已还原");
+                    }
+                    catch (Exception rollbackEx)
+                    {
+                        _logger.LogError(rollbackEx, "安装向导回滚: 还原配置文件失败");
+                    }
+                }
+
                 // 安装失败，不创建 lock 文件
                 return Result.Fail($"安装失败: {ex.Message}");
             }
@@ -744,7 +804,7 @@ namespace SB.Framework.Services
         /// </summary>
         private void EnsureDatabaseExists(DatabaseConfigDto config)
         {
-            IFreeSql testFsql = null;
+            IFreeSql? testFsql = null;
             try
             {
                 var dataType = ParseDataType(config.DbType);
@@ -762,7 +822,7 @@ namespace SB.Framework.Services
                 testFsql = null;
 
                 // 尝试连接服务器并创建数据库
-                IFreeSql serverFsql = null;
+                IFreeSql? serverFsql = null;
                 try
                 {
                     var dataType = ParseDataType(config.DbType);
@@ -815,6 +875,74 @@ namespace SB.Framework.Services
                 }
             }
             fsql.Ado.ExecuteNonQuery("SET FOREIGN_KEY_CHECKS = 1");
+        }
+
+        private HashSet<string> GetExistingTableNames(IFreeSql fsql, string database, string dbType)
+        {
+            var tables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
+            {
+                if (string.Equals(dbType, "PostgreSql", StringComparison.OrdinalIgnoreCase))
+                {
+                    var rows = fsql.Ado.ExecuteArray("SELECT tablename FROM pg_tables WHERE schemaname = 'public'");
+                    if (rows != null)
+                        foreach (var row in rows)
+                            if (row?[0] != null) tables.Add(row[0].ToString()!);
+                }
+                else
+                {
+                    var rows = fsql.Ado.ExecuteArray(
+                        $"SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{database.Replace("'", "''")}'");
+                    if (rows != null)
+                        foreach (var row in rows)
+                            if (row?[0] != null) tables.Add(row[0].ToString()!);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "安装向导: 获取已有表列表失败，回滚时将跳过表清理");
+            }
+            return tables;
+        }
+
+        private void RollbackCreatedTables(IFreeSql fsql, string database, string dbType, HashSet<string> tablesBeforeSync)
+        {
+            var currentTables = GetExistingTableNames(fsql, database, dbType);
+            var createdTables = currentTables.Except(tablesBeforeSync, StringComparer.OrdinalIgnoreCase).ToList();
+
+            if (createdTables.Count == 0) return;
+
+            _logger.LogInformation("安装向导回滚: 发现 {Count} 个安装期间新建的表，开始清理", createdTables.Count);
+
+            var isPostgreSql = string.Equals(dbType, "PostgreSql", StringComparison.OrdinalIgnoreCase);
+            try
+            {
+                if (!isPostgreSql)
+                    fsql.Ado.ExecuteNonQuery("SET FOREIGN_KEY_CHECKS = 0");
+
+                foreach (var table in createdTables)
+                {
+                    try
+                    {
+                        if (isPostgreSql)
+                            fsql.Ado.ExecuteNonQuery($"DROP TABLE IF EXISTS \"{table}\" CASCADE");
+                        else
+                            fsql.Ado.ExecuteNonQuery($"DROP TABLE IF EXISTS `{table}`");
+                        _logger.LogInformation("安装向导回滚: 已删除表 {Table}", table);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "安装向导回滚: 删除表 {Table} 失败", table);
+                    }
+                }
+
+                if (!isPostgreSql)
+                    fsql.Ado.ExecuteNonQuery("SET FOREIGN_KEY_CHECKS = 1");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "安装向导回滚: 清理表操作失败");
+            }
         }
 
         private static FreeSql.DataType ParseDataType(string dbType)
@@ -905,7 +1033,17 @@ namespace SB.Framework.Services
                 if (!typeof(IModuleInitializer).IsAssignableFrom(type) || type.IsInterface || type.IsAbstract)
                     continue;
 
-                var instance = RuntimeHelpers.GetUninitializedObject(type) as IModuleInitializer;
+                // 使用 GetUninitializedObject 避免要求无参构造函数
+                // IModuleInitializer 的方法只返回静态元数据，不依赖注入的实例字段
+                IModuleInitializer? instance = null;
+                try
+                {
+                    instance = RuntimeHelpers.GetUninitializedObject(type) as IModuleInitializer;
+                }
+                catch
+                {
+                    continue;
+                }
                 if (instance != null)
                 {
                     modules[instance.ModuleName] = instance;

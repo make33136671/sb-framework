@@ -15,13 +15,13 @@ namespace SB.Framework.Models
         /// <summary>
         /// 响应消息
         /// </summary>
-        public string Message { get; set; }
+        public string Message { get; set; } = "";
 
         /// <summary>
         /// 响应数据
         /// </summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public object Data { get; set; }
+        public object? Data { get; set; }
 
         /// <summary>
         /// 成功 — 返回数据
@@ -32,7 +32,7 @@ namespace SB.Framework.Models
         /// <summary>
         /// 成功 — 返回消息 + 可选数据
         /// </summary>
-        public static Result Success(string message, object data = null)
+        public static Result Success(string message, object? data = null)
             => new() { Code = 0, Message = message, Data = data };
 
         /// <summary>

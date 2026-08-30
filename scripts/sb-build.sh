@@ -26,6 +26,9 @@ DEFAULT_VERSION_PATCH=0
 # 默认清空输出目录？false = 增量模式（保留已有文件）
 DEFAULT_CLEAN_DIST=true
 
+# 默认生成部署脚本？true = publish 后自动生成 deploy.sh + nginx.conf + app.service
+DEFAULT_GEN_DEPLOY=true
+
 # 默认跳过 License 校验？true = 本地开发常用，false = 正式发布（需要环境变量 SB_LICENSE_KEY_DIR）
 DEFAULT_NO_LICENSE=true
 
@@ -64,6 +67,9 @@ RID=""                # 目标运行时标识（如 linux-x64, osx-x64）
 DELETE_PATTERNS=""    # 额外删除文件模式（逗号分隔）
 KEEP_PATTERNS="$DEFAULT_KEEP_PATTERNS"
 MERGE_DIRS=()         # 构建后合并的目录（可重复使用）
+GEN_DEPLOY="$DEFAULT_GEN_DEPLOY"  # 生成部署脚本
+DEPLOY_PORT=""        # 部署端口（传给 sb-deploy-gen）
+DEPLOY_DOMAIN=""      # 部署域名（传给 sb-deploy-gen）
 
 show_help() {
     cat << 'HELP'
@@ -115,6 +121,12 @@ License 参数:
                       例: --restart                         # systemctl restart api
                            --restart "supervisorctl restart pm"
 
+部署脚本生成参数:
+  --gen-deploy        生成部署脚本（deploy.sh + nginx.conf + app.service）（默认启用）
+  --no-gen-deploy     不生成部署脚本
+  --deploy-port <num> 部署端口（默认 5000）
+  --deploy-domain <str> 部署域名（如 example.com）
+
 HELP
     exit 0
 }
@@ -143,6 +155,10 @@ while [ $# -gt 0 ]; do
         --deploy)       DEPLOY_DIR="$2"; ZIP=false; shift 2 ;;
         --restart)      RESTART="${2:-true}"; shift 2 ;;
         --restart-cmd)  RESTART_CMD="$2"; shift 2 ;;
+        --gen-deploy)   GEN_DEPLOY=true; shift ;;
+        --no-gen-deploy) GEN_DEPLOY=false; shift ;;
+        --deploy-port)  DEPLOY_PORT="$2"; shift 2 ;;
+        --deploy-domain) DEPLOY_DOMAIN="$2"; shift 2 ;;
         *)              echo "未知参数: $1"; show_help ;;
     esac
 done
@@ -386,6 +402,45 @@ pack() {
     info "打包完成: $(du -sh "$zip_file" | cut -f1)"
 }
 
+# 生成部署脚本（deploy.sh + nginx.conf + app.service）
+generate_deploy() {
+    if [ "$GEN_DEPLOY" != true ]; then
+        info "跳过部署脚本生成（--no-gen-deploy）"
+        return
+    fi
+
+    info "生成部署脚本..."
+
+    local SCRIPT_DIR
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    local GEN_SCRIPT="$SCRIPT_DIR/sb-deploy-gen.sh"
+
+    if [ ! -f "$GEN_SCRIPT" ]; then
+        warn "部署脚本生成器不存在: $GEN_SCRIPT，跳过"
+        return
+    fi
+
+    local gen_args=(
+        --output "$OUTPUT_DIR"
+        --name "$NAME"
+    )
+
+    if [ -n "$DEPLOY_PORT" ]; then
+        gen_args+=(--port "$DEPLOY_PORT")
+    fi
+
+    if [ -n "$DEPLOY_DOMAIN" ]; then
+        gen_args+=(--domain "$DEPLOY_DOMAIN")
+    fi
+
+    bash "$GEN_SCRIPT" "${gen_args[@]}"
+
+    # 如果打 zip，确保 deploy 目录也包含在 zip 内
+    if [ "$ZIP" = true ]; then
+        info "部署脚本已包含在 zip 中"
+    fi
+}
+
 # 部署后重启服务
 # --deploy 模式下使用
 do_restart() {
@@ -427,6 +482,9 @@ report() {
         echo "  zip:      $(dirname "$OUTPUT_DIR")/${NAME}.zip"
     fi
     echo "  License:  $([ "$NO_LICENSE" = true ] && echo '跳过' || echo '注入')"
+    if [ "$GEN_DEPLOY" = true ]; then
+        echo "  部署脚本: $OUTPUT_DIR/deploy/"
+    fi
     if [ -n "$RID" ]; then
         echo "  运行时:   $RID"
     fi
@@ -448,6 +506,7 @@ resolve_output
 build
 clean_artifacts
 merge_dirs
+generate_deploy
 pack
 do_restart
 report

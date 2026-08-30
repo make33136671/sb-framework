@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -16,19 +16,19 @@ namespace SB.Framework.Models
         /// 数据库名称
         /// </summary>
         [Column(Name = "DatabaseName", StringLength = 100)]
-        public string DatabaseName { get; set; }
+        public string DatabaseName { get; set; } = null!;
 
         /// <summary>
         /// 备份文件名
         /// </summary>
         [Column(Name = "FileName", StringLength = 200)]
-        public string FileName { get; set; }
+        public string FileName { get; set; } = null!;
 
         /// <summary>
         /// 文件相对路径 (如 /storage/db/xxx.zip)
         /// </summary>
         [Column(Name = "FilePath", StringLength = 500)]
-        public string FilePath { get; set; }
+        public string FilePath { get; set; } = null!;
 
         /// <summary>
         /// 文件大小（字节）
@@ -46,7 +46,7 @@ namespace SB.Framework.Models
         /// 操作人（管理员用户名 或 访问令牌账号）
         /// </summary>
         [Column(Name = "CreatedBy", StringLength = 100)]
-        public string CreatedBy { get; set; }
+        public string CreatedBy { get; set; } = null!;
 
         /// <summary>
         /// 备份时间
@@ -91,3 +91,4 @@ namespace SB.Framework.Models
         public string? RemoteUploadUrl { get; set; }
     }
 }
+

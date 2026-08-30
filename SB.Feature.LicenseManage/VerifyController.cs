@@ -42,7 +42,7 @@ namespace SB.Feature.LicenseManage
         //   productEn = 产品英文名 (客户端 AppSettings.ProductEn)
         //   productCn = 产品中文名 (客户端 AppSettings.ProductCn)
 
-        public Result Request(string domain, string? productEn, string? productCn, string? clientKey, string? hardwareId,
+        public new Result Request(string domain, string? productEn, string? productCn, string? clientKey, string? hardwareId,
             string? machineName, string? osDescription, int? processorCount, string? macAddresses, string? serverIP)
         {
             return _service.CreateRequest(domain, productEn, productCn, clientKey, hardwareId, machineName, osDescription, processorCount, macAddresses, serverIP);

@@ -13,7 +13,7 @@ namespace SB.Framework.WebApi.Controllers;
 /// </summary>
 [ApiController]
 [AllowAnonymous]
-[Route("/api/[controller]/[action]")]
+[Route("/admin/[controller]/[action]")]
 public class SetupController : Controller
 {
     private readonly SetupService _setupService;

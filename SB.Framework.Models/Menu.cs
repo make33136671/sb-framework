@@ -18,7 +18,7 @@ namespace SB.Framework.Models
         [Column(Name = "ParentId")]
         public int ParentId { get; set; }
         [Navigate(nameof(ParentId))]
-        public Menu ParentMenu { get; set; }
+        public Menu ParentMenu { get; set; } = null!;
 
 
         /// <summary>
@@ -26,7 +26,7 @@ namespace SB.Framework.Models
         /// </summary>
         [Required, StringLength(100)]
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
 
         /// <summary>
@@ -34,33 +34,33 @@ namespace SB.Framework.Models
         /// </summary>
         [Required, StringLength(200)]
         [Column(Name = "Path")]
-        public string Path { get; set; }
+        public string Path { get; set; } = null!;
 
 
         /// <summary>
         /// 组件路径
         /// </summary>
         [Column(Name = "Component")]
-        public string Component { get; set; }
+        public string Component { get; set; } = null!;
 
         /// <summary>
         /// 重定向路由
         /// </summary>
         [Column(Name = "Redirect")]
-        public string Redirect { get; set; }
+        public string Redirect { get; set; } = null!;
 
         /// <summary>
         /// 显示标题
         /// </summary>
         [Required, StringLength(100)]
         [Column(Name = "Title")]
-        public string Title { get; set; }
+        public string Title { get; set; } = null!;
 
         /// <summary>
         /// 图标
         /// </summary>
         [Column(Name = "Icon")]
-        public string Icon { get; set; }
+        public string Icon { get; set; } = null!;
 
         /// <summary>
         /// 排序编号
@@ -88,3 +88,4 @@ namespace SB.Framework.Models
 
     }
 }
+

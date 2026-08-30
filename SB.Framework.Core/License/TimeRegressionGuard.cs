@@ -17,15 +17,17 @@ namespace SB.Framework.Core.License
         private static bool _regressionDetected;
         private static byte[] _hmacKey = Array.Empty<byte>();
         private static readonly string _timeFilePath = Path.Combine(AppContext.BaseDirectory, "license_time.dat");
-        private static readonly string _backupFilePath = GetBackupFilePath();
+        private static string _backupFilePath = GetBackupFilePath();
         private const int ToleranceMinutes = 5;
         private const int UpdateIntervalMinutes = 10;
 
         /// <summary>
         /// 备份时间戳路径：优先用户本地应用数据目录，避免顺手党删掉主文件后回拨时钟。
+        /// 文件名包含公钥指纹：同一机器上多个 sb-framework 产品（不同公钥/不同 HMAC 密钥）
+        /// 各自持有独立备份文件，避免互相覆盖导致校验失败误判篡改。
         /// 取不到应用数据目录（如无 HOME 的 Linux 服务）时回退到产物目录。
         /// </summary>
-        private static string GetBackupFilePath()
+        private static string GetBackupFilePath(string? publicKey = null)
         {
             var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             if (string.IsNullOrEmpty(baseDir))
@@ -34,7 +36,13 @@ namespace SB.Framework.Core.License
             try
             {
                 Directory.CreateDirectory(appDir);
-                return Path.Combine(appDir, "license_time.dat");
+                var suffix = "";
+                if (!string.IsNullOrEmpty(publicKey))
+                {
+                    var fp = SHA256.HashData(Encoding.UTF8.GetBytes(publicKey));
+                    suffix = "." + Convert.ToHexString(fp, 0, 4).ToLowerInvariant();
+                }
+                return Path.Combine(appDir, $"license_time{suffix}.dat");
             }
             catch
             {
@@ -51,21 +59,36 @@ namespace SB.Framework.Core.License
             // 即使攻击者提取了公钥，也无法在另一台机器上伪造时间戳文件
             var keyMaterial = (publicKey ?? "sb-license-guard") + "|" + HardwareIdService.GetHardwareId();
             _hmacKey = SHA256.HashData(Encoding.UTF8.GetBytes(keyMaterial));
+            _backupFilePath = GetBackupFilePath(publicKey);
 
             var now = AppTime.UtcNow;
 
             try
             {
-                var (tampered, lastKnown) = ReadTimeFiles();
-                // 任一文件被篡改(HMAC 校验失败 / 解析失败)视为时间回退
-                if (tampered)
-                    _regressionDetected = true;
-                else if (lastKnown.HasValue && lastKnown.Value > now.AddMinutes(ToleranceMinutes))
-                    _regressionDetected = true;
+                var (state, lastKnown) = ReadTimeFiles();
+                switch (state)
+                {
+                    case ReadState.Ok when lastKnown.HasValue && lastKnown.Value > now.AddMinutes(ToleranceMinutes):
+                        // 两份文件均校验通过且记录了未来时间：真实的时间回拨
+                        _regressionDetected = true;
+                        Console.Error.WriteLine($"[License] 时间回退检测：记录时间 {lastKnown.Value:O} 超前当前时间 {now:O} 超过 {ToleranceMinutes} 分钟");
+                        break;
+                    case ReadState.SingleCorrupt:
+                        // 单文件损坏（常见于进程退出时非原子写入被截断）：
+                        // 以另一份有效文件为准，静默自愈，不视为篡改
+                        Console.Error.WriteLine("[License] 时间戳文件部分损坏（已用有效副本自愈）");
+                        break;
+                    case ReadState.AllCorrupt:
+                        // 两份同时校验失败：视为篡改
+                        _regressionDetected = true;
+                        Console.Error.WriteLine("[License] 时间回退检测：主/备份时间戳文件均校验失败，视为篡改");
+                        break;
+                }
             }
-            catch
+            catch (Exception ex)
             {
                 // 文件读取失败不阻塞启动
+                Console.Error.WriteLine($"[License] 时间戳文件读取异常（忽略）: {ex.Message}");
             }
 
             _lastKnownTime = now;
@@ -111,54 +134,59 @@ namespace SB.Framework.Core.License
         public static bool IsRegressionDetected => _regressionDetected;
 
         /// <summary>
-        /// 读取主/备份两个时间文件，返回 (是否篡改, 两份中最近的有效时间)。
-        /// 某文件不存在视为"无候选"（如首次运行），不算篡改；存在但校验失败视为篡改。
+        /// 读取主/备份两个时间文件。
+        /// 返回读取状态与两份中最新的有效时间。
+        /// 单份损坏（如非原子写被截断）以另一份为准；两份同时校验失败才视为篡改。
         /// </summary>
-        private static (bool Tampered, DateTime? LastKnown) ReadTimeFiles()
+        private static (ReadState State, DateTime? LastKnown) ReadTimeFiles()
         {
-            bool tampered = false;
+            var mainOk = TryRead(_timeFilePath, out var mainTime);
+            var backupOk = TryRead(_backupFilePath, out var backupTime);
+
             DateTime? lastKnown = null;
+            if (mainOk && mainTime.HasValue && (lastKnown == null || mainTime > lastKnown)) lastKnown = mainTime;
+            if (backupOk && backupTime.HasValue && (lastKnown == null || backupTime > lastKnown)) lastKnown = backupTime;
 
-            TryRead(_timeFilePath, ref tampered, ref lastKnown);
-            TryRead(_backupFilePath, ref tampered, ref lastKnown);
-
-            return (tampered, lastKnown);
+            var state = (mainOk, backupOk) switch
+            {
+                (true, true) => ReadState.Ok,
+                (false, false) => ReadState.AllCorrupt,
+                _ => ReadState.SingleCorrupt,
+            };
+            return (state, lastKnown);
         }
 
-        private static void TryRead(string path, ref bool tampered, ref DateTime? lastKnown)
+        private static bool TryRead(string path, out DateTime? time)
         {
+            time = null;
             try
             {
-                if (!File.Exists(path)) return;
+                if (!File.Exists(path)) return true; // 文件不存在视为无候选，不算损坏
 
                 var content = File.ReadAllText(path).Trim();
                 var parts = content.Split('.');
                 if (parts.Length != 2)
-                {
-                    tampered = true;
-                    return;
-                }
+                    return false;
 
                 var ticks = long.Parse(parts[0]);
                 var storedHmac = parts[1];
+                if (storedHmac != ComputeHmac(parts[0]))
+                    return false; // HMAC 校验失败
 
-                // 校验 HMAC
-                var expectedHmac = ComputeHmac(parts[0]);
-                if (storedHmac != expectedHmac)
-                {
-                    tampered = true; // 篡改
-                    return;
-                }
-
-                var time = new DateTime(ticks, DateTimeKind.Utc);
-                if (!lastKnown.HasValue || time > lastKnown.Value)
-                    lastKnown = time;
+                time = new DateTime(ticks, DateTimeKind.Utc);
+                return true;
             }
             catch
             {
-                // 解析失败视为篡改
-                tampered = true;
+                return false; // 解析失败视为损坏
             }
+        }
+
+        private enum ReadState
+        {
+            Ok,
+            SingleCorrupt,
+            AllCorrupt,
         }
 
         private static void WriteTimeFiles(DateTime utcTime)
@@ -171,9 +199,19 @@ namespace SB.Framework.Core.License
         {
             try
             {
+                // 原子写：先写临时文件再替换，进程退出/崩溃不会留下截断的坏文件
                 var ticks = utcTime.Ticks.ToString();
                 var hmac = ComputeHmac(ticks);
-                File.WriteAllText(path, $"{ticks}.{hmac}");
+                var tmpPath = path + ".tmp";
+                File.WriteAllText(tmpPath, $"{ticks}.{hmac}");
+                if (File.Exists(path))
+                {
+                    File.Replace(tmpPath, path, null);
+                }
+                else
+                {
+                    File.Move(tmpPath, path);
+                }
             }
             catch
             {

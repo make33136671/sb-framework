@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -16,16 +16,16 @@ namespace SB.Framework.Models
         public int MemberId { get; set; }
 
         [Column(Name = "RealName")]
-        public string RealName { get; set; }
+        public string RealName { get; set; } = null!;
 
         [Column(Name = "IdNumber")]
-        public string IdNumber { get; set; }
+        public string IdNumber { get; set; } = null!;
 
         [Column(Name = "IdFrontImage")]
-        public string IdFrontImage { get; set; }
+        public string IdFrontImage { get; set; } = null!;
 
         [Column(Name = "IdBackImage")]
-        public string IdBackImage { get; set; }
+        public string IdBackImage { get; set; } = null!;
 
         [Column(Name = "Status", MapType = typeof(string))]
         public RealNameStatus Status { get; set; } = RealNameStatus.Reviewing;
@@ -43,3 +43,4 @@ namespace SB.Framework.Models
         public int? ReviewedBy { get; set; }
     }
 }
+

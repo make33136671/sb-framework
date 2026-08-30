@@ -13,7 +13,7 @@ namespace SB.Framework.Analyzers
 
         private static readonly LocalizableString Title = "禁止使用 DateTime.Now/Today/UtcNow";
         private static readonly LocalizableString MessageFormat = "请使用 AppTime.{0} 替代 DateTime.{0}";
-        private static readonly LocalizableString Description = "项目统一使用 AppTime 工具类处理时间，禁止直接使用 DateTime.Now/Today/UtcNow。";
+        private static readonly LocalizableString Description = "项目统一使用 AppTime 工具类处理时间，禁止直接使用 DateTime.Now/Today/UtcNow.";
         private const string Category = "Usage";
 
         private static readonly DiagnosticDescriptor Rule = new(

@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -28,7 +28,7 @@ namespace SB.Framework.Models
         /// 声明域名 (客户端 AppSettings.PrimaryDomain)
         /// </summary>
         [Column(Name = "Domain", StringLength = 500)]
-        public string Domain { get; set; }
+        public string Domain { get; set; } = null!;
 
         /// <summary>
         /// 最近一次 Verify/Check 上报的 actualDomain (浏览器实际访问 host).
@@ -111,3 +111,4 @@ namespace SB.Framework.Models
         public DateTime UpdatedTime { get; set; }
     }
 }
+

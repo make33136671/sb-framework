@@ -41,10 +41,10 @@ namespace SB.Framework.Services
 
         private Member _Member => _memberService.GetMemberById(UserId);
 
-        private object GetMemberInfo(Member _member = null,
+        private object GetMemberInfo(Member? _member = null,
             string accessToken = "")
         {
-            Member member = null;
+            Member? member = null;
             if (_Member != null)
             {
                 member = _Member;
@@ -86,12 +86,12 @@ namespace SB.Framework.Services
 
             try
             {
-                if (UserId != null && UserId != 0)
+                if (UserId != 0)
                 {
                     userId = UserId;
                 }
             }
-            catch (Exception ex) { userId = null; }
+            catch (Exception) { userId = null; }
 
             string whitePaperUrl = _systemSettingService.GetWhitePaper();
             string serviceUrl = _systemSettingService.GetServiceUrl();

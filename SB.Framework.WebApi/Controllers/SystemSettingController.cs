@@ -86,7 +86,7 @@ namespace SB.Framework.WebApi.Controllers
         {
             var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             jsonOptions.Converters.Add(new LenientStringConverter());
-            List<SystemSetting> systemSettingList = System.Text.Json.JsonSerializer.Deserialize<List<SystemSetting>>(settings, jsonOptions);
+            List<SystemSetting> systemSettingList = System.Text.Json.JsonSerializer.Deserialize<List<SystemSetting>>(settings, jsonOptions)!;
 
             return _systemSettingService.SaveList(systemSettingList);
         }

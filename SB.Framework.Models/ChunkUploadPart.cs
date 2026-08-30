@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -16,7 +16,7 @@ namespace SB.Framework.Models
         /// 上传标识
         /// </summary>
         [Column(Name = "UploadId", StringLength = 32, IsNullable = false)]
-        public string UploadId { get; set; }
+        public string UploadId { get; set; } = null!;
 
         /// <summary>
         /// 分片序号（从0开始）
@@ -37,3 +37,4 @@ namespace SB.Framework.Models
         public DateTime UploadedAt { get; set; }
     }
 }
+

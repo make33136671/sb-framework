@@ -59,7 +59,7 @@ namespace SB.Framework.Core.Expand
                 return "";
             }
 
-            string host = string.Join(",", origin);
+            string host = origin.ToString();
 
             host = host.Replace("https://", "").Replace("http://", "").Replace("/","");
 

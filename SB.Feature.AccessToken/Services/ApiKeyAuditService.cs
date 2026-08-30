@@ -36,11 +36,11 @@ namespace SB.Feature.AccessToken.Services
             int page = 1, int pageSize = 20)
         {
             var query = _fsql.Select<ApiKeyAuditLog>()
-                .WhereIf(keyId.HasValue, a => a.KeyId == keyId.Value)
+                .WhereIf(keyId.HasValue, a => a.KeyId == keyId!.Value)
                 .WhereIf(!string.IsNullOrEmpty(action), a => a.Action == action)
                 .WhereIf(!string.IsNullOrEmpty(result), a => a.Result == result)
-                .WhereIf(startTime.HasValue, a => a.CreatedTime >= startTime.Value)
-                .WhereIf(endTime.HasValue, a => a.CreatedTime <= endTime.Value)
+                .WhereIf(startTime.HasValue, a => a.CreatedTime >= startTime!.Value)
+                .WhereIf(endTime.HasValue, a => a.CreatedTime <= endTime!.Value)
                 .OrderByDescending(a => a.CreatedTime)
                 .Page(page, pageSize);
 

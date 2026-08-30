@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -20,24 +20,24 @@ namespace SB.Framework.Models
         /// </summary>
         [Required, StringLength(50)]
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>
         /// 角色标识
         /// </summary>
         [Required, StringLength(50)]
         [Column(Name = "RoleKey")]
-        public string RoleKey { get; set; }
+        public string RoleKey { get; set; } = null!;
 
 
         [Navigate(ManyToMany = typeof(AdminRole))]
-        public List<Admin> Admins { get; set; }
+        public List<Admin> Admins { get; set; } = null!;
 
         /// <summary>
         /// 角色菜单关联
         /// </summary>
         [Navigate(nameof(AdminRoleMenu.RoleId))]
-        public List<AdminRoleMenu> RoleMenu { get; set; }
+        public List<AdminRoleMenu> RoleMenu { get; set; } = null!;
 
         /// <summary>
         /// 伪删除

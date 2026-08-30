@@ -20,10 +20,11 @@ namespace SB.Framework.Core.Authentication.Jwt
         {
             IConfigurationSection jwtConfig = _configuration.GetSection(jwtConfigKey);
 
-            string key = jwtConfig.GetSection("Key").Value;
-            string issuer = jwtConfig.GetSection("Issuer").Value;
-            string audience = jwtConfig.GetSection("Audience").Value;
-            string expiresStr = jwtConfig.GetSection("Expires").Value;
+            string key = jwtConfig.GetSection("Key").Value
+                ?? throw new InvalidOperationException($"JWT 配置缺少 {jwtConfigKey}:Key");
+            string issuer = jwtConfig.GetSection("Issuer").Value ?? "";
+            string audience = jwtConfig.GetSection("Audience").Value ?? "";
+            string expiresStr = jwtConfig.GetSection("Expires").Value ?? "";
 
             if (!int.TryParse(expiresStr, out int expires))
             {
@@ -54,9 +55,10 @@ namespace SB.Framework.Core.Authentication.Jwt
         {
             IConfigurationSection jwtConfig = _configuration.GetSection(jwtConfigKey);
 
-            string key = jwtConfig.GetSection("Key").Value;
-            string issuer = jwtConfig.GetSection("Issuer").Value;
-            string audience = jwtConfig.GetSection("Audience").Value;
+            string key = jwtConfig.GetSection("Key").Value
+                ?? throw new InvalidOperationException($"JWT 配置缺少 {jwtConfigKey}:Key");
+            string issuer = jwtConfig.GetSection("Issuer").Value ?? "";
+            string audience = jwtConfig.GetSection("Audience").Value ?? "";
 
             var handler = new JwtSecurityTokenHandler();
 

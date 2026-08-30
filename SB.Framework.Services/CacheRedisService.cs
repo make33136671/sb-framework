@@ -26,7 +26,7 @@ namespace SB.Framework.Services
             var value = _redisDb.StringGet(P(key));
             // net10 起 JsonSerializer.Deserialize 新增 ReadOnlySpan<byte> 重载，
             // RedisValue 同时可隐式转 string / byte[] → 直接传会 CS0121 二义性，显式转 string 消歧。
-            return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString()) : default;
+            return value.HasValue ? JsonSerializer.Deserialize<T>(value.ToString())! : default!;
         }
 
         public void Set<T>(string key, T value, TimeSpan? expiration = null)
@@ -90,21 +90,19 @@ namespace SB.Framework.Services
                 try
                 {
                     var raw = server.Execute("SLOWLOG", "GET", "5");
-                    if (raw.Type == ResultType.MultiBulk)
+                    // SLOWLOG GET 返回数组；非数组时强转抛异常由外层 catch 兜底（等价于旧 Type 检查）
+                    foreach (var entry in (RedisResult[])raw!)
                     {
-                        foreach (var entry in (RedisResult[])raw!)
+                        var arr = (RedisResult[])entry!;
+                        var cmd = string.Join(" ",
+                            ((RedisResult[])arr[3]!).Select(x => x.ToString()));
+                        slowlog.Add(new Dictionary<string, object?>
                         {
-                            var arr = (RedisResult[])entry!;
-                            var cmd = string.Join(" ",
-                                ((RedisResult[])arr[3]!).Select(x => x.ToString()));
-                            slowlog.Add(new Dictionary<string, object?>
-                            {
-                                ["id"] = (long)arr[0],
-                                ["timestamp"] = (long)arr[1],
-                                ["duration_us"] = (long)arr[2],
-                                ["command"] = cmd,
-                            });
-                        }
+                            ["id"] = (long)arr[0],
+                            ["timestamp"] = (long)arr[1],
+                            ["duration_us"] = (long)arr[2],
+                            ["command"] = cmd,
+                        });
                     }
                 }
                 catch { /* slowlog 未启用或权限不足,空 */ }

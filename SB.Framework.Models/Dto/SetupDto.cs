@@ -1,4 +1,4 @@
-namespace SB.Framework.Models.Dto
+﻿namespace SB.Framework.Models.Dto
 {
     public class DatabaseConfigDto
     {
@@ -7,7 +7,7 @@ namespace SB.Framework.Models.Dto
         public string Port { get; set; } = "3306";
         public string Database { get; set; } = "Saibo";
         public string User { get; set; } = "root";
-        public string Password { get; set; }
+        public string Password { get; set; } = null!;
     }
 
     public class RedisConfigDto
@@ -18,14 +18,14 @@ namespace SB.Framework.Models.Dto
 
     public class DeployProjectDto
     {
-        public string Name { get; set; }
-        public string Key { get; set; }
-        public string Path { get; set; }
+        public string Name { get; set; } = null!;
+        public string Key { get; set; } = null!;
+        public string Path { get; set; } = null!;
     }
 
     public class SetupRequest
     {
-        public DatabaseConfigDto Database { get; set; }
+        public DatabaseConfigDto Database { get; set; } = null!;
 
         /// <summary>
         /// 是否抹除现有数据库数据（重新安装时使用）
@@ -42,7 +42,7 @@ namespace SB.Framework.Models.Dto
         /// </summary>
         public string CacheProvider { get; set; } = "Memory";
 
-        public RedisConfigDto Redis { get; set; }
+        public RedisConfigDto Redis { get; set; } = null!;
 
         /// <summary>
         /// 密码存储模式: "Encrypted"（加密） | "PlainText"（明文）
@@ -74,9 +74,9 @@ namespace SB.Framework.Models.Dto
 
         public string TimeZone { get; set; } = "Asia/Shanghai";
         public bool CorsAllowAll { get; set; } = true;
-        public string[] CorsOrigins { get; set; }
+        public string[] CorsOrigins { get; set; } = null!;
         public string AdminUsername { get; set; } = "admin";
-        public string AdminPassword { get; set; }
+        public string AdminPassword { get; set; } = null!;
         public string AdminDisplayName { get; set; } = "超级管理员";
 
         /// <summary>
@@ -91,3 +91,4 @@ namespace SB.Framework.Models.Dto
         public List<DeployProjectDto> DeployProjects { get; set; } = new();
     }
 }
+

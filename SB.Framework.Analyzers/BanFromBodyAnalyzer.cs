@@ -24,7 +24,7 @@ namespace SB.Framework.Analyzers
         private static readonly LocalizableString MessageFormat =
             "参数 '{0}' 使用了 [FromBody]，但所在 action/controller 未标 [AllowJsonBody]。saibo admin 接口默认走 [FromForm]（前端 api.postForm）；确需 JSON 体请在该 action 或 controller 上加 [AllowJsonBody] 显式开白名单，并确保前端用 api.post（JSON）";
         private static readonly LocalizableString Description =
-            "saibo 系后端接口统一约定 [FromForm]，避免前后端 Content-Type 不一致导致参数为 null。复杂嵌套对象确需 JSON 的，用 [AllowJsonBody] 显式开白名单。";
+            "saibo 系后端接口统一约定 [FromForm]，避免前后端 Content-Type 不一致导致参数为 null. 复杂嵌套对象确需 JSON 的，用 [AllowJsonBody] 显式开白名单.";
         private const string Category = "Usage";
 
         private static readonly DiagnosticDescriptor Rule = new(

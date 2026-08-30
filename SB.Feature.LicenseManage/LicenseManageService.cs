@@ -170,7 +170,7 @@ namespace SB.Feature.LicenseManage
         {
             var query = _fsql.Select<LicenseClient>()
                 .WhereIf(!string.IsNullOrEmpty(keyword), c =>
-                    c.ProductCn.Contains(keyword!) || c.ProductEn.Contains(keyword!) || c.Domain.Contains(keyword!))
+                    c.ProductCn!.Contains(keyword!) || c.ProductEn!.Contains(keyword!) || c.Domain.Contains(keyword!))
                 .OrderByDescending(c => c.Id);
 
             var clients = query.Count(out long total).Page(page, pageSize).ToList();

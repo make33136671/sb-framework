@@ -19,7 +19,7 @@ namespace SB.Framework.Services
             _env = env;
         }
 
-        public virtual Result Upload(IFormFile file) => Upload(file, null);
+        public virtual Result Upload(IFormFile file) => Upload(file, string.Empty);
 
         public virtual Result Upload(IFormFile file, string subPath)
         {

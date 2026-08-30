@@ -47,10 +47,10 @@ namespace SB.Framework.Services
                     foreach (DataColumn col in dt.Columns)
                         columns.Add(col.ColumnName);
 
-                    var rows = new List<Dictionary<string, object>>();
+                    var rows = new List<Dictionary<string, object?>>();
                     foreach (DataRow row in dt.Rows)
                     {
-                        var dict = new Dictionary<string, object>();
+                        var dict = new Dictionary<string, object?>();
                         foreach (DataColumn col in dt.Columns)
                         {
                             var val = row[col];

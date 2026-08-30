@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using SB.Framework.Core.Util;
 using SB.Framework.Models;
@@ -220,19 +220,19 @@ namespace SB.Framework.WebApi.Controllers
 
     public class ResendConfigSaveDto
     {
-        public string ApiKey { get; set; }
-        public string FromEmail { get; set; }
-        public string FromName { get; set; }
+        public string ApiKey { get; set; } = null!;
+        public string FromEmail { get; set; } = null!;
+        public string FromName { get; set; } = null!;
     }
 
     public class EmailConfigSaveDto
     {
-        public string SmtpServer { get; set; }
+        public string SmtpServer { get; set; } = null!;
         public int SmtpPort { get; set; }
-        public string Username { get; set; }
-        public string Password { get; set; }
-        public string FromEmail { get; set; }
-        public string FromName { get; set; }
+        public string Username { get; set; } = null!;
+        public string Password { get; set; } = null!;
+        public string FromEmail { get; set; } = null!;
+        public string FromName { get; set; } = null!;
         public bool EnableSsl { get; set; }
         public bool IsActive { get; set; }
     }
@@ -240,10 +240,11 @@ namespace SB.Framework.WebApi.Controllers
     public class EmailTemplateSaveDto
     {
         public int Id { get; set; }
-        public string Code { get; set; }
-        public string Name { get; set; }
-        public string Subject { get; set; }
-        public string Body { get; set; }
+        public string Code { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public string Subject { get; set; } = null!;
+        public string Body { get; set; } = null!;
         public bool IsActive { get; set; }
     }
 }
+

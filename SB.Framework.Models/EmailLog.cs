@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -16,13 +16,13 @@ namespace SB.Framework.Models
         public int TemplateId { get; set; }
 
         [Column(Name = "ToEmail")]
-        public string ToEmail { get; set; }
+        public string ToEmail { get; set; } = null!;
 
         [Column(Name = "Subject")]
-        public string Subject { get; set; }
+        public string Subject { get; set; } = null!;
 
         [Column(Name = "Body", DbType = "text")]
-        public string Body { get; set; }
+        public string Body { get; set; } = null!;
 
         [Column(Name = "Status", MapType = typeof(string))]
         public EmailStatus Status { get; set; }
@@ -43,3 +43,4 @@ namespace SB.Framework.Models
         public DateTime CreatedAt { get; set; }
     }
 }
+

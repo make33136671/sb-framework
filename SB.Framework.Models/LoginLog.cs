@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -25,7 +25,7 @@ namespace SB.Framework.Models
         public int UserType { get; set; }
 
         [Column(Name = "Username", StringLength = 100)]
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
 
         [Column(Name = "IpAddress", StringLength = 50, IsNullable = true)]
         public string? IpAddress { get; set; }
@@ -43,3 +43,4 @@ namespace SB.Framework.Models
         public DateTime CreateTime { get; set; }
     }
 }
+

@@ -113,7 +113,7 @@ namespace SB.Framework.Services
                     user.Id,
                     user.Username,
                     user.Name,
-                    Avatar = user.Avatar.ToAbsoluteUrl(ctx)
+                    Avatar = user.Avatar.ToAbsoluteUrl(ctx!)
                 }
             });
         }
@@ -178,7 +178,7 @@ namespace SB.Framework.Services
                     user.Id,
                     user.Username,
                     user.Name,
-                    Avatar = user.Avatar.ToAbsoluteUrl(ctx)
+                    Avatar = user.Avatar.ToAbsoluteUrl(ctx!)
                 }
             });
         }
@@ -238,7 +238,7 @@ namespace SB.Framework.Services
                 user.Id,
                 user.Username,
                 user.Name,
-                Avatar = user.Avatar.ToAbsoluteUrl(ctx),
+                Avatar = user.Avatar.ToAbsoluteUrl(ctx!),
                 user.CreditScore,
                 user.RealNameStatus,
                 user.InvitationCode,

@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -13,16 +13,16 @@ namespace SB.Framework.Models
         public int Id { get; set; }
 
         [Column(Name = "Code")]
-        public string Code { get; set; }
+        public string Code { get; set; } = null!;
 
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         [Column(Name = "Subject")]
-        public string Subject { get; set; }
+        public string Subject { get; set; } = null!;
 
         [Column(Name = "Body", DbType = "text")]
-        public string Body { get; set; }
+        public string Body { get; set; } = null!;
 
         [Column(Name = "IsActive")]
         public bool IsActive { get; set; }
@@ -34,3 +34,4 @@ namespace SB.Framework.Models
         public DateTime UpdatedAt { get; set; }
     }
 }
+

@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -13,10 +13,10 @@ namespace SB.Framework.Models
         public int Id { get; set; }
 
         [Column(Name = "Email")]
-        public string Email { get; set; }
+        public string Email { get; set; } = null!;
 
         [Column(Name = "Code")]
-        public string Code { get; set; }
+        public string Code { get; set; } = null!;
 
         [Column(Name = "Type")]
         public VerificationCodeType Type { get; set; }
@@ -49,3 +49,4 @@ namespace SB.Framework.Models
         public DateTime CreatedAt { get; set; }
     }
 }
+

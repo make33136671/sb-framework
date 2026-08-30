@@ -11,7 +11,7 @@ namespace SB.Framework.Services
         public T Get<T>(string key)
         {
             // 不启用缓存，总是返回默认值（null）
-            return default;
+            return default!;
         }
 
         public void Set<T>(string key, T value, TimeSpan? expiration = null)

@@ -18,7 +18,7 @@ namespace SB.Framework.WebApi.Extensions
         {
             Assembly jwtToken = Assembly.Load("SB.Framework.Core");
             var jwtTokenAssembly = jwtToken.ExportedTypes.Where(t => t.Name == "JwtToken").FirstOrDefault();
-            services.AddSingleton(jwtTokenAssembly);
+            services.AddSingleton(jwtTokenAssembly!);
 
             services
                 .AddAuthentication("JwtAdmin")
@@ -35,7 +35,7 @@ namespace SB.Framework.WebApi.Extensions
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = jwtConfig["Issuer"],
                         ValidAudience = jwtConfig["Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig["Key"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig["Key"]!))
                     };
 
                     options.Events = new JwtBearerEvents
@@ -64,7 +64,7 @@ namespace SB.Framework.WebApi.Extensions
                         ValidateIssuerSigningKey = true,
                         ValidIssuer = jwtConfig["Issuer"],
                         ValidAudience = jwtConfig["Audience"],
-                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig["Key"]))
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtConfig["Key"]!))
                     };
 
                     options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents()
@@ -77,9 +77,9 @@ namespace SB.Framework.WebApi.Extensions
                             string appToken = context.Request.Headers["Authorization"].ToString();
                             appToken = appToken.Replace("Bearer ", "");
 
-                            System.Security.Claims.ClaimsPrincipal claims = jwtToken.DecryptToken("JwtApi", appToken);
+                            System.Security.Claims.ClaimsPrincipal claims = jwtToken!.DecryptToken("JwtApi", appToken);
                             string userIdStr = claims.FindFirstValue("Id") ?? "";
-                            string token = cache.Get<string>(userIdStr);
+                            string? token = cache!.Get<string>(userIdStr);
 
                             if (token != null && token != appToken)
                             {
@@ -87,7 +87,7 @@ namespace SB.Framework.WebApi.Extensions
                             }
                             else if (token == null)
                             {
-                                cache.Set<string>(userIdStr, appToken);
+                                cache!.Set<string>(userIdStr, appToken);
                             }
 
                             IFreeSql? freeSql = context.HttpContext.RequestServices.GetService<IFreeSql>();
@@ -155,10 +155,15 @@ namespace SB.Framework.WebApi.Extensions
             // API Key 已成功/失败处理,或 token 已就位 → 不插手
             if (context.Result != null || !string.IsNullOrEmpty(context.Token))
                 return;
-            if (!context.HttpContext.WebSockets.IsWebSocketRequest)
+            // 认证中间件先于 WebSocketMiddleware 执行时,WebSockets.IsWebSocketRequest 尚不可靠
+            // (SignalR Hub 的 WS 中间件由 MapHub 挂载,在管道更深处),故按头部手动判定 ws 升级请求:
+            // Connection: Upgrade + Upgrade: websocket(不区分大小写,与 ASP.NET Core 判定一致)
+            var req = context.Request;
+            if (!req.Headers.TryGetValue("Upgrade", out var upgrade) ||
+                !string.Equals(upgrade.ToString(), "websocket", StringComparison.OrdinalIgnoreCase))
                 return;
 
-            string accessToken = context.Request.Query["access_token"];
+            string accessToken = req.Query["access_token"].ToString();
             if (!string.IsNullOrEmpty(accessToken))
                 context.Token = accessToken;
         }

@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -37,13 +37,13 @@ namespace SB.Framework.Models
         public LogSource Source { get; set; } = LogSource.Task;
 
         [Column(Name = "TaskName", StringLength = 200, IsNullable = false)]
-        public string TaskName { get; set; }
+        public string TaskName { get; set; } = null!;
 
         [Column(Name = "LogLevel")]
         public TaskLogLevel LogLevel { get; set; }
 
         [Column(Name = "Message", StringLength = 2000, IsNullable = false)]
-        public string Message { get; set; }
+        public string Message { get; set; } = null!;
 
         [Column(Name = "Exception", DbType = "text", IsNullable = true)]
         public string? Exception { get; set; }
@@ -55,3 +55,4 @@ namespace SB.Framework.Models
         public string? ExecutionRecordId { get; set; }
     }
 }
+

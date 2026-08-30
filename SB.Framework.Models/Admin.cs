@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -25,14 +25,14 @@ namespace SB.Framework.Models
         /// </summary>
         [Required, StringLength(50)]
         [Column(Name = "Username", IsNullable = false)]
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
 
         /// <summary>
         /// 密码
         /// </summary>
         [Required, StringLength(200)]
         [Column(Name = "Password", IsNullable = false)]
-        public string Password { get; set; }
+        public string Password { get; set; } = null!;
 
         /// <summary>
         /// 角色Id
@@ -40,19 +40,19 @@ namespace SB.Framework.Models
         [Column(Name = "RoleId")]
         public int RoleId { get; set; }
         [Navigate(nameof(RoleId))]
-        public AdminRole AdminRole { get; set; }
+        public AdminRole AdminRole { get; set; } = null!;
 
         /// <summary>
         /// 名称
         /// </summary>
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>
         /// 头像
         /// </summary>
         [Column(Name = "Avatar")]
-        public string Avatar { get; set; }
+        public string Avatar { get; set; } = null!;
 
         /// <summary>
         /// 管理员状态
@@ -77,7 +77,7 @@ namespace SB.Framework.Models
         /// 验证器秘钥
         /// </summary>
         [Column(Name = "AuthenticatorKey", IsNullable = true)]
-        public string AuthenticatorKey { get; set; }
+        public string AuthenticatorKey { get; set; } = null!;
 
         /// <summary>
         /// 验证器绑定时间
@@ -89,7 +89,7 @@ namespace SB.Framework.Models
         /// 客服昵称（对外展示名称，保护真实账号信息）
         /// </summary>
         [Column(Name = "Nickname", StringLength = 50, IsNullable = true)]
-        public string Nickname { get; set; }
+        public string Nickname { get; set; } = null!;
 
         /// <summary>
         /// 账号类型：Human=可密码登录的人；Service=仅供 API Key 使用的服务账号

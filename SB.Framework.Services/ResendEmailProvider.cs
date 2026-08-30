@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
@@ -99,9 +99,10 @@ namespace SB.Framework.Services
 
         private class ResendConfig
         {
-            public string ApiKey { get; set; }
-            public string FromEmail { get; set; }
-            public string FromName { get; set; }
+            public string ApiKey { get; set; } = null!;
+            public string FromEmail { get; set; } = null!;
+            public string FromName { get; set; } = null!;
         }
     }
 }
+

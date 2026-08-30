@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 
 namespace SB.Framework.Models
 {
@@ -30,12 +30,12 @@ namespace SB.Framework.Models
         /// 角色导航属性
         /// </summary>
         [Navigate(nameof(RoleId))]
-        public AdminRole AdminRole { get; set; }
+        public AdminRole AdminRole { get; set; } = null!;
 
         /// <summary>
         /// 菜单导航属性
         /// </summary>
         [Navigate(nameof(MenuId))]
-        public Menu Menu { get; set; }
+        public Menu Menu { get; set; } = null!;
     }
 }

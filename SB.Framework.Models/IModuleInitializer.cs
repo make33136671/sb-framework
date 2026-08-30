@@ -4,8 +4,8 @@ namespace SB.Framework.Models
     /// 模块初始化接口 — 各模块 Service 实现此接口声明自己需要的初始化数据
     /// 安装向导自动扫描所有实现，统一执行：建表 → 系统设置 → 菜单 → 种子数据
     ///
-    /// 注意：GetEntityTypes / GetSystemSettings / GetMenus 方法必须是纯声明式的（不访问实例字段），
-    /// 因为安装向导通过反射创建实例时不会调用构造函数。
+    /// 安装向导通过 RuntimeHelpers.GetUninitializedObject 实例化，不调用构造函数。
+    /// 实现类的 GetEntityTypes/GetSystemSettings/GetMenus/SeedData 不应依赖注入的实例字段。
     /// </summary>
     public interface IModuleInitializer
     {

@@ -11,7 +11,9 @@ using SB.Framework.Core.Util;
 using SB.Framework.Features;
 using SB.Framework.WebApi.Middleware;
 using Serilog;
+using Serilog.Events;
 using Serilog.Extensions.Logging;
+using Serilog.Formatting.Compact;
 using System.Text.Json.Serialization;
 
 namespace SB.Framework.WebApi.Extensions;
@@ -33,14 +35,75 @@ public static class SbFrameworkExtensions
     public static WebApplicationBuilder AddSbFramework(this WebApplicationBuilder builder)
     {
         var configuration = builder.Configuration;
-        AppGlobal.AppSettings = configuration.Get<AppSettings>();
+        AppGlobal.AppSettings = configuration.Get<AppSettings>()!;
         var smoke = IsSmokeTest;
 
         ArchiveOldLogs();
 
-        Log.Logger = new LoggerConfiguration()
-            .ReadFrom.Configuration(configuration)
-            .CreateLogger();
+        // 读取集中式日志配置
+        var seqServerUrl = configuration["Serilog:Seq:ServerUrl"];
+        var seqApiKey = configuration["Serilog:Seq:ApiKey"];
+        bool useSeq = !string.IsNullOrWhiteSpace(seqServerUrl);
+
+        // 日志默认配置：二选一模式
+        // - 默认：本地文件（轻量，零配置即用）
+        // - 配置了 Serilog:Seq:ServerUrl：切换到 Seq 集中式日志（专业，搜索/过滤/审计/告警）
+        var loggerConfig = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+            .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Information)
+            .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+            .MinimumLevel.Override("System", LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .Enrich.WithMachineName()
+            .Enrich.WithThreadId();
+
+        if (useSeq)
+        {
+            // 集中式模式：日志全部推送到 Seq
+            // Seq 自带缓冲队列（Durable），网络不可用时落盘缓存，恢复后自动重发
+            // 不会丢日志，也不会阻塞应用
+            loggerConfig = loggerConfig.WriteTo.Seq(
+                serverUrl: seqServerUrl!,
+                apiKey: string.IsNullOrWhiteSpace(seqApiKey) ? null : seqApiKey,
+                bufferBaseFilename: "logs/seq-buffer",
+                batchPostingLimit: 1000,
+                period: TimeSpan.FromSeconds(2));
+        }
+        else
+        {
+            // 本地文件模式：双文件结构（全量流水 + 错误专属）
+            loggerConfig = loggerConfig
+                // 全量流水：所有级别，按天滚动，单文件 50MB，保留 31 天
+                .WriteTo.Async(wt => wt.File(
+                    path: "logs/app-.ndjson",
+                    rollingInterval: RollingInterval.Day,
+                    rollOnFileSizeLimit: true,
+                    fileSizeLimitBytes: 50 * 1024 * 1024,
+                    retainedFileCountLimit: 31,
+                    formatter: new CompactJsonFormatter()))
+                // 错误专属：仅 Error + Fatal，便于快速定位严重问题
+                .WriteTo.Async(wt => wt.File(
+                    path: "logs/error-.ndjson",
+                    rollingInterval: RollingInterval.Day,
+                    rollOnFileSizeLimit: true,
+                    fileSizeLimitBytes: 50 * 1024 * 1024,
+                    retainedFileCountLimit: 31,
+                    restrictedToMinimumLevel: LogEventLevel.Error,
+                    formatter: new CompactJsonFormatter()));
+        }
+
+        // 配置文件可覆盖 MinimumLevel 等
+        loggerConfig = loggerConfig.ReadFrom.Configuration(configuration);
+
+        // Debug 模式下额外输出到控制台，方便本地开发调试
+        if (AppGlobal.AppSettings?.Debug == true)
+        {
+            loggerConfig = loggerConfig.WriteTo.Console(
+                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+        }
+
+        Log.Logger = loggerConfig.CreateLogger();
         builder.Host.UseSerilog();
         builder.Logging.ClearProviders();
         builder.Host.UseSystemd();

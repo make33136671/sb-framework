@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -18,13 +18,13 @@ namespace SB.Framework.Models
         [Column(Name = "ClientId")]
         public int ClientId { get; set; }
         [Navigate(nameof(ClientId))]
-        public LicenseClient Client { get; set; }
+        public LicenseClient Client { get; set; } = null!;
 
         /// <summary>
         /// 验证时声明域名 (客户端 AppSettings.PrimaryDomain)
         /// </summary>
         [Column(Name = "Domain", StringLength = 500)]
-        public string Domain { get; set; }
+        public string Domain { get; set; } = null!;
 
         /// <summary>
         /// 客户端浏览器实际访问域名 (window.location.host).
@@ -85,3 +85,4 @@ namespace SB.Framework.Models
         public DateTime CreatedTime { get; set; }
     }
 }
+

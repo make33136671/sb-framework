@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -16,25 +16,25 @@ namespace SB.Framework.Models
         /// 用户名
         /// </summary>
         [Column(Name = "Username")]
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
 
         /// <summary>
         /// 密码
         /// </summary>
         [Column(Name = "Password")]
-        public string Password { get; set; }
+        public string Password { get; set; } = null!;
 
         /// <summary>
         /// 头像
         /// </summary>
         [Column(Name = "Avatar")]
-        public string Avatar { get; set; }
+        public string Avatar { get; set; } = null!;
 
         /// <summary>
         /// 名称
         /// </summary>
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>
         /// 账户状态
@@ -97,3 +97,4 @@ namespace SB.Framework.Models
         public bool IsDeleted { get; set; }
     }
 }
+

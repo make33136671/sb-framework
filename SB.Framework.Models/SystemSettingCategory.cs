@@ -19,13 +19,13 @@ namespace SB.Framework.Models
         /// </summary>
         [Required, StringLength(50)]
         [Column(Name = "Name")]
-        public string Name { get; set; }
+        public string Name { get; set; } = null!;
 
         /// <summary>
         /// 图标
         /// </summary>
         [Column(Name = "Icon")]
-        public string Icon { get; set; }
+        public string Icon { get; set; } = null!;
 
         /// <summary>
         /// 显示排序
@@ -34,7 +34,7 @@ namespace SB.Framework.Models
         public int Sort { get; set; }
 
         [Navigate(nameof(SystemSetting.CategoryId))]
-        public List<SystemSetting> SystemSettingList { get; set; }
+        public List<SystemSetting> SystemSettingList { get; set; } = null!;
 
     }
 

@@ -43,7 +43,7 @@ namespace SB.Framework.Services
         /// <summary>
         /// 获取当前登录用户信息
         /// </summary>
-        public virtual Admin GetCurrentUser()
+        public virtual Admin? GetCurrentUser()
         {
             int userId = GetCurrentUserId();
             if (userId <= 0) return null;

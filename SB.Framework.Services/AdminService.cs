@@ -581,7 +581,7 @@ namespace SB.Framework.Services
                 return Result.Fail("谷歌验证码错误！");
             }
 
-            admin.AuthenticatorKey = null;
+            admin.AuthenticatorKey = null!;
             admin.AuthenticatorBindTime = null;
             this.UpdateDiy.UpdateColumns(c => new { c.AuthenticatorKey, c.AuthenticatorBindTime }).SetSource(admin).ExecuteAffrows();
 
@@ -623,7 +623,7 @@ namespace SB.Framework.Services
                 return Result.Fail("目标管理员未绑定谷歌验证器！");
             }
 
-            targetAdmin.AuthenticatorKey = null;
+            targetAdmin.AuthenticatorKey = null!;
             targetAdmin.AuthenticatorBindTime = null;
             this.UpdateDiy.UpdateColumns(c => new { c.AuthenticatorKey, c.AuthenticatorBindTime }).SetSource(targetAdmin).ExecuteAffrows();
 
@@ -644,7 +644,7 @@ namespace SB.Framework.Services
 
             query = query.WhereIf(!string.IsNullOrEmpty(username), c => c.Username == username);
             query = query.WhereIf(!string.IsNullOrEmpty(name), c => c.Name == name);
-            query = query.WhereIf(roleId.HasValue, c => c.RoleId == roleId.Value);
+            query = query.WhereIf(roleId.HasValue, c => c.RoleId == roleId!.Value);
 
             if (string.IsNullOrEmpty(field))
             {
@@ -875,7 +875,7 @@ namespace SB.Framework.Services
         /// <summary>
         /// 获取当前登录的管理员信息
         /// </summary>
-        private Admin GetCurrentAdmin()
+        private Admin? GetCurrentAdmin()
         {
             int currentId = _httpContextAccessor.HttpContext.User.Id();
             if (currentId <= 0) return null;
@@ -899,8 +899,8 @@ namespace SB.Framework.Services
 
             query = query.WhereIf(!string.IsNullOrEmpty(username), c => c.Username.Contains(username));
             query = query.WhereIf(!string.IsNullOrEmpty(name), c => c.Name.Contains(name));
-            query = query.WhereIf(roleId.HasValue, c => c.RoleId == roleId.Value);
-            query = query.WhereIf(status.HasValue, c => c.Status == status.Value);
+            query = query.WhereIf(roleId.HasValue, c => c.RoleId == roleId!.Value);
+            query = query.WhereIf(status.HasValue, c => c.Status == status!.Value);
 
             if (string.IsNullOrEmpty(field))
             {

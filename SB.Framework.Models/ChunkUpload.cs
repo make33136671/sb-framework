@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -16,13 +16,13 @@ namespace SB.Framework.Models
         /// 上传标识（GUID）
         /// </summary>
         [Column(Name = "UploadId", StringLength = 32, IsNullable = false)]
-        public string UploadId { get; set; }
+        public string UploadId { get; set; } = null!;
 
         /// <summary>
         /// 原始文件名
         /// </summary>
         [Column(Name = "FileName", StringLength = 500, IsNullable = false)]
-        public string FileName { get; set; }
+        public string FileName { get; set; } = null!;
 
         /// <summary>
         /// 文件大小（字节）
@@ -34,7 +34,7 @@ namespace SB.Framework.Models
         /// 文件MD5
         /// </summary>
         [Column(Name = "FileMd5", StringLength = 32, IsNullable = false)]
-        public string FileMd5 { get; set; }
+        public string FileMd5 { get; set; } = null!;
 
         /// <summary>
         /// 每片大小（字节）
@@ -58,7 +58,7 @@ namespace SB.Framework.Models
         /// 合并后的文件相对路径
         /// </summary>
         [Column(Name = "FilePath", StringLength = 500)]
-        public string FilePath { get; set; }
+        public string FilePath { get; set; } = null!;
 
         /// <summary>
         /// 创建时间
@@ -83,3 +83,4 @@ namespace SB.Framework.Models
         Expired = 2
     }
 }
+

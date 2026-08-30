@@ -21,7 +21,7 @@ namespace SB.Feature.BackupReceive
     {
         private readonly IFreeSql _fsql;
         private readonly IHostEnvironment _env;
-        private readonly ILogger<BackupReceiveService> _logger;
+        private readonly new ILogger<BackupReceiveService> _logger;
         private readonly BackupReceiveOptions _opt;
 
         public BackupReceiveService(IFreeSql fsql, ILogger<BackupReceiveService> logger, IHostEnvironment env, IOptions<BackupReceiveOptions> opt)

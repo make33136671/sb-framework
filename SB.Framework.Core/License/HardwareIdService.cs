@@ -102,6 +102,8 @@ namespace SB.Framework.Core.License
 
         private static void CollectWindowsInfo(StringBuilder sb)
         {
+            if (!OperatingSystem.IsWindows()) return;
+
             // Windows MachineGuid
             try
             {

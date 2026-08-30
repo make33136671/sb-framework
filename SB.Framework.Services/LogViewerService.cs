@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core.Attribute;
@@ -95,10 +95,10 @@ namespace SB.Framework.Services
         /// <param name="level">级别 info / warning / error / all,逗号分隔多个;空 = "warning,error"</param>
         /// <param name="tail">每个文件取尾部 N 行,默认 1000,0 表示不截断</param>
         /// <param name="contains">关键字过滤(子串匹配,大小写不敏感)</param>
-        public DiagQueryResult QueryDiag(string date = null, string level = null, int tail = 1000, string contains = null)
+        public DiagQueryResult QueryDiag(string? date = null, string? level = null, int tail = 1000, string? contains = null)
         {
-            var dates = ParseDates(date);
-            var levels = ParseLevels(level);
+            var dates = ParseDates(date!);
+            var levels = ParseLevels(level!);
 
             var files = new List<string>();
             var collected = new List<string>();
@@ -139,7 +139,7 @@ namespace SB.Framework.Services
                 Dates = dates.Select(d => d.ToString("yyyyMMdd")).ToList(),
                 Levels = levels,
                 Tail = tail,
-                Contains = contains,
+                Contains = contains!,
                 Files = files,
                 TotalLines = totalLines,
                 ReturnedLines = collected.Count,
@@ -182,7 +182,7 @@ namespace SB.Framework.Services
         /// <summary>
         /// 读取日志文件内容（支持尾部读取，可指定归档子目录）
         /// </summary>
-        public Result ReadFile(string fileName, int tail = 500, string archive = null)
+        public Result ReadFile(string fileName, int tail = 500, string? archive = null)
         {
             var filePath = ResolveFilePath(fileName, archive);
             if (filePath == null)
@@ -209,7 +209,7 @@ namespace SB.Framework.Services
         /// <summary>
         /// 获取日志文件完整路径（用于下载，可指定归档子目录）
         /// </summary>
-        public string GetFilePath(string fileName, string archive = null)
+        public string? GetFilePath(string fileName, string? archive = null)
         {
             return ResolveFilePath(fileName, archive);
         }
@@ -217,7 +217,7 @@ namespace SB.Framework.Services
         /// <summary>
         /// 解析文件路径，统一做路径穿越校验
         /// </summary>
-        private string ResolveFilePath(string fileName, string archive)
+        private string? ResolveFilePath(string fileName, string? archive)
         {
             if (string.IsNullOrWhiteSpace(fileName))
                 return null;
@@ -254,10 +254,11 @@ namespace SB.Framework.Services
         public List<string> Dates { get; set; } = new();
         public List<string> Levels { get; set; } = new();
         public int Tail { get; set; }
-        public string Contains { get; set; }
+        public string Contains { get; set; } = null!;
         public List<string> Files { get; set; } = new();
         public int TotalLines { get; set; }
         public int ReturnedLines { get; set; }
         public string Ndjson { get; set; } = "";
     }
 }
+

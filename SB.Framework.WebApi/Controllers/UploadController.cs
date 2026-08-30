@@ -39,7 +39,7 @@ namespace SB.Framework.WebApi.Controllers
         public Result Config()
         {
             var cfg = AppGlobal.AppSettings.UploadConfig;
-            var host = _httpContextAccessor.HttpContext.RequestHostWithScheme();
+            var host = _httpContextAccessor.HttpContext!.RequestHostWithScheme();
             return Result.Success(new UploadConfigDto
             {
                 MaxFileSizeMB = cfg.MaxFileSizeMB,

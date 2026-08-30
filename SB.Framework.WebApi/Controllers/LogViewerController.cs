@@ -25,14 +25,14 @@ namespace SB.Framework.WebApi.Controllers
         /// 读取日志文件内容（archive 可选，指定归档子目录）
         /// </summary>
         [HttpGet]
-        public Result Read(string fileName, int tail = 500, string archive = null)
+        public Result Read(string fileName, int tail = 500, string? archive = null)
             => _service.ReadFile(fileName, tail, archive);
 
         /// <summary>
         /// 下载日志文件（archive 可选，指定归档子目录）
         /// </summary>
         [HttpGet]
-        public IActionResult Download(string fileName, string archive = null)
+        public IActionResult Download(string fileName, string? archive = null)
         {
             var filePath = _service.GetFilePath(fileName, archive);
             if (filePath == null)
@@ -51,7 +51,7 @@ namespace SB.Framework.WebApi.Controllers
         /// <param name="tail">每个文件取尾部 N 行,默认 1000,0 = 不截断</param>
         /// <param name="contains">关键字过滤(子串匹配,大小写不敏感)</param>
         [HttpGet]
-        public IActionResult Diag(string date = null, string level = null, int tail = 1000, string contains = null)
+        public IActionResult Diag(string? date = null, string? level = null, int tail = 1000, string? contains = null)
         {
             var result = _service.QueryDiag(date, level, tail, contains);
 

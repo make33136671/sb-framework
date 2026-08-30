@@ -10,7 +10,7 @@ namespace SB.Framework.Models.Dto
     {
         public VbenMenu() { }
 
-        public VbenMenu(Menu menu, List<Menu> allMenus = null)
+        public VbenMenu(Menu menu, List<Menu>? allMenus = null)
         {
             Id = menu.Id;
             ParentId = menu.ParentId;
@@ -42,17 +42,17 @@ namespace SB.Framework.Models.Dto
         }
         public int Id { get; set; }
         public int ParentId { get; set; }
-        public string Path { get; set; }
-        public string Name { get; set; }
-        public string Component { get; set; }
-        public string Redirect { get; set; }
-        public Meta Meta { get; set; }
-        public List<VbenMenu> Children { get; set; }
+        public string Path { get; set; } = null!;
+        public string Name { get; set; } = null!;
+        public string Component { get; set; } = null!;
+        public string Redirect { get; set; } = null!;
+        public Meta Meta { get; set; } = null!;
+        public List<VbenMenu> Children { get; set; } = null!;
 
         /// <summary>
         /// 便利属性 — 返回 Meta.Title
         /// </summary>
-        public string Title => Meta?.Title;
+        public string? Title => Meta?.Title;
 
         /// <summary>
         /// 便利属性 — 返回 Meta.OrderNo
@@ -62,10 +62,11 @@ namespace SB.Framework.Models.Dto
 
     public class Meta
     {
-        public string Title { get; set; }
-        public string Icon { get; set; }
+        public string Title { get; set; } = null!;
+        public string Icon { get; set; } = null!;
         public int OrderNo { get; set; }
         public bool HideInMenu { get; set; }
         public bool IgnoreKeepAlive { get; set; }
     }
 }
+

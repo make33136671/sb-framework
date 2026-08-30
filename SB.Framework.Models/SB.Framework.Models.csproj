@@ -8,6 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Models</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Models.NoLicense</PackageId>
     <Version>0.4.8</Version>
@@ -19,3 +20,4 @@
   </ItemGroup>
 
 </Project>
+

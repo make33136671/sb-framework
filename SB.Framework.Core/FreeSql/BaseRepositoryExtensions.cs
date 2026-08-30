@@ -75,7 +75,7 @@ namespace SB.Framework.Core.FreeSql
             Expression<Func<TEntity, bool>> predicate,
             int pageNum,
             int pageSize,
-            Expression<Func<TEntity, object>> orderBy = null,
+            Expression<Func<TEntity, object>>? orderBy = null,
             bool isDescending = true)
             where TEntity : class, IEntity
         {
@@ -161,7 +161,7 @@ namespace SB.Framework.Core.FreeSql
         public static TResult ExecuteInTransaction<TEntity, TResult>(
             this BaseRepository<TEntity> repo,
             Func<IUnitOfWork, TResult> operation,
-            Microsoft.Extensions.Logging.ILogger logger = null)
+            Microsoft.Extensions.Logging.ILogger? logger = null)
             where TEntity : class, IEntity
         {
             IUnitOfWork uow = repo.GetUnitOfWork();
@@ -191,7 +191,7 @@ namespace SB.Framework.Core.FreeSql
         public static void ExecuteInTransaction<TEntity>(
             this BaseRepository<TEntity> repo,
             Action<IUnitOfWork> operation,
-            Microsoft.Extensions.Logging.ILogger logger = null)
+            Microsoft.Extensions.Logging.ILogger? logger = null)
             where TEntity : class, IEntity 
             {
             IUnitOfWork uow = repo.GetUnitOfWork();

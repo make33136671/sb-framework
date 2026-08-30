@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -13,22 +13,22 @@ namespace SB.Framework.Models
         public int Id { get; set; }
 
         [Column(Name = "SmtpServer")]
-        public string SmtpServer { get; set; }
+        public string SmtpServer { get; set; } = null!;
 
         [Column(Name = "SmtpPort")]
         public int SmtpPort { get; set; }
 
         [Column(Name = "Username")]
-        public string Username { get; set; }
+        public string Username { get; set; } = null!;
 
         [Column(Name = "Password")]
-        public string Password { get; set; }
+        public string Password { get; set; } = null!;
 
         [Column(Name = "FromEmail")]
-        public string FromEmail { get; set; }
+        public string FromEmail { get; set; } = null!;
 
         [Column(Name = "FromName")]
-        public string FromName { get; set; }
+        public string FromName { get; set; } = null!;
 
         [Column(Name = "EnableSsl")]
         public bool EnableSsl { get; set; }
@@ -43,3 +43,4 @@ namespace SB.Framework.Models
         public DateTime UpdatedAt { get; set; }
     }
 }
+

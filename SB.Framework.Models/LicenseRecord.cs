@@ -1,4 +1,4 @@
-using FreeSql.DataAnnotations;
+﻿using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -18,7 +18,7 @@ namespace SB.Framework.Models
         [Column(Name = "ClientId")]
         public int ClientId { get; set; }
         [Navigate(nameof(ClientId))]
-        public LicenseClient Client { get; set; }
+        public LicenseClient Client { get; set; } = null!;
 
         /// <summary>
         /// 验证模式（0=仅ClientKey, 1=仅HardwareId, 2=双验证）
@@ -85,7 +85,7 @@ namespace SB.Framework.Models
         /// 签名后的授权文件内容
         /// </summary>
         [Column(Name = "LicenseData", DbType = "text")]
-        public string LicenseData { get; set; }
+        public string LicenseData { get; set; } = null!;
 
         /// <summary>
         /// 客户端是否已下载
@@ -124,3 +124,4 @@ namespace SB.Framework.Models
         Both = 2
     }
 }
+
