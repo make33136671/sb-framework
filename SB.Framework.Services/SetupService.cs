@@ -101,9 +101,34 @@ namespace SB.Framework.Services
         {
             var apiPath = _env.ContentRootPath?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? "";
 
-            // 检测 Docker 环境：.NET 官方镜像自动设置 DOTNET_RUNNING_IN_CONTAINER=true
-            var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true"
-                || apiPath.StartsWith("/app/", StringComparison.OrdinalIgnoreCase);
+            // 多重 Docker 环境检测（任一命中即视为 Docker 模式）
+            // 1. SB_IS_DOCKER=1 显式标志（start-api.sh 设置）
+            // 2. DOTNET_RUNNING_IN_CONTAINER=true（微软官方镜像内置）
+            // 3. /proc/1/cgroup 包含 docker/kubepods（Linux 容器标准特征）
+            // 4. ContentRootPath 以 /app/ 开头（sb 框架 Docker 镜像约定）
+            // 5. 存在 /.dockerenv 文件
+            var isDocker = false;
+            if (Environment.GetEnvironmentVariable("SB_IS_DOCKER") == "1")
+                isDocker = true;
+            else if (Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true")
+                isDocker = true;
+            else if (apiPath.StartsWith("/app/", StringComparison.OrdinalIgnoreCase))
+                isDocker = true;
+            else if (File.Exists("/.dockerenv"))
+                isDocker = true;
+            else
+            {
+                try
+                {
+                    if (File.Exists("/proc/1/cgroup"))
+                    {
+                        var cgroup = File.ReadAllText("/proc/1/cgroup");
+                        if (cgroup.Contains("docker", StringComparison.OrdinalIgnoreCase) ||
+                            cgroup.Contains("kubepods", StringComparison.OrdinalIgnoreCase))
+                            isDocker = true;
+                    }
+                } catch { /* 忽略读取错误 */ }
+            }
 
             if (isDocker)
             {
@@ -112,6 +137,12 @@ namespace SB.Framework.Services
 
                 string dockerAdminPath = Directory.Exists("/app/admin-ui") ? "/app/admin-ui" : "";
                 string dockerUserPath = Directory.Exists("/app/user-ui") ? "/app/user-ui" : "";
+
+                // Docker 模式 Redis 配置（容器内本地 Redis，默认无密码）
+                var redisHost = "127.0.0.1";
+                var redisPort = "6379";
+                var redisPassword = Environment.GetEnvironmentVariable("REDIS_PASSWORD") ?? "";
+                var redisInstance = Environment.GetEnvironmentVariable("REDIS_INSTANCE_NAME") ?? "";
 
                 return Result.Success(new
                 {
@@ -127,7 +158,14 @@ namespace SB.Framework.Services
                         database = pgDb,
                         user = "postgres",
                         password = pgPassword
-                    } : null
+                    } : null,
+                    redis = new
+                    {
+                        host = redisHost,
+                        port = redisPort,
+                        password = redisPassword,
+                        instanceName = redisInstance
+                    }
                 });
             }
 
