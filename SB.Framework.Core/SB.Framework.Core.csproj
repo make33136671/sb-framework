@@ -10,7 +10,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Core</PackageId>
     <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Core.NoLicense</PackageId>
-    <Version>0.4.8</Version>
+    <Version>0.4.9</Version>
     <Authors>Sb Framework</Authors>
     <Description>SB Framework ����������ԭ�򣺰�ȫ����֤����̨����Feature ��ϵ��License �м���ȡ�</Description>
   </PropertyGroup>
@@ -40,6 +40,11 @@
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.5" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
+  </ItemGroup>
+
+  <!-- 品牌图标生成器内嵌字体（Roboto Bold，Apache 2.0，可再分发）—— Docker Linux 容器无系统字体，必须随包携带 -->
+  <ItemGroup>
+    <EmbeddedResource Include="Brand\Fonts\Roboto-Bold.ttf" />
   </ItemGroup>
 
 </Project>

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using SB.Framework.Core;
+using SB.Framework.Core.Brand;
 using SB.Framework.Core.Util;
 using SB.Framework.Models;
 using SB.Framework.Models.Dto;
@@ -391,12 +392,18 @@ namespace SB.Framework.Services
                 UpdateAppSettings(request, jwtAdminKey, jwtApiKey);
                 _logger.LogInformation("安装向导: 配置文件更新成功");
 
-                // 7. 生成 Logo、Favicon、app-info.json
+                // 7. 生成 Logo、Favicon、app-info.json（未上传 Logo 时按 SB 品牌风格自动生成）
                 var storageDir = Path.Combine(_env.ContentRootPath, "wwwroot", "storage");
                 if (!string.IsNullOrEmpty(request.LogoBase64))
                 {
                     FaviconGenerator.GenerateFromBase64(request.LogoBase64, storageDir);
                     _logger.LogInformation("安装向导: Logo 和 Favicon 已生成");
+                }
+                else
+                {
+                    BrandIconGenerator.GenerateAll(storageDir,
+                        BrandIconGenerator.DefaultSpec(request.ProductEn, request.ProductCn));
+                    _logger.LogInformation("安装向导: 未上传 Logo，已按 SB 品牌风格自动生成全套图标（favicon + brand/）");
                 }
                 FaviconGenerator.GenerateAppInfo(storageDir, request.ProductEn ?? "sb", request.ProductCn ?? "管理系统", request.PrimaryDomain ?? "");
                 _logger.LogInformation("安装向导: app-info.json 已生成");

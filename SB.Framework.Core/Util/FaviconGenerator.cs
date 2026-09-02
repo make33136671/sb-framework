@@ -82,8 +82,9 @@ namespace SB.Framework.Core.Util
         /// <summary>
         /// 手动生成多尺寸 favicon.ico（ICO 格式：6字节头 + N*16字节目录 + N*PNG数据块）
         /// ImageSharp 3.x 不含 IcoEncoder，使用 BinaryWriter 手写
+        /// 供 FaviconGenerator 自身与 BrandIconGenerator（品牌生成）共用
         /// </summary>
-        private static void GenerateIco(Image source, string outputPath)
+        public static void GenerateIco(Image source, string outputPath)
         {
             var pngEncoder = new PngEncoder();
             var pngBlocks = new List<byte[]>();
