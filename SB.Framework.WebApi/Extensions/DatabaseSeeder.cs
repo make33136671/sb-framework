@@ -77,6 +77,35 @@ public static class DatabaseSeeder
         disabledModules ??= Array.Empty<string>();
         var modules = SetupService.DiscoverModuleInitializers(catalog, disabledModules);
         var allMenuDefs = modules.SelectMany(m => m.GetMenus()).ToList();
+
+        // 清理被禁用模块的菜单 — 获取所有模块（含禁用），找出禁用模块的菜单路径，从数据库删除
+        if (disabledModules.Length > 0)
+        {
+            var allModules = SetupService.DiscoverModuleInitializers(catalog, null);
+            var activeModuleKeys = new HashSet<string>(modules.Select(m => m.ModuleKey), StringComparer.OrdinalIgnoreCase);
+            var disabledMods = allModules.Where(m => !activeModuleKeys.Contains(m.ModuleKey)).ToList();
+            var disabledPaths = new HashSet<string>();
+            foreach (var mod in disabledMods)
+            {
+                foreach (var def in mod.GetMenus())
+                    CollectMenuPaths(def, disabledPaths);
+            }
+
+            if (disabledPaths.Count > 0)
+            {
+                var staleMenus = fsql.Select<Menu>().DisableGlobalFilter()
+                    .Where(m => disabledPaths.Contains(m.Path)).ToList();
+                if (staleMenus.Count > 0)
+                {
+                    var staleIds = staleMenus.Select(m => m.Id).ToList();
+                    fsql.Delete<AdminRoleMenu>().Where(rm => staleIds.Contains(rm.MenuId)).ExecuteAffrows();
+                    fsql.Delete<Menu>().Where(m => staleIds.Contains(m.Id)).ExecuteAffrows();
+                    Log.Information("菜单同步: 清理 {Count} 条被禁用模块的菜单 ({Paths})",
+                        staleMenus.Count, string.Join(", ", staleMenus.Select(m => m.Title)));
+                }
+            }
+        }
+
         if (allMenuDefs.Count == 0) return (0, 0);
 
         var existingMenus = fsql.Select<Menu>().DisableGlobalFilter().ToList();
@@ -201,6 +230,14 @@ public static class DatabaseSeeder
         var menuId = EnsureMenu(fsql, def, parentId, pathToMenu, pathToId, superRoleId, existingRoleMenuIds, ref created, ref updated);
         foreach (var child in def.Children)
             EnsureMenuRecursive(fsql, child, menuId, pathToMenu, pathToId, superRoleId, existingRoleMenuIds, ref created, ref updated);
+    }
+
+    private static void CollectMenuPaths(MenuDefinition def, HashSet<string> paths)
+    {
+        if (!string.IsNullOrEmpty(def.Path))
+            paths.Add(def.Path);
+        foreach (var child in def.Children)
+            CollectMenuPaths(child, paths);
     }
 
     /// <summary>
