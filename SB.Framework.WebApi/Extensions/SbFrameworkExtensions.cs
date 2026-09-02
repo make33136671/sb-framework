@@ -208,6 +208,10 @@ public static class SbFrameworkExtensions
             x.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 
+        // 注册框架自身 WebApi 程序集中的控制器（SetupController / ManagerController 等）
+        // AddControllersWithViews 默认只扫描入口程序集，必须显式添加框架程序集
+        mvc.AddApplicationPart(typeof(SbFrameworkExtensions).Assembly);
+
         // ★[F-4] Controller 跨程序集发现：框架硬编码，不交插件。必须在 AddControllersWithViews 返回的
         //   mvcBuilder 上链式调用（AddApplicationPart 是 IMvcBuilder 扩展）。这是整个插件化最易塌、
         //   塌了就是"feature Controller 全 404 且无报错"的一环。
