@@ -34,6 +34,65 @@ namespace SB.Framework.Services
         public bool IsInstalled() => File.Exists(LockFilePath);
 
         /// <summary>
+        /// 导出系统安装配置（安装完成后仍可导出）。
+        /// 值取自运行时生效配置（IConfiguration，含安装后通过运维工具/手改配置文件产生的最新值），
+        /// 输出与安装向导「导入配置」的 setup-config.json（version=1.0）格式完全兼容，
+        /// 重新安装时可直接导入预填。
+        /// 管理员密码为不可逆散列存储无法导出，admin 段仅返回空占位（导入后需重新设置密码）。
+        /// </summary>
+        public Result ExportInstalledConfig()
+        {
+            if (!IsInstalled())
+                return Result.Fail("系统尚未安装，无需导出");
+
+            var corsOrigins = _configuration.GetSection("CorsConfig:Origins").GetChildren()
+                .Select(c => c.Value ?? "").Where(v => v.Length > 0).ToList();
+
+            var redisInstance = _configuration["CacheConfig:Redis:InstanceName"] ?? "";
+            bool cacheEnabled = bool.TryParse(_configuration["CacheConfig:Enabled"], out var ce) && ce;
+            bool corsAllowAll = bool.TryParse(_configuration["CorsConfig:AllowAll"], out var caa) && caa;
+
+            var config = new
+            {
+                version = "1.0",
+                exportedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+                database = new
+                {
+                    dbType = _configuration["DbConfig:DbType"] ?? "",
+                    server = _configuration["DbConfig:Server"] ?? "",
+                    port = _configuration["DbConfig:Port"] ?? "",
+                    database = _configuration["DbConfig:Database"] ?? "",
+                    user = _configuration["DbConfig:User"] ?? "",
+                    password = _configuration["DbConfig:Password"] ?? "",
+                },
+                cache = new
+                {
+                    enabled = cacheEnabled,
+                    provider = _configuration["CacheConfig:Provider"] ?? "Memory",
+                    redis = new
+                    {
+                        connection = _configuration["CacheConfig:Redis:Connection"] ?? "",
+                        instanceName = redisInstance,
+                    },
+                },
+                app = new
+                {
+                    productCn = _configuration["ProductCn"] ?? "",
+                    productEn = _configuration["ProductEn"] ?? "",
+                    primaryDomain = _configuration["PrimaryDomain"] ?? "",
+                    timeZone = _configuration["TimeZone"] ?? "Asia/Shanghai",
+                    cachePrefix = redisInstance,
+                    corsAllowAll,
+                    corsOrigins,
+                    passwordStorageMode = _configuration["PasswordConfig:StorageMode"] ?? "Encrypted",
+                    cloudServerUrl = _configuration["CloudConfig:ServerUrl"] ?? "",
+                },
+                admin = new { username = "", displayName = "", password = "" },
+            };
+            return Result.Success(config);
+        }
+
+        /// <summary>
         /// 推断部署路径和数据库默认值
         /// Docker 模式：检测 DOTNET_RUNNING_IN_CONTAINER，返回容器内固定路径和 PostgreSQL 默认值
         /// 传统模式：取 API 的 ContentRoot 最后一段（如 sb_test_api），去掉 _api 后缀拼装同级路径
