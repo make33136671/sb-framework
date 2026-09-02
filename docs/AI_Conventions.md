@@ -318,7 +318,7 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 - 修复一个 bug / 完成一个功能 → 自动 `git add` + `git commit` + `git push`
 - commit message 中文 + Conventional Commit：`feat: xxx` / `fix: xxx` / `refactor: xxx` / `chore: xxx`
 - **不**用 `git add -A` / `git add .`，按文件名显式 add（避免误提交 `.env` / `*.key` 等敏感文件）
-- 多个不相关改动可拆 2-3 个 commit
+- **按功能模块分次提交（强制）**：一次 commit 只做一件事，按功能模块/修改目的拆分提交；功能、bug 修复、文档、版本号变更、第三方代码清理等互不相关的改动严禁合并进同一个 commit；同一文件里混有多类改动时也必须按 hunk 拆分分别提交
 - **不**强推 main、**不** `reset --hard`、**不**改 `git config`、**不**跳 hooks（`--no-verify`）
 
 ### 后端代码改动后
