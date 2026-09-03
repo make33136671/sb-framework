@@ -2,7 +2,7 @@
 # ============================================================================
 # SB Framework NuGet 打包 + 推送脚本 (pack-push.sh)
 #
-# 用途：把框架各子项目编译成 NuGet 包（正常 + NoLicense 双变体），推到 BaGet 私有源。
+# 用途：把框架各子项目编译成 NuGet 包，推到 BaGet 私有源。
 #       这是"框架的编译"——派生项目(pm/admin 等)通过 NuGet 引用消费,改完框架必须走这步才能让
 #       派生项目 restore 到新版本。
 #
@@ -31,7 +31,6 @@ ALL_PROJECTS=(
   SB.Framework.Analyzers
   SB.Feature.AccessToken
   SB.Feature.BackupReceive
-  SB.Feature.LicenseManage
 )
 
 # BaGet 源:默认走公网 HTTPS(nuget.saibo.club)。内网直连后端用 --source-http。
@@ -124,14 +123,10 @@ for name in "${PROJECTS[@]}"; do
 
   # 用 dotnet build(项目设了 GeneratePackageOnBuild=true,构建即出包)而非 dotnet pack:
   # WebApi 是 Web SDK 项目,清掉 obj 后 dotnet pack 会因 staticwebassets 清单缺失报错。
-  # 正常变体 + NoLicense 变体(PackageId / DISABLE_LICENSE 由 -p:DisableLicense 切换)。
-  # 铁律:每个变体前都删 bin/obj 干净重建,确保 DISABLE_LICENSE 常量真正重新编译生效。
-  info "$name 构建出包(正常变体)..."
+  # 铁律:构建前删 bin/obj 干净重建,确保包版本与内部程序集版本一致。
+  info "$name 构建出包..."
   rm -rf "$ROOT/$name/bin" "$ROOT/$name/obj"
   dotnet build "$csproj" -c Release --nologo -v minimal -p:PackageOutputPath="$NUPKG_OUT"
-  info "$name 构建出包(NoLicense 变体)..."
-  rm -rf "$ROOT/$name/bin" "$ROOT/$name/obj"
-  dotnet build "$csproj" -c Release --nologo -v minimal -p:DisableLicense=true -p:PackageOutputPath="$NUPKG_OUT"
 
   PACKED_SUMMARY+=("$name@$target_ver")
 done
@@ -172,7 +167,7 @@ fi
 echo ""
 echo "============================================"
 echo "  完成"
-for s in "${PACKED_SUMMARY[@]}"; do echo "  ✓ $s (正常 + NoLicense)"; done
+for s in "${PACKED_SUMMARY[@]}"; do echo "  ✓ $s"; done
 echo "  nupkg 目录: $NUPKG_OUT"
 [ "$PUSH" = true ] && echo "  已推送至: $SOURCE_URL" || echo "  未推送(--no-push)"
 echo "============================================"
