@@ -81,10 +81,10 @@ namespace SB.Feature.AccessToken.Models
         [Column(Name = "RevokeReason")]
         public string? RevokeReason { get; set; }
 
-        [Column(Name = "CreatedTime", DbType = "timestamp", InsertValueSql = "CURRENT_TIMESTAMP")]
+        [Column(Name = "CreatedTime", InsertValueSql = "CURRENT_TIMESTAMP")]
         public DateTime CreatedTime { get; set; }
 
-        [Column(Name = "UpdatedTime", DbType = "timestamp")]
+        [Column(Name = "UpdatedTime")]
         public DateTime? UpdatedTime { get; set; }
 
         [Column(Name = "IsDeleted", IsNullable = false, InsertValueSql = "false")]

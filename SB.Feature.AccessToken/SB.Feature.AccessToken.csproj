@@ -19,4 +19,7 @@
     <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

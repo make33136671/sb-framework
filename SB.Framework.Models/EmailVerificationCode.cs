@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -42,10 +42,10 @@ namespace SB.Framework.Models
         [Column(Name = "IpAddress", StringLength = 50, IsNullable = true)]
         public string? IpAddress { get; set; }
 
-        [Column(Name = "ExpireAt", DbType = "timestamp")]
+        [Column(Name = "ExpireAt")]
         public DateTime ExpireAt { get; set; }
 
-        [Column(Name = "CreatedAt", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "CreatedAt", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime CreatedAt { get; set; }
     }
 }

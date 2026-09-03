@@ -13,4 +13,7 @@
     <!-- 开发期走 ProjectReference,dotnet pack 自动转成 SB.Framework.Core 包依赖 -->
     <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

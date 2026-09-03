@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -33,7 +33,7 @@ namespace SB.Framework.Models
         /// <summary>
         /// 上传时间
         /// </summary>
-        [Column(Name = "UploadedAt", DbType = "timestamp", InsertValueSql = "now()")]
+        [Column(Name = "UploadedAt", InsertValueSql = "now()")]
         public DateTime UploadedAt { get; set; }
     }
 }

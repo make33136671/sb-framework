@@ -48,7 +48,7 @@ namespace SB.Framework.Models
         public string UploadedBy { get; set; } = "";
 
         /// <summary>上传时间</summary>
-        [Column(Name = "UploadedAt", DbType = "timestamp", InsertValueSql = "now()")]
+        [Column(Name = "UploadedAt", InsertValueSql = "now()")]
         public DateTime UploadedAt { get; set; }
 
         /// <summary>触发部署的人(可能 != 上传人)</summary>
@@ -56,11 +56,11 @@ namespace SB.Framework.Models
         public string? DeployedBy { get; set; }
 
         /// <summary>部署开始时间(Deploying 转移那一刻)</summary>
-        [Column(Name = "DeployStartedAt", DbType = "timestamp", IsNullable = true)]
+        [Column(Name = "DeployStartedAt", IsNullable = true)]
         public DateTime? DeployStartedAt { get; set; }
 
         /// <summary>部署结束时间(Deployed/Failed 那一刻)</summary>
-        [Column(Name = "DeployFinishedAt", DbType = "timestamp", IsNullable = true)]
+        [Column(Name = "DeployFinishedAt", IsNullable = true)]
         public DateTime? DeployFinishedAt { get; set; }
 
         /// <summary>本次部署覆盖了哪个 Deployed job(回滚目标)</summary>
@@ -76,7 +76,7 @@ namespace SB.Framework.Models
         public string? RolledBackBy { get; set; }
 
         /// <summary>被回滚时间(转 RolledBack 的瞬间)</summary>
-        [Column(Name = "RolledBackAt", DbType = "timestamp", IsNullable = true)]
+        [Column(Name = "RolledBackAt", IsNullable = true)]
         public DateTime? RolledBackAt { get; set; }
 
         /// <summary>备注(可选,人工填)</summary>

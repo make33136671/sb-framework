@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -33,7 +33,7 @@ namespace SB.Framework.Models
         [Column(Name = "RejectReason", IsNullable = true)]
         public string? RejectReason { get; set; }
 
-        [Column(Name = "SubmitTime", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "SubmitTime", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime SubmitTime { get; set; }
 
         [Column(Name = "ReviewTime", IsNullable = true)]

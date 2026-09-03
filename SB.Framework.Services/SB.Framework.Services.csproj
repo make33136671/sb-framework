@@ -30,6 +30,9 @@
     <!-- 开发期 ProjectReference，dotnet pack 自动转成对应版本的包依赖 -->
     <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
     <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+    <!-- 分析器不随 Core 的 ProjectReference 传递(analyzer 项不流动),必须直接引用 -->
+    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -63,14 +63,14 @@ namespace SB.Framework.Models
         /// <summary>
         /// 创建时间
         /// </summary>
-        [Column(Name = "CreatedTime", DbType = "timestamp", InsertValueSql = "now()")]
+        [Column(Name = "CreatedTime", InsertValueSql = "now()")]
         public DateTime CreatedTime { get; set; }
 
 
         /// <summary>
         /// 最后登录时间
         /// </summary>
-        [Column(Name = "LastOnlineTime", DbType = "timestamp", IsNullable = true)]
+        [Column(Name = "LastOnlineTime", IsNullable = true)]
         public DateTime? LastOnlineTime { get; set; }
 
         /// <summary>
@@ -82,7 +82,7 @@ namespace SB.Framework.Models
         /// <summary>
         /// 验证器绑定时间
         /// </summary>
-        [Column(Name = "AuthenticatorBindTime", DbType = "timestamp", IsNullable = true)]
+        [Column(Name = "AuthenticatorBindTime", IsNullable = true)]
         public DateTime? AuthenticatorBindTime { get; set; }
 
         /// <summary>

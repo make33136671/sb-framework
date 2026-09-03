@@ -3,6 +3,21 @@
 > 本文档为**实体事实源**，逐类对照源码生成（21 个表实体）。若与旧文档冲突，以此为准。
 > 所有表前缀 `SB_`（除 `BackgroundTaskLog` 为 `SYS_`）。实现 `ISoftDelete` 的实体自动应用全局过滤 `IsDeleted == false`。
 
+## 多数据库兼容规范（MySQL / PostgreSQL 一套实体通吃）
+
+框架要求**同一套实体同时兼容 MySQL 与 PostgreSQL**，派生项目立项时按需二选一即可，不需要两份 Model。规范：
+
+1. **禁止在 `[Column]` 上写 `DbType = "..."`**（分析器 **SB0003** 报 Error 拦截）。
+   不写 DbType 时 FreeSql CodeFirst 按当前 DataType 自动映射，两库通吃：
+   - `DateTime` → MySQL `datetime(6)` / PG `timestamp(6)`（比手写 timestamp 更安全：避开 MySQL timestamp 的 1970–2038 范围与时区隐式转换）
+   - 长文本用 `StringLength = -2` → 两库都是 text
+   - `bool`/`decimal(P,S)`/`Guid` 等由 FreeSql 自动适配
+2. **时间列约定**：`DateTime` + 代码赋值 `AppTime.UtcNow`（存 UTC）；`InsertValueSql = "now()"` 两库语法都支持，可保留做建表默认值，但业务写入统一走 AppTime。
+3. **确有单库方言需求**：集中放在 `SB.Framework.WebApi/Extensions/FreeSqlSetup.cs`，按 `isPostgreSql` 分支用 `fsql.CodeFirst.ConfigEntity<T>()` 配置，**不许散落在实体上**；真要硬写 `DbType` 需在项目里 `NoWarn: SB0003`。
+4. **原生 SQL 注意**：PG 下 FreeSql 建表会带引号保留大小写（`"TEST_Order"`、`"Id"`），手写 SQL 时列名必须带双引号且大小写与实体一致；MySQL 不区分。业务代码尽量走 FreeSql 表达式而非拼接 SQL。
+
+历史背景：改造前实体里有 24 处 `DbType = "timestamp"`、3 处 `DbType = "text"` 硬编码，是"双库要两套 Model"的根源；已于 2026-09 全部清理并由 SB0003 防复发。
+
 ## 核心接口与统一类型
 
 ### IEntity（`SB.Framework.Models/IEntity.cs`）

@@ -266,8 +266,8 @@ public class AppController : Controller
 
             // 5. 轮询 /health,最多 ~45s
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
-            var deadline = DateTime.UtcNow.AddSeconds(45);
-            while (DateTime.UtcNow < deadline)
+            var deadline = SB.Framework.Core.Util.AppTime.UtcNow.AddSeconds(45);
+            while (SB.Framework.Core.Util.AppTime.UtcNow < deadline)
             {
                 if (proc.HasExited)
                 {
@@ -779,7 +779,7 @@ public class AppController : Controller
                 try
                 {
                     System.IO.File.WriteAllText(Path.Combine(appDir, ".deploying"),
-                        $"{DateTime.UtcNow:o}|job={job.Id}|target={job.Target}");
+                        $"{SB.Framework.Core.Util.AppTime.UtcNow:o}|job={job.Id}|target={job.Target}");
                 }
                 catch (Exception ex) { _logger.LogWarning(ex, "写 .deploying 标记失败(看门狗回滚不受影响,仅少一个信号)"); }
 

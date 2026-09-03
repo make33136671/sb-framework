@@ -56,7 +56,7 @@ namespace SB.Framework.Services
             var config = new
             {
                 version = "1.0",
-                exportedAt = DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+                exportedAt = SB.Framework.Core.Util.AppTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
                 database = new
                 {
                     dbType = _configuration["DbConfig:DbType"] ?? "",

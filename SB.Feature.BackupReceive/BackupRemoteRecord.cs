@@ -56,7 +56,7 @@ namespace SB.Feature.BackupReceive
         public DateTime BackupTime { get; set; }
 
         /// <summary>服务端接收时间 (UTC)</summary>
-        [Column(Name = "ReceivedTime", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "ReceivedTime", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime ReceivedTime { get; set; }
     }
 }

@@ -46,7 +46,7 @@ namespace SB.Feature.AccessToken.Models
         [Column(Name = "Operator", StringLength = 50)]
         public string? Operator { get; set; }
 
-        [Column(Name = "CreatedTime", DbType = "timestamp")]
+        [Column(Name = "CreatedTime")]
         public DateTime CreatedTime { get; set; }
     }
 }

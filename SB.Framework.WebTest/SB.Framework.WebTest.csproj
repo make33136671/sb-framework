@@ -28,4 +28,7 @@
     <None Remove="wwwroot\storage\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

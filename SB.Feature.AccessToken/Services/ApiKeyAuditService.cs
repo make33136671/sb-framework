@@ -21,7 +21,7 @@ namespace SB.Feature.AccessToken.Services
         public void WriteAsync(ApiKeyAuditLog entry)
         {
             if (entry.CreatedTime == default)
-                entry.CreatedTime = DateTime.Now;
+                entry.CreatedTime = SB.Framework.Core.Util.AppTime.Now;
 
             _ = Task.Run(() =>
             {

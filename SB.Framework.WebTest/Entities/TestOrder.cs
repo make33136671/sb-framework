@@ -48,7 +48,7 @@ public class TestOrder : IEntity, ISoftDelete
     public string CreatedBy { get; set; } = "anonymous";
 
     /// <summary>下单时间(UTC 存库)</summary>
-    [Column(Name = "CreatedAt", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+    [Column(Name = "CreatedAt", InsertValueSql = "now()", CanUpdate = false)]
     public DateTime CreatedAt { get; set; }
 
     /// <summary>支付时间(UTC)</summary>

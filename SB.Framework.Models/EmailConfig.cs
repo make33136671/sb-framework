@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -36,10 +36,10 @@ namespace SB.Framework.Models
         [Column(Name = "IsActive")]
         public bool IsActive { get; set; }
 
-        [Column(Name = "CreatedAt", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "CreatedAt", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime CreatedAt { get; set; }
 
-        [Column(Name = "UpdatedAt", DbType = "timestamp")]
+        [Column(Name = "UpdatedAt")]
         public DateTime UpdatedAt { get; set; }
     }
 }

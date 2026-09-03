@@ -21,4 +21,7 @@
          用官方 framework-reference，不把整个 WebApi 包拉进来（避免循环）。 -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
 </Project>

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using SB.Framework.Core.Attribute;
 using Microsoft.AspNetCore.Mvc;
 using SB.Framework.WebApi.Middleware;
 using SB.Framework.Core.Util;
@@ -49,7 +50,8 @@ public class SetupController : Controller
     /// 测试数据库连接
     /// </summary>
     [HttpPost]
-    public Result TestDatabase([FromBody] DatabaseConfigDto config)
+    [AllowJsonBody]
+        public Result TestDatabase([FromBody] DatabaseConfigDto config)
     {
         if (_setupService.IsInstalled())
             return Result.Fail("系统已安装");
@@ -61,7 +63,8 @@ public class SetupController : Controller
     /// 测试 Redis 连接
     /// </summary>
     [HttpPost]
-    public Result TestRedis([FromBody] RedisConfigDto config)
+    [AllowJsonBody]
+        public Result TestRedis([FromBody] RedisConfigDto config)
     {
         if (_setupService.IsInstalled())
             return Result.Fail("系统已安装");
@@ -73,7 +76,8 @@ public class SetupController : Controller
     /// 执行系统安装
     /// </summary>
     [HttpPost]
-    public Result Install([FromBody] SetupRequest request)
+    [AllowJsonBody]
+        public Result Install([FromBody] SetupRequest request)
     {
         if (_setupService.IsInstalled())
             return Result.Fail("系统已安装");

@@ -84,7 +84,7 @@ namespace SB.Feature.AccessToken.Services
             var hash = Sha256Hex(plaintext);
             var key = _fsql.Select<ApiKey>().Where(t => t.TokenHash == hash).First();
             if (key == null) return null;
-            if (key.ExpiresAt.HasValue && key.ExpiresAt.Value < DateTime.Now) return null;
+            if (key.ExpiresAt.HasValue && key.ExpiresAt.Value < SB.Framework.Core.Util.AppTime.Now) return null;
             // ISoftDelete 已自动过滤 IsDeleted=false,被吊销的查不出来
             return key;
         }
@@ -92,7 +92,7 @@ namespace SB.Feature.AccessToken.Services
         /// <summary>更新 LastUsedAt,节流到最多每 60 秒落库一次,避免高频写。</summary>
         public void TouchLastUsed(int id)
         {
-            var now = DateTime.Now;
+            var now = SB.Framework.Core.Util.AppTime.Now;
             if (_touchCache.TryGetValue(id, out var last) && (now - last).TotalSeconds < 60) return;
             _touchCache[id] = now;
             _ = Task.Run(() =>
@@ -108,7 +108,7 @@ namespace SB.Feature.AccessToken.Services
                 .Set(t => t.IsDeleted, true)
                 .Set(t => t.RevokeReason, reason)
                 .Set(t => t.ModifiedBy, modifiedBy)
-                .Set(t => t.UpdatedTime, DateTime.Now)
+                .Set(t => t.UpdatedTime, SB.Framework.Core.Util.AppTime.Now)
                 .ExecuteAffrows();
             _logger.LogInformation("revoked api key: id={Id} reason={Reason}", id, reason);
         }
@@ -126,7 +126,7 @@ namespace SB.Feature.AccessToken.Services
             key.IpAllowlist = ipAllowlist;
             key.Notes = notes;
             if (modifiedBy != null) key.ModifiedBy = modifiedBy;
-            key.UpdatedTime = DateTime.Now;
+            key.UpdatedTime = SB.Framework.Core.Util.AppTime.Now;
 
             // SetSource 全列更新,允许把可空列清空
             _fsql.Update<ApiKey>().SetSource(key).ExecuteAffrows();

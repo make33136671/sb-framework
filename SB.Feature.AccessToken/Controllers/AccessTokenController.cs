@@ -66,7 +66,7 @@ namespace SB.Feature.AccessToken.Controllers
                 {
                     if (expires == null)
                         return Result.Fail($"FullAccess key 必须设置过期时间(最长 {_opt.FullAccessMaxTtlDays} 天)");
-                    if (expires.Value > DateTime.Now.AddDays(_opt.FullAccessMaxTtlDays))
+                    if (expires.Value > SB.Framework.Core.Util.AppTime.Now.AddDays(_opt.FullAccessMaxTtlDays))
                         return Result.Fail($"FullAccess key 有效期不得超过 {_opt.FullAccessMaxTtlDays} 天");
                 }
             }

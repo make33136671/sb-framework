@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -45,10 +45,10 @@ namespace SB.Framework.Models
         [Column(Name = "Message", StringLength = 2000, IsNullable = false)]
         public string Message { get; set; } = null!;
 
-        [Column(Name = "Exception", DbType = "text", IsNullable = true)]
+        [Column(Name = "Exception", StringLength = -2, IsNullable = true)]
         public string? Exception { get; set; }
 
-        [Column(Name = "CreatedTime", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "CreatedTime", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime CreatedTime { get; set; }
 
         [Column(Name = "ExecutionRecordId", StringLength = 50, IsNullable = true)]

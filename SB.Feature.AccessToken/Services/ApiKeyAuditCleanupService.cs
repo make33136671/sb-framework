@@ -33,7 +33,7 @@ namespace SB.Feature.AccessToken.Services
                 {
                     if (_opt.AuditRetentionDays > 0)
                     {
-                        var threshold = DateTime.Now.AddDays(-_opt.AuditRetentionDays);
+                        var threshold = SB.Framework.Core.Util.AppTime.Now.AddDays(-_opt.AuditRetentionDays);
                         var n = _audit.CleanupOlderThan(threshold);
                         if (n > 0) _logger.LogInformation("ApiKey 审计清理: 删除 {N} 条早于 {T:yyyy-MM-dd} 的记录", n, threshold);
                     }

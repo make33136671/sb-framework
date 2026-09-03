@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -21,16 +21,16 @@ namespace SB.Framework.Models
         [Column(Name = "Subject")]
         public string Subject { get; set; } = null!;
 
-        [Column(Name = "Body", DbType = "text")]
+        [Column(Name = "Body", StringLength = -2)]
         public string Body { get; set; } = null!;
 
         [Column(Name = "IsActive")]
         public bool IsActive { get; set; }
 
-        [Column(Name = "CreatedAt", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "CreatedAt", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime CreatedAt { get; set; }
 
-        [Column(Name = "UpdatedAt", DbType = "timestamp")]
+        [Column(Name = "UpdatedAt")]
         public DateTime UpdatedAt { get; set; }
     }
 }

@@ -126,7 +126,7 @@ namespace SB.Framework.Services
                 {
                     path = AppSettingsPath,
                     size = beautified.Length,
-                    savedAt = DateTime.Now,
+                    savedAt = SB.Framework.Core.Util.AppTime.Now,
                 });
             }
             catch (Exception ex)
@@ -226,7 +226,7 @@ namespace SB.Framework.Services
             if (!File.Exists(AppSettingsPath)) return;
 
             Directory.CreateDirectory(HistoryDir);
-            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var stamp = SB.Framework.Core.Util.AppTime.Now.ToString("yyyyMMdd_HHmmss");
             var dst = Path.Combine(HistoryDir, $"appsettings.{stamp}.bak.json");
             try
             {

@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -45,13 +45,13 @@ namespace SB.Framework.Models
         /// <summary>
         /// 创建时间
         /// </summary>
-        [Column(Name = "CreatedTime", DbType = "timestamp", InsertValueSql = "now()", CanUpdate = false)]
+        [Column(Name = "CreatedTime", InsertValueSql = "now()", CanUpdate = false)]
         public DateTime CreatedTime { get; set; }
 
         /// <summary>
         /// 最后在线时间
         /// </summary>
-        [Column(Name = "LastOnlineTime", DbType = "timestamp", InsertValueSql = "now()")]
+        [Column(Name = "LastOnlineTime", InsertValueSql = "now()")]
         public DateTime LastOnlineTime { get; set; }
 
         /// <summary>

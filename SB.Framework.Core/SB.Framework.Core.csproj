@@ -18,8 +18,11 @@
          发布期：dotnet pack 自动把 ProjectReference 转成对应版本的包依赖。
          -->
     <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
+    <!-- 分析器必须向下游传递（去掉 PrivateAssets=all）：
+          SB0001/0002/0003 要覆盖所有引用框架的项目，PrivateAssets=all 曾导致
+          分析器只在直接引用 Core 的 Services 项目生效，WebApi/Feature/派生项目全被放过 -->
     <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj"
-                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

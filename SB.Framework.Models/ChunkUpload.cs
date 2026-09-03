@@ -1,4 +1,4 @@
-﻿using FreeSql.DataAnnotations;
+using FreeSql.DataAnnotations;
 using System;
 
 namespace SB.Framework.Models
@@ -63,13 +63,13 @@ namespace SB.Framework.Models
         /// <summary>
         /// 创建时间
         /// </summary>
-        [Column(Name = "CreatedAt", DbType = "timestamp", InsertValueSql = "now()")]
+        [Column(Name = "CreatedAt", InsertValueSql = "now()")]
         public DateTime CreatedAt { get; set; }
 
         /// <summary>
         /// 完成时间
         /// </summary>
-        [Column(Name = "CompletedAt", DbType = "timestamp", IsNullable = true)]
+        [Column(Name = "CompletedAt", IsNullable = true)]
         public DateTime? CompletedAt { get; set; }
     }
 
