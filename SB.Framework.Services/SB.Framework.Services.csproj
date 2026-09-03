@@ -7,8 +7,6 @@
     <AssemblyName>SB.Framework.Services</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Services</PackageId>
-    <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Services.NoLicense</PackageId>
     <Version>0.4.17</Version>
     <Description>SB Framework 基础应用服务 + 扩展点</Description>
   </PropertyGroup>
@@ -29,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 开发期 ProjectReference（变体由发包参数统一控制，见 Core.csproj 注释） -->
+    <!-- 开发期 ProjectReference，dotnet pack 自动转成对应版本的包依赖 -->
     <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
     <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
   </ItemGroup>

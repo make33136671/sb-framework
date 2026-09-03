@@ -423,17 +423,10 @@ namespace SB.Framework.Services
                 File.WriteAllText(LockFilePath, lockContent);
                 _logger.LogInformation("安装向导: 安装标记文件已创建");
 
-                var licenseEnabled =
-#if !DISABLE_LICENSE
-                    true;
-#else
-                    false;
-#endif
-
                 return Result.Success("安装成功！请重启应用以加载新配置。", new
                 {
                     symlinkResults,
-                    licenseEnabled,
+                    licenseEnabled = false,
                 });
             }
             catch (Exception ex)
@@ -778,10 +771,7 @@ namespace SB.Framework.Services
                 redisObj["InstanceName"] = cachePrefix;
             }
 
-            // 清空旧授权 Key，避免残留（授权服务器地址已统一到 CloudConfig.ServerUrl）
-            jObj["LicenseConfig"] = JsonSerializer.SerializeToNode(new { Key = "" });
-
-            // 写入 CloudConfig.ServerUrl（云端中心地址；授权 / 备份 等所有云端功能共用，只配置一次）
+            // 写入 CloudConfig.ServerUrl（云端中心地址；备份等云端功能共用，只配置一次）
             // 缺 scheme 时自动补 https://，避免后续 HttpClient.PostAsync 因 relative URI 抛 BaseAddress 异常
             var cloudUrl = request.CloudServerUrl?.Trim().TrimEnd('/') ?? "";
             if (!string.IsNullOrEmpty(cloudUrl)

@@ -25,8 +25,6 @@ namespace SB.Framework.Services
         IFreeSql _fsql;
         IHttpContextAccessor _httpContextAccessor;
         ICacheService _cacheService;
-        // 可选:NoLicense 构建里没有授权设置分类,带授权构建里用它判断"未激活则隐藏授权设置"
-        readonly SB.Framework.Core.License.ILicenseService? _licenseService;
 
         private const string CachePrefix = "SystemSetting:";
         private static readonly TimeSpan CacheExpiration = TimeSpan.FromMinutes(30);
@@ -43,26 +41,12 @@ namespace SB.Framework.Services
             public const string BaseHost = "BaseHost";
         }
 
-        public SystemSettingService(IFreeSql fsql, ILogger<SystemSettingService> logger, IHttpContextAccessor httpContextAccessor, ICacheService cacheService, SB.Framework.Core.License.ILicenseService? licenseService = null) : base(fsql, logger)
+        public SystemSettingService(IFreeSql fsql, ILogger<SystemSettingService> logger, IHttpContextAccessor httpContextAccessor, ICacheService cacheService) : base(fsql, logger)
         {
             _fsql = fsql;
             _httpContextAccessor = httpContextAccessor;
             _cacheService = cacheService;
-            _licenseService = licenseService;
         }
-
-        // 隐藏「授权设置」分类的条件:只有"启用了授权 且 已激活有效"才显示,其余都隐藏 ——
-        //   - NoLicense 构建(IsEnabled=false):没有授权概念,但 DB 可能残留早期带授权构建种的
-        //     「授权设置」数据,应隐藏;
-        //   - 带授权但未激活(IsEnabled=true 且 !IsValid:未填 Key / Key 无效 / 过期):没开始授权,
-        //     配置「授权到期提醒」没意义,应隐藏。
-        // licenseService 为 null 时按"未启用"处理(隐藏)。
-        private bool ShouldHideLicenseSettings()
-            => _licenseService == null
-               || !_licenseService.IsEnabled
-               || !_licenseService.CurrentStatus.IsValid;
-
-        private const string LicenseCategoryName = "授权设置";
 
         /// <summary>
         /// 获取用户地址缓存时间
@@ -159,12 +143,6 @@ namespace SB.Framework.Services
             if (categoryId.HasValue)
             {
                 query = query.Where(c => c.Id == categoryId);
-            }
-
-            // 授权未激活时隐藏「授权设置」分类
-            if (ShouldHideLicenseSettings())
-            {
-                query = query.Where(c => c.Name != LicenseCategoryName);
             }
 
             if (string.IsNullOrEmpty(field))
