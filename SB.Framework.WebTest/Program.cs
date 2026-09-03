@@ -1,7 +1,11 @@
 using SB.Framework.WebApi.Extensions;
+using SB.Framework.WebTest.Tasks;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddSbFramework();
+
+// 测试项目自身的业务任务注册(衍生项目接入后台任务的标准姿势)
+builder.Services.AddHostedService<WebTestTaskRegistration>();
 
 var app = builder.Build();
 

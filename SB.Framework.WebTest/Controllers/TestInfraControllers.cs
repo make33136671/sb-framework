@@ -10,7 +10,7 @@ namespace SB.Framework.WebTest.Controllers;
 /// 缓存场景:直接驱动 ICacheService 全部方法
 /// (Provider 由 appsettings CacheConfig 决定:Memory / Redis / 关闭)。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/cache/[action]")]
 public class TestCacheController : ControllerBase
 {
     private readonly ICacheService _cache;
@@ -63,7 +63,7 @@ public class TestCacheController : ControllerBase
 /// 后台任务场景:列出任务 / 手动触发 / 查看任务日志。
 /// 任务本体 OrderTimeoutTask 由 WebTestTaskRegistration 注册(演示衍生项目接入姿势)。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/task/[action]")]
 public class TestTaskController : ControllerBase
 {
     private readonly IBackgroundTaskManager _manager;

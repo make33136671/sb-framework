@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SB.Framework.Core;
@@ -11,13 +12,9 @@ namespace SB.Framework.WebTest.Controllers;
 /// <summary>
 /// 测试台首页与系统信息。GET / → 重定向测试台 UI(wwwroot/test.html)。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/home/[action]")]
 public class TestHomeController : ControllerBase
 {
-    private readonly FeatureCatalog _catalog;
-
-    public TestHomeController(FeatureCatalog catalog) => _catalog = catalog;
-
     [HttpGet("/"), AllowAnonymous]
     public IActionResult Index() => RedirectPermanent("/test.html");
 
@@ -29,7 +26,8 @@ public class TestHomeController : ControllerBase
         ProductEn = AppGlobal.AppSettings?.ProductEn,
         TimeZone = SB.Framework.Core.Util.AppTime.Zone.Id,
         ServerNow = SB.Framework.Core.Util.AppTime.Now,
-        LoadedFeatures = _catalog.Features.Select(f => new { f.FeatureName, f.Enabled }).ToList(),
+        LoadedFeatures = FeatureRuntime.Catalog?.Features
+            .Select(f => new { f.FeatureName, f.Enabled }).ToList(),
         Swagger = "/swagger",
     });
 }
@@ -38,7 +36,7 @@ public class TestHomeController : ControllerBase
 /// 认证场景:演示 JWT 登录、身份解析、鉴权对照、API Key 通道识别。
 /// 登录走框架 AdminService(含 2FA / 登录限流,与生产同一条代码路径)。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/auth/[action]")]
 public class TestAuthController : ControllerBase
 {
     private readonly AdminService _admin;
@@ -59,31 +57,46 @@ public class TestAuthController : ControllerBase
     [HttpGet, Authorize(AuthenticationSchemes = "JwtAdmin")]
     public Result WhoAmI() => Result.Success("JWT 鉴权通过", new
     {
-        Identity = User.Identity?.Name,
+        Username = User.FindFirst("Username")?.Value,
         Claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList(),
-        OperatorTag = Operator(),
     });
 
-    /// <summary>API Key 通道验证:用 sk_ key 访问本端点,操作人应显示 key:xxx(验证 AccessToken 插件全链)</summary>
+    /// <summary>
+    /// 认证通道探针:AllowAnonymous 端点上 JWT 是被动认证,这里演示主动 AuthenticateAsync ——
+    /// 带 JWT → admin;带 sk_ key → key:xxx;都不带 → anonymous。
+    /// </summary>
     [HttpGet, AllowAnonymous]
-    public Result ApiKeyProbe() => Result.Success("请求已到达(请看 data.operatorTag 判断认证通道)", new
+    public async Task<Result> ApiKeyProbe()
     {
-        AuthorizationHeader = _http.HttpContext?.Request.Headers.Authorization.ToString() switch
+        var http = _http.HttpContext!;
+        string channel;
+        string operatorTag;
+        if (http.Items.TryGetValue(SB.Feature.AccessToken.Services.ApiKeyContext.HttpItemKey,
+                out var ctx) && ctx is SB.Feature.AccessToken.Services.IApiKeyContext key)
         {
-            { Length: > 12 } h => $"{h[..10]}...",
-            { Length: > 0 } h => h,
-            _ => "(未携带)",
-        },
-        OperatorTag = Operator(),
-    });
-
-    private string Operator()
-    {
-        var http = _http.HttpContext;
-        if (http != null && http.Items.TryGetValue(
-                SB.Feature.AccessToken.Services.ApiKeyContext.HttpItemKey, out var ctx)
-            && ctx is SB.Feature.AccessToken.Services.IApiKeyContext key)
-            return key.OperatorTag;
-        return http?.User.Identity?.Name ?? "anonymous";
+            channel = "AccessToken 插件(sk_ key)";
+            operatorTag = key.OperatorTag;
+        }
+        else
+        {
+            var auth = await http.AuthenticateAsync("JwtAdmin");
+            if (auth.Succeeded)
+            {
+                channel = "JwtAdmin(JWT)";
+                operatorTag = auth.Principal.FindFirst("Username")?.Value ?? "unknown";
+            }
+            else
+            {
+                channel = "匿名";
+                operatorTag = "anonymous";
+            }
+        }
+        var authHeader = http.Request.Headers.Authorization.ToString();
+        return Result.Success("请求已到达", new
+        {
+            AuthorizationHeader = authHeader.Length > 12 ? $"{authHeader[..10]}..." : (authHeader == "" ? "(未携带)" : authHeader),
+            Channel = channel,
+            OperatorTag = operatorTag,
+        });
     }
 }

@@ -12,9 +12,13 @@ namespace SB.Framework.WebTest.Controllers;
 /// 引擎语义:执行指针沿 exec 线走,数据沿 data 线经 varGet/上游输出拉取;
 /// 业务节点沿其第一个 exec 出口推进,分支判断交给内置 if 节点。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/flow/[action]")]
 public class TestFlowController : ControllerBase
 {
+    // 图 JSON 为 camelCase,与前端 @saibo/flow-engine 同构;反序列化必须大小写不敏感,
+    // 否则 Entry/Nodes/Edges 全部绑不上,引擎拿到空图(steps=0)
+    private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
     /// <summary>
     /// 场景一:订单风控审批 —— 金额阈值分流(真实"下单后风控"业务):
     /// riskCheck 业务节点产出 passed/reason → if 按 passed 分支 → varSet 落审批结论。
@@ -32,12 +36,14 @@ public class TestFlowController : ControllerBase
                 { "name": "verdict", "type": "string", "initial": "" }
               ],
               "nodes": [
+                { "id": "get",  "moduleId": "varGet",    "config": { "varName": "amount" } },
                 { "id": "risk", "moduleId": "riskCheck", "config": { "threshold": 1000 } },
                 { "id": "gate", "moduleId": "if",        "config": {} },
                 { "id": "auto", "moduleId": "varSet",    "config": { "varName": "verdict" } },
                 { "id": "hold", "moduleId": "varSet",    "config": { "varName": "verdict" } }
               ],
               "edges": [
+                { "id": "d0",  "kind": "data", "source": "get",  "sourcePort": "value",  "target": "risk", "targetPort": "amount" },
                 { "id": "d1",  "kind": "data", "source": "risk", "sourcePort": "passed", "target": "gate", "targetPort": "cond" },
                 { "id": "d2",  "kind": "data", "source": "risk", "sourcePort": "reason", "target": "auto", "targetPort": "value" },
                 { "id": "d3",  "kind": "data", "source": "risk", "sourcePort": "reason", "target": "hold", "targetPort": "value" },
@@ -46,7 +52,7 @@ public class TestFlowController : ControllerBase
                 { "id": "e3",  "kind": "exec", "source": "gate", "sourcePort": "false",  "target": "hold", "targetPort": "in" }
               ]
             }
-            """)!;
+            """, JsonOpts)!;
         var modules = new List<ModuleDefinition>
         {
             new()
@@ -106,7 +112,7 @@ public class TestFlowController : ControllerBase
                 { "id": "e4",  "kind": "exec", "source": "wait", "sourcePort": "out",   "target": "loop", "targetPort": "in" }
               ]
             }
-            """)!;
+            """, JsonOpts)!;
         var modules = new List<ModuleDefinition>
         {
             new()
@@ -193,10 +199,22 @@ public static class WebTestFlowNodes
 
         public Task<IReadOnlyDictionary<string, object?>> ExecuteAsync(FlowNodeContext ctx, CancellationToken ct = default)
         {
-            var stock = Convert.ToInt32(
-                ctx.Inputs.TryGetValue("stock", out var s) ? Convert.ChangeType(s, typeof(int)) : 0);
+            // Config/Inputs 的值可能是 JsonElement(图经 JSON 反序列化),须显式处理
+            var stock = ToInt(ctx.Inputs.TryGetValue("stock", out var s) ? s : 0);
             return Task.FromResult<IReadOnlyDictionary<string, object?>>(
                 new Dictionary<string, object?> { ["left"] = Math.Max(0, stock - 1) });
         }
+
+        private static int ToInt(object? value) => value switch
+        {
+            null => 0,
+            int i => i,
+            long l => (int)l,
+            double d => (int)d,
+            decimal m => (int)m,
+            JsonElement je => je.ValueKind == JsonValueKind.Number ? je.GetInt32()
+                : int.TryParse(je.ToString(), out var n) ? n : 0,
+            _ => int.TryParse(value.ToString(), out var n) ? n : 0,
+        };
     }
 }

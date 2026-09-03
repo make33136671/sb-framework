@@ -20,4 +20,12 @@
     <ProjectReference Include="..\SB.Feature.BackupReceive\SB.Feature.BackupReceive.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 运行期产物目录(安装向导品牌/上传/备份)不参与静态资产清单:
+         物理文件照常被 UseStaticFiles 服务,但不进 SWA build 清单,
+         避免与框架 WebApi 类库 wwwroot 的样板图标冲突(Conflicting assets) -->
+    <Content Remove="wwwroot\storage\**" />
+    <None Remove="wwwroot\storage\**" />
+  </ItemGroup>
+
 </Project>

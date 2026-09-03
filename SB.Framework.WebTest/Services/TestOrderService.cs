@@ -1,4 +1,5 @@
 using FreeSql;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core;
@@ -33,33 +34,38 @@ public class TestOrderService : BaseCrudService<TestOrder>
         _http = http;
     }
 
-    /// <summary>当前操作人标签:API Key 请求显示 key:xxx,JWT 显示用户名,否则 anonymous</summary>
-    public string OperatorTag
+    /// <summary>
+    /// 解析当前操作人:API Key 请求显示 key:xxx;
+    /// JWT 请求需主动认证(AllowAnonymous 端点上 JwtBearer 是被动的,context.User 为空);
+    /// 都没有则 anonymous。演示同一业务接口天然支持三种身份通道。
+    /// </summary>
+    public async Task<string> ResolveOperatorAsync()
     {
-        get
-        {
-            var http = _http.HttpContext;
-            if (http == null) return "anonymous";
-            if (http.Items.TryGetValue(SB.Feature.AccessToken.Services.ApiKeyContext.HttpItemKey,
-                    out var ctx) && ctx is SB.Feature.AccessToken.Services.IApiKeyContext key)
-                return key.OperatorTag;
-            return http.User.Identity?.Name ?? "anonymous";
-        }
+        var http = _http.HttpContext;
+        if (http == null) return "anonymous";
+        if (http.Items.TryGetValue(SB.Feature.AccessToken.Services.ApiKeyContext.HttpItemKey,
+                out var ctx) && ctx is SB.Feature.AccessToken.Services.IApiKeyContext key)
+            return key.OperatorTag;
+        var auth = await http.AuthenticateAsync("JwtAdmin");
+        if (auth.Succeeded)
+            return auth.Principal.FindFirst("Username")?.Value ?? "anonymous";
+        return "anonymous";
     }
 
     /// <summary>下单:生成单号 + 落库 + 失效统计缓存</summary>
-    public virtual Result CreateOrder(string productName, decimal amount)
+    public virtual async Task<Result> CreateOrderAsync(string productName, decimal amount)
     {
         if (string.IsNullOrWhiteSpace(productName)) return Result.Fail("商品名不能为空");
         if (amount <= 0) return Result.Fail("金额必须大于 0(演示参数校验)");
 
+        var operatorTag = await ResolveOperatorAsync();
         var order = new TestOrder
         {
             OrderNo = $"WT{AppTime.Now:yyyyMMddHHmmss}{Random.Shared.Next(100, 999)}",
             ProductName = productName.Trim(),
             Amount = amount,
             Status = TestOrderStatus.Pending,
-            CreatedBy = OperatorTag,
+            CreatedBy = operatorTag,
             CreatedAt = AppTime.UtcNow,
         };
         var id = (int)_db.Insert(order).ExecuteIdentity();
@@ -68,7 +74,7 @@ public class TestOrderService : BaseCrudService<TestOrder>
     }
 
     /// <summary>支付:Pending → Paid(演示业务状态机:非法流转拒绝)</summary>
-    public virtual Result Pay(int id)
+    public virtual async Task<Result> PayAsync(int id)
     {
         var order = _db.Select<TestOrder>().Where(o => o.Id == id).First();
         if (order == null) return Result.Fail($"订单 {id} 不存在(或已被软删)");
@@ -78,11 +84,11 @@ public class TestOrderService : BaseCrudService<TestOrder>
         order.PaidAt = AppTime.UtcNow;
         _db.Update<TestOrder>().SetSource(order).ExecuteAffrows();
         _cache.Remove(StatsCacheKey);
-        return Result.Success($"支付成功,操作人 {OperatorTag}", order);
+        return Result.Success($"支付成功,操作人 {await ResolveOperatorAsync()}", order);
     }
 
     /// <summary>用户取消:仅 Pending 可取消</summary>
-    public virtual Result Cancel(int id, string reason)
+    public virtual async Task<Result> CancelAsync(int id, string reason)
     {
         var order = _db.Select<TestOrder>().Where(o => o.Id == id).First();
         if (order == null) return Result.Fail($"订单 {id} 不存在(或已被软删)");

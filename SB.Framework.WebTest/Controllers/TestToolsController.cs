@@ -9,7 +9,7 @@ namespace SB.Framework.WebTest.Controllers;
 /// 工具箱场景:框架基础能力直接映射 ——
 /// 随机名生成 / AppTime 时区 / 电子表格解析(真实文件上传)。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/tools/[action]")]
 public class TestToolsController : ControllerBase
 {
     private readonly IRandomNameGenerator _names;

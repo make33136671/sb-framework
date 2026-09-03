@@ -11,7 +11,7 @@ namespace SB.Framework.WebTest.Controllers;
 /// 邮件场景:模板渲染预览(不出网)/ 真实发送(需在系统设置里配好 SMTP)/ 验证码全流程。
 /// 框架无 DryRun 模式,渲染预览用模板替换逻辑等价演示,真发送走 IEmailService 同一代码路径。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/email/[action]")]
 public class TestEmailController : ControllerBase
 {
     private readonly IEmailService _email;
@@ -67,24 +67,20 @@ public class TestEmailController : ControllerBase
 /// <summary>
 /// 系统设施场景:插件发现清单 / 健康检查 / 登录日志 / SQL 直查(演示 SqlController 能力面)。
 /// </summary>
-[ApiController, Route("[controller]/[action]")]
+[ApiController, Route("/test/system/[action]")]
 public class TestSystemController : ControllerBase
 {
-    private readonly FeatureCatalog _catalog;
     private readonly IFreeSql _fsql;
 
-    public TestSystemController(FeatureCatalog catalog, IFreeSql fsql)
-    {
-        _catalog = catalog;
-        _fsql = fsql;
-    }
+    public TestSystemController(IFreeSql fsql) => _fsql = fsql;
 
     /// <summary>Feature 插件体系:发现/启用/禁用全清单(黑名单关掉某插件后这里同步变化)</summary>
     [HttpGet, AllowAnonymous]
     public Result Features() => Result.Success("ok", new
     {
-        AllScanAssemblies = _catalog.AllScanAssemblies.Select(a => a.GetName().Name).ToList(),
-        Features = _catalog.Features.Select(f => new
+        AllScanAssemblies = FeatureRuntime.Catalog?.AllScanAssemblies
+            .Select(a => a.GetName().Name).ToList(),
+        Features = FeatureRuntime.Catalog?.Features.Select(f => new
         {
             f.FeatureName,
             f.Enabled,
