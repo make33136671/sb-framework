@@ -5,9 +5,11 @@ namespace SB.Framework.WebApi.Extensions;
 public static class BackgroundTaskSetup
 {
     /// <param name="runTasks">
-    /// 是否真正启动后台任务的 HostedService。部署冒烟预检(SB_SMOKE_TEST=1)传 false:
-    /// 保留 IBackgroundTaskManager 的 DI 注册(否则注入它的控制器在冒烟实例里解析失败 → 假性拦截部署),
-    /// 但不启动任务运行器,避免临时探活实例跑定时任务。见 docs/AI_Deploy_Resilience.md。
+    /// 是否真正装配后台任务运行器(任务注册 + 启动 HostedService)。
+    /// 仅当 已安装 且 非冒烟 时为 true(SbFrameworkExtensions 统一决定):
+    ///   false 时只注册 IBackgroundTaskManager 本身(保持 DI 依赖图完整,派生项目
+    ///   HostedService/Controller 任何状态都能构造注入),任务不注册、不轮询、零副作用。
+    ///   见 docs/AI_Deploy_Resilience.md。
     /// </param>
     public static IServiceCollection AddBackgroundTasks(this IServiceCollection services, bool runTasks = true)
     {

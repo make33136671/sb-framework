@@ -140,6 +140,12 @@ public static class SbFrameworkExtensions
             Logger = new SerilogLoggerFactory(Log.Logger).CreateLogger("Features"),
         };
 
+        // 后台任务系统【无条件注册】IBackgroundTaskManager(仅依赖 ILogger,不依赖 IFreeSql):
+        //   保证派生项目的 HostedService/Controller 在任何状态(未安装/冒烟)都能构造注入,
+        //   DI 依赖图永远完整。任务【运行器】只在已安装且非冒烟时装配:
+        //   未安装/冒烟 → 管理器在、无任务运行(BackgroundTaskHostedService 不装配,零副作用)。
+        builder.Services.AddBackgroundTasks(runTasks: isInstalled && !smoke);
+
         if (isInstalled)
         {
             builder.Services.AddFreeSql(configuration);
@@ -157,9 +163,6 @@ public static class SbFrameworkExtensions
             // 随机名称生成(中文人名 / 生活服务备注名)——业务层注入 IRandomNameGenerator 即用
             builder.Services.AddSingleton<SB.Framework.Services.IRandomNameGenerator, SB.Framework.Services.RandomNameGenerator>();
             builder.Services.AddQdrantService(configuration);
-            // 冒烟模式不启动后台任务运行器(定时任务都挂在它下面),避免临时探活实例
-            // 跑定时任务;但仍注册 IBackgroundTaskManager 保持 DI 依赖图完整。
-            builder.Services.AddBackgroundTasks(runTasks: !smoke);
             builder.Services.AddLoginRateLimiter();
             builder.Services.AddDatabaseHealthCheck(configuration);
 
