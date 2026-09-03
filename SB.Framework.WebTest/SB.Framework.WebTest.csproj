@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>SB.Framework.WebTest</RootNamespace>
+    <AssemblyName>SB.Framework.WebTest</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <!-- 测试宿主不是 NuGet 包,不发版 -->
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <Description>SB Framework 永久 Web 功能测试宿主:以真实业务场景模拟映射框架全部能力,自带零构建测试台 UI(wwwroot/test.html)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 开发期 ProjectReference 直连框架源码:框架一改,这里立刻可测,无需发版 -->
+    <ProjectReference Include="..\SB.Framework.WebApi\SB.Framework.WebApi.csproj" />
+    <ProjectReference Include="..\SB.FlowEngine\SB.FlowEngine.csproj" />
+    <!-- 插件包:引包即启用(deps.json → FeatureScanner 自动发现装配) -->
+    <ProjectReference Include="..\SB.Feature.AccessToken\SB.Feature.AccessToken.csproj" />
+    <ProjectReference Include="..\SB.Feature.BackupReceive\SB.Feature.BackupReceive.csproj" />
+  </ItemGroup>
+
+</Project>
