@@ -62,7 +62,7 @@ public static class FeatureScanner
             return ResolveFromLoadedAssemblies(o); // (C) 再兜底：deps.json 缺失（极少见）
 
         // 关键：GetDefaultAssemblyNames 取真实程序集名而非包名 lib.Name
-        // —— 双变体包 SB.Framework.Core.NoLicense 的 AssemblyName 仍是 SB.Framework.Core
+        // —— 包名(PackageId)与程序集名(AssemblyName)可以不同,这里必须用后者
         var names = ctx.RuntimeLibraries
             .SelectMany(lib => lib.GetDefaultAssemblyNames(ctx))
             .Select(an => an.Name!)

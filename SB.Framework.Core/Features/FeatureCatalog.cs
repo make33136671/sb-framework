@@ -5,7 +5,7 @@ namespace SB.Framework.Features;
 
 /// <summary>单个 feature 的元数据。发现层写，装配/数据/生命周期三层读。</summary>
 public sealed record FeatureDescriptor(
-    string FeatureName,          // 短名，"SB.Feature.LicenseManage" → "LicenseManage"
+    string FeatureName,          // 短名，"SB.Feature.BackupReceive" → "BackupReceive"
     Assembly Assembly,
     bool Enabled,                // 经黑名单过滤后的最终状态
     string? DisabledReason);     // "disabled by config" / "load failed: ..." / null
@@ -72,7 +72,7 @@ public sealed class FeatureCatalog
             if (!asmName.StartsWith(o.FeaturePrefix, StringComparison.OrdinalIgnoreCase))
                 continue; // 其余框架程序集不算 feature
 
-            var shortName = asmName[o.FeaturePrefix.Length..];           // "LicenseManage"
+            var shortName = asmName[o.FeaturePrefix.Length..];           // "BackupReceive"
             bool isDisabled = disabled.Contains(shortName) || disabled.Contains(asmName);
             features.Add(new FeatureDescriptor(
                 shortName, asm,

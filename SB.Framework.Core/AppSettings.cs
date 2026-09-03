@@ -26,12 +26,12 @@
         public string ProductCn { get; set; } = null!;
 
         /// <summary>
-        /// 产品英文名称（小写字母+数字，用于路径前缀、缓存前缀、License Product）
+        /// 产品英文名称（小写字母+数字，用于路径前缀、缓存前缀等）
         /// </summary>
         public string ProductEn { get; set; } = "sb";
 
         /// <summary>
-        /// 主域名（如 example.com），用于授权绑定、CORS 等
+        /// 主域名（如 example.com），用于 CORS 等
         /// </summary>
         public string PrimaryDomain { get; set; } = "";
 
@@ -110,19 +110,14 @@
         public bool TaskRun { get; set; }
 
         /// <summary>
-        /// 授权许可配置
-        /// </summary>
-        public LicenseConfig LicenseConfig { get; set; } = new();
-
-        /// <summary>
-        /// 云端中心配置：所有云端服务（授权 / 数据库备份接收 / 未来其他）共用一个根地址
+        /// 云端中心配置：所有云端服务（数据库备份接收 / 未来其他）共用一个根地址
         /// 在安装向导里填一次，运行时各功能拼接子路径调用
         /// </summary>
         public CloudConfig CloudConfig { get; set; } = new();
 
         /// <summary>
         /// 取云端中心地址（纯基地址，不带子路径）。
-        /// 所有云端功能（授权 / 数据库备份 / 未来其他）共用此地址，自行拼子路径。
+        /// 所有云端功能（数据库备份 / 未来其他）共用此地址，自行拼子路径。
         /// </summary>
         public string GetCloudServerUrl()
             => CloudConfig?.ServerUrl?.TrimEnd('/') ?? "";
@@ -347,25 +342,13 @@
     }
 
     /// <summary>
-    /// 授权许可配置 — 只存运行时授权 Key；授权服务器地址统一走 CloudConfig.ServerUrl
-    /// </summary>
-    public class LicenseConfig
-    {
-        /// <summary>
-        /// 授权Key（签名后的授权文件内容）
-        /// </summary>
-        public string Key { get; set; } = "";
-    }
-
-    /// <summary>
-    /// 云端中心配置：所有云端服务（授权 / 数据库备份接收 / 未来其他）共用此根地址
+    /// 云端中心配置：所有云端服务（数据库备份接收 / 未来其他）共用此根地址
     /// </summary>
     public class CloudConfig
     {
         /// <summary>
         /// 云端中心根地址，如 https://cloud.saibo.club
         /// 各功能在此地址上拼接子路径：
-        ///   授权: {ServerUrl}/api/verify/...
         ///   数据库备份接收: {ServerUrl}/api/BackupReceive/Upload
         /// </summary>
         public string ServerUrl { get; set; } = "";

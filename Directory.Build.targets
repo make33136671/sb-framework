@@ -1,10 +1,8 @@
 <Project>
   <PropertyGroup>
-    <!-- dotnet publish/build -p:DisableLicense=true  → 关闭授权验证（主权功能，#if 双变体，唯一保留的编译符号） -->
-    <!-- Debug 和 Release 均默认启用授权 -->
-    <DefineConstants Condition="'$(DisableLicense)' == 'true'">$(DefineConstants);DISABLE_LICENSE</DefineConstants>
-    <!-- ENABLE_LICENSE_MANAGE / ENABLE_BACKUP_RECEIVE 已移除：
-         授权管理 / 备份接收端已抽成独立插件包 SB.Feature.LicenseManage / SB.Feature.BackupReceive，
+    <!-- ENABLE_LICENSE_MANAGE / ENABLE_BACKUP_RECEIVE / DISABLE_LICENSE 均已移除：
+         授权验证体系已从框架主线移除（历史代码见 archive/with-license 分支），
+         备份接收端为独立插件包 SB.Feature.BackupReceive，
          "引包即启用 + Features:Disabled 黑名单可关"取代编译符号开关。详见 docs/AI_Plugin_Architecture.md。 -->
   </PropertyGroup>
 </Project>

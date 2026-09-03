@@ -16,17 +16,17 @@ namespace SB.Framework.Features;
 ///
 /// 为什么落 Core 而非 Models：ConfigureServices/Configure 的签名引用 IServiceCollection/
 /// IApplicationBuilder（ASP.NET 抽象）。Models 是纯数据层，不该认识这些类型。Core 已引
-/// DI/Builder（见 License/LicenseServiceExtensions.cs），放这里零新增依赖。
+/// DI/Builder，放这里零新增依赖。
 /// </summary>
 public interface IFeatureModule
 {
     // ① 自我标识 —— 黑名单匹配、日志、去重的 key
-    /// <summary>插件唯一名，约定 = 包名去 "SB.Feature." 前缀，如 "LicenseManage" / "BackupReceive"。
+    /// <summary>插件唯一名，约定 = 包名去 "SB.Feature." 前缀，如 "AccessToken" / "BackupReceive"。
     /// 用于 appsettings "Features:Disabled" 黑名单匹配、配置子节 key、启动日志。
     /// 必须全局唯一；重名时后发现的覆盖先发现的。</summary>
     string FeatureName { get; }
 
-    /// <summary>展示名（菜单/日志可读），如 "授权管理"。</summary>
+    /// <summary>展示名（菜单/日志可读），如 "云端备份接收"。</summary>
     string DisplayName { get; }
 
     // ② 本插件的业务程序集 —— 发现 Service / Controller / IModuleInitializer 的范围
@@ -63,7 +63,6 @@ public interface IFeatureModule
     // ⑥ 中间件钩子（默认空实现）
     /// <summary>中间件管线期：插件需要自己的中间件时用（如某 Feature 要 app.UseXxx）。
     /// 默认空——两个样板插件都不需要（控制器足矣）。
-    /// 固定锚点：UseAuthorization 之后、MapControllers 之前（即所有插件中间件在 License 闸门内侧，
-    /// 见 §6 主权边界）。插件【不得】插队到 License 校验之前。</summary>
+    /// 固定锚点：UseAuthorization 之后、MapControllers 之前。插件中间件不早于授权管线。</summary>
     void Configure(IApplicationBuilder app, FeatureContext ctx) { }
 }

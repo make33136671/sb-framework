@@ -26,7 +26,7 @@ namespace SB.Framework.Core.Authentication
         /// <summary>认证通过时,以 key 归属账号构造的身份(AuthenticationType = 传入的 schemeName)。</summary>
         public ClaimsPrincipal? Principal { get; init; }
 
-        /// <summary>该 key 是否为 FullAccess(god)—— License 旁路据此判断。</summary>
+        /// <summary>该 key 是否为 FullAccess(god)——穿透所有 scope 限制。</summary>
         public bool IsFullAccess { get; init; }
 
         /// <summary>失败原因(仅服务端日志/审计用,不对外泄露)。</summary>
@@ -52,7 +52,7 @@ namespace SB.Framework.Core.Authentication
         /// <summary>
         /// 解析请求里的 Authorization: Bearer sk_… 凭据。每请求只真正校验一次(结果缓存在 HttpContext.Items),
         /// 含失败按 IP 节流 / 审计 / 归属账号状态校验。schemeName 决定生成身份的 AuthenticationType。
-        /// 本方法不写 context.User —— 由调用方(中间件 / JwtBearer handler / License 中间件)按需取用。
+        /// 本方法不写 context.User —— 由调用方(中间件 / JwtBearer handler)按需取用。
         /// </summary>
         ApiKeyAuthResult Resolve(HttpContext context, string schemeName);
     }

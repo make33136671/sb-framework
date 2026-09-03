@@ -8,17 +8,15 @@
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Core</PackageId>
-    <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Core.NoLicense</PackageId>
     <Version>0.4.9</Version>
     <Authors>Sb Framework</Authors>
-    <Description>SB Framework ����������ԭ�򣺰�ȫ����֤����̨����Feature ��ϵ��License �м���ȡ�</Description>
+    <Description>SB Framework 核心库：工具、Feature 插件体系、认证缝、品牌图标生成。</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 开发期：框架内部包�?ProjectReference，一次编译全贯通，无需链式发包�?
-         发布期：dotnet pack 自动�?ProjectReference 转成对应版本的包依赖�?
-         变体（正�?/ NoLicense）由 dotnet pack �?-p:DisableLicense 参数统一控制，不在此写死�?-->
+    <!-- 开发期：框架内部包走 ProjectReference，一次编译全贯通，无需链式发包。
+         发布期：dotnet pack 自动把 ProjectReference 转成对应版本的包依赖。
+         -->
     <ProjectReference Include="..\SB.Framework.Models\SB.Framework.Models.csproj" />
     <ProjectReference Include="..\SB.Framework.Analyzers\SB.Framework.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
@@ -27,9 +25,9 @@
   <ItemGroup>
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="FreeSql.Repository" Version="3.5.304" />
-    <!-- Feature 发现层：�?.deps.json �?RuntimeLibraries 枚举程序�?-->
+    <!-- Feature 发现层：读 .deps.json 的 RuntimeLibraries 枚举程序集 -->
     <PackageReference Include="Microsoft.Extensions.DependencyModel" Version="9.0.3" />
-    <!-- Feature 启动日志 + 装配上下�?Logger -->
+    <!-- Feature 启动日志 + 装配上下文 Logger -->
     <PackageReference Include="Serilog" Version="4.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.1" />
