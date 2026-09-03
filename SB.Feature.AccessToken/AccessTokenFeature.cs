@@ -29,7 +29,7 @@ namespace SB.Feature.AccessToken
             services.AddSingleton<ApiKeyService>();
             services.AddSingleton<ServiceAccountService>();
 
-            // 核心缝实现:JwtSetup / LicenseMiddleware / ApiKeyMiddleware 在请求期解析此接口
+            // 核心缝实现:JwtSetup / ApiKeyMiddleware 在请求期解析此接口
             services.AddSingleton<IApiKeyAuthenticator, ApiKeyAuthenticator>();
 
             // 供控制器构造注入当前请求的 key 上下文(取代原 IAgentContext)。

@@ -10,8 +10,6 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>SB.Framework.Analyzers</RootNamespace>
     <AssemblyName>SB.Framework.Analyzers</AssemblyName>
-    <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.Analyzers</PackageId>
-    <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.Analyzers.NoLicense</PackageId>
     <Version>0.4.6</Version>
     <Description>SB Framework Roslyn 分析器</Description>
     <!--

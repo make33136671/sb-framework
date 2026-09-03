@@ -6,17 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId Condition="'$(DisableLicense)' != 'true'">SB.FlowEngine</PackageId>
-    <PackageId Condition="'$(DisableLicense)' == 'true'">SB.FlowEngine.NoLicense</PackageId>
     <Version>0.2.1</Version>
     <Description>SB 图执行引擎(前端 @saibo/flow-engine 的服务端对称实现):读 FlowGraph 执行,内置 if/loop/goto/label/变量/wait/subFlow 控制节点,业务节点经 IFlowNodeExecutor 接入,支持节点级 retry/stopOnError/delay 执行机制</Description>
   </PropertyGroup>
-  <!-- 开发期 + 正常变体:走 ProjectReference,pack 自动转成 SB.Framework.Core 包依赖 -->
-  <ItemGroup Condition="'$(DisableLicense)' != 'true'">
+  <ItemGroup>
+    <!-- 开发期走 ProjectReference,dotnet pack 自动转成 SB.Framework.Core 包依赖 -->
     <ProjectReference Include="..\SB.Framework.Core\SB.Framework.Core.csproj" />
-  </ItemGroup>
-  <!-- NoLicense 变体:依赖必须指向 SB.Framework.Core.NoLicense(dll 同名,与 avm 等 NoLicense 链一致) -->
-  <ItemGroup Condition="'$(DisableLicense)' == 'true'">
-    <PackageReference Include="SB.Framework.Core.NoLicense" Version="0.4.6" />
   </ItemGroup>
 </Project>

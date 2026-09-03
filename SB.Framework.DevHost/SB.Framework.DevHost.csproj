@@ -9,8 +9,8 @@
   <ItemGroup>
     <!-- 开发期 ProjectReference 框架主包 -->
     <ProjectReference Include="..\SB.Framework.WebApi\SB.Framework.WebApi.csproj" />
-    <!-- 引入两个插件包 → deps.json 列出 → FeatureScanner 自动发现 → 验证 feature 装配 -->
+    <!-- 引入插件包 → deps.json 列出 → FeatureScanner 自动发现 → 验证 feature 装配 -->
     <ProjectReference Include="..\SB.Feature.BackupReceive\SB.Feature.BackupReceive.csproj" />
-    <ProjectReference Include="..\SB.Feature.LicenseManage\SB.Feature.LicenseManage.csproj" />
+    <ProjectReference Include="..\SB.Feature.AccessToken\SB.Feature.AccessToken.csproj" />
   </ItemGroup>
 </Project>

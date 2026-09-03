@@ -45,7 +45,7 @@ namespace SB.Feature.AccessToken.Models
         public string? Scopes { get; set; }
 
         /// <summary>
-        /// FullAccess(god):忽略 scope、穿透所有端点、并旁路 License(取代原 MasterKey)。
+        /// FullAccess(god):忽略 scope、穿透所有端点(取代原 MasterKey)。
         /// 仅 super 角色可签发,且需功能开关 EnableFullAccess=true 才生效。
         /// </summary>
         [Column(Name = "FullAccess", IsNullable = false)]
