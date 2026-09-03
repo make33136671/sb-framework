@@ -24,11 +24,14 @@ namespace SB.Framework.Core.Brand
         {
             var fc = new FontCollection();
             var asm = typeof(BrandIconGenerator).Assembly;
-            var name = asm.GetManifestResourceNames()
-                .FirstOrDefault(n => n.EndsWith("Roboto-Bold.ttf", StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException("SB.Framework.Core 未内嵌品牌字体 Roboto-Bold.ttf");
-            using var stream = asm.GetManifestResourceStream(name)!;
-            fc.Add(stream);
+            foreach (var file in new[] { "Roboto-Bold.ttf", "NotoSansSC-Bold.otf" })
+            {
+                var name = asm.GetManifestResourceNames()
+                    .FirstOrDefault(n => n.EndsWith(file, StringComparison.OrdinalIgnoreCase))
+                    ?? throw new InvalidOperationException($"SB.Framework.Core 未内嵌品牌字体 {file}");
+                using var stream = asm.GetManifestResourceStream(name)!;
+                fc.Add(stream);
+            }
             return fc;
         });
 
@@ -180,19 +183,21 @@ namespace SB.Framework.Core.Brand
                 var mark = RenderMark((int)markSize, spec, null);
                 ctx.DrawImage(mark, new Point((int)(h * 0.05f), (int)(h * 0.05f)), 1f);
 
-                var titleFont = MainFont(h * 0.30f);
-                var subFont = MainFont(h * 0.11f);
-                var tx = h * 0.05f + markSize + h * 0.18f;
-
                 var title = spec.ProductCn;
                 var sub = spec.ProductEn.ToUpperInvariant();
                 var firstChar = title.Length > 0 ? title[0] : 'A';
-                if (!CanRender(firstChar))
+                var titleIsCjk = IsCjkChar(firstChar);
+                if (titleIsCjk && !HasCjkFamily())
                 {
-                    // 首字符无字形（如中文且未内嵌 CJK 字体）→ 英文名降级
+                    // 中文且未内嵌 CJK 字体 → 英文名降级
                     title = sub;
                     sub = "SB FRAMEWORK";
+                    titleIsCjk = false;
                 }
+
+                var tx = h * 0.05f + markSize + h * 0.18f;
+                var titleFont = MainFont(h * 0.30f, titleIsCjk);
+                var subFont = MainFont(h * 0.11f);
 
                 ctx.DrawText(new RichTextOptions(titleFont)
                 {
@@ -251,34 +256,32 @@ namespace SB.Framework.Core.Brand
                 new ColorStop(0f, Color.Parse(spec.AccentFrom)),
                 new ColorStop(1f, Color.Parse(spec.AccentTo)));
 
-        private static Font MainFont(float sizePx)
+        private static Font MainFont(float sizePx, bool cjk = false)
         {
-            var family = FontCollectionLazy.Value.Families.First();
-            return family.CreateFont(Math.Max(8f, sizePx), FontStyle.Bold);
+            var families = FontCollectionLazy.Value.Families;
+            var source = cjk ? families.Where(f => IsCjkFamily(f.Name)) : families;
+            return source.First().CreateFont(Math.Max(8f, sizePx), FontStyle.Bold);
         }
 
-        /// <summary>当前内嵌字体能否渲染该字符：
-        /// 缺字形时字体回退 .notdef 兜底字形，TryGetGlyphs 恒 true 不可用，
-        /// 故按“CJK 区段字符 + 已注册字体族名是否含 CJK 字体”启发式判断</summary>
-        private static bool CanRender(char c)
-        {
-            var isCjk = c is >= (char)0x2E80 and <= (char)0x9FFF   // CJK 部首/符号/统一表意
-                or >= (char)0x3400 and <= (char)0x4DBF             // 扩展 A
-                or >= (char)0xF900 and <= (char)0xFAFF             // 兼容表意
-                or >= (char)0x3000 and <= (char)0x303F             // CJK 标点
-                or >= (char)0xFF00 and <= (char)0xFFEF;            // 全角字符
-            if (!isCjk) return true;
+        /// <summary>字符是否属于 CJK 区段（中文/日文/韩文/全角）</summary>
+        private static bool IsCjkChar(char c)
+            => c is >= (char)0x2E80 and <= (char)0x9FFF    // CJK 部首/符号/统一表意
+                or >= (char)0x3400 and <= (char)0x4DBF     // 扩展 A
+                or >= (char)0xF900 and <= (char)0xFAFF     // 兼容表意
+                or >= (char)0x3000 and <= (char)0x303F     // CJK 标点
+                or >= (char)0xFF00 and <= (char)0xFFEF;    // 全角字符
 
-            return FontCollectionLazy.Value.Families.Any(f =>
-            {
-                var n = f.Name;
-                return n.Contains("CJK", StringComparison.OrdinalIgnoreCase)
-                    || n.Contains("SC", StringComparison.OrdinalIgnoreCase)
-                    || n.Contains("Han", StringComparison.OrdinalIgnoreCase)
-                    || n.Contains("Hei", StringComparison.OrdinalIgnoreCase)
-                    || n.Contains("Song", StringComparison.OrdinalIgnoreCase)
-                    || n.Contains("Ming", StringComparison.OrdinalIgnoreCase);
-            });
-        }
+        /// <summary>已注册字体族中是否有 CJK 字体（按族名关键字识别）</summary>
+        private static bool HasCjkFamily()
+            => FontCollectionLazy.Value.Families.Any(f => IsCjkFamily(f.Name));
+
+        private static bool IsCjkFamily(string name)
+            => name.Contains("CJK", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("Noto Sans SC", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("SC", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("Han", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("Hei", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("Song", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("Ming", StringComparison.OrdinalIgnoreCase);
     }
 }

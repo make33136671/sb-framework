@@ -62,13 +62,11 @@ var current = BrandIconGenerator.LoadSpec(storageDir);   // 读取已生成规�
 
 - **渲染**：纯 `SixLabors.ImageSharp.Drawing` 程序化绘制（六边形多边形 + 线性渐变画刷 +
   文字居中），无 System.Drawing，Docker Linux 容器可用；SVG 为字符串模板，零成本输出。
-- **字体**：NuGet 包内嵌 `Roboto-Bold.ttf`（Apache 2.0 可再分发，含 license 文件），
-  Docker 容器无系统字体也能正常渲染单字标与英文名。
-- **中文降级**：内嵌字体暂无 CJK 字形。横版 PNG 检测到中文产品名且无 CJK 字体时，
-  自动降级渲染英文名 + "SB FRAMEWORK" 副标（SVG 版不受影响，浏览器自带中文字体）。
-  若需 PNG 出中文：向 `SB.Framework.Core/Brand/Fonts/` 增加中文字体文件
-  （推荐 Noto Sans SC Bold，OFL 许可）并在 csproj EmbeddedResource 中追加即可，
-  字体族名含 SC/CJK/Han/Hei 等关键字会被自动识别启用。
+- **字体**：NuGet 包内嵌两套可再分发字体，Docker 容器无系统字体也能正常渲染：
+  - `Roboto-Bold.ttf`（Apache 2.0）— 单字标/英文名
+  - `NotoSansSC-Bold.otf`（SIL OFL 1.1，约 8.5MB）— 中文产品名（横版锁形直接出中文）
+  - 字体族名含 SC/CJK/Han/Hei 等关键字会被识别为 CJK 字体；新增字体只需放
+    `Brand/Fonts/` 并在 csproj EmbeddedResource 追加
 - **favicon 同步**：生成会覆盖 `/storage/favicon.ico` 等文件，前端/浏览器有 favicon 缓存，
   重新生成后需强刷（Ctrl+F5）才能看到变化。
 - **与上传 Logo 的关系**：两个流程产物路径一致，随时可通过运维页重新生成切回品牌风格，

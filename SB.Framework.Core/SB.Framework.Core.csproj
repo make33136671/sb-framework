@@ -42,9 +42,12 @@
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
   </ItemGroup>
 
-  <!-- 品牌图标生成器内嵌字体（Roboto Bold，Apache 2.0，可再分发）—— Docker Linux 容器无系统字体，必须随包携带 -->
+  <!-- 品牌图标生成器内嵌字体（可再分发授权）—— Docker Linux 容器无系统字体，必须随包携带
+       Roboto-Bold.ttf: Apache 2.0（拉丁/单字标）
+       NotoSansSC-Bold.otf: SIL OFL 1.1（中文产品名，约 8.5MB） -->
   <ItemGroup>
     <EmbeddedResource Include="Brand\Fonts\Roboto-Bold.ttf" />
+    <EmbeddedResource Include="Brand\Fonts\NotoSansSC-Bold.otf" />
   </ItemGroup>
 
 </Project>
