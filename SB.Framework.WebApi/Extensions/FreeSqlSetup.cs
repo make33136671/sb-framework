@@ -203,26 +203,21 @@ namespace SB.Framework.WebApi.Extensions
             fsql.GlobalFilter.Apply<Menu>("IsDeleted", a => a.IsDeleted == false);
             fsql.GlobalFilter.Apply<AdminRole>("IsDeleted", a => a.IsDeleted == false);
             fsql.GlobalFilter.Apply<Member>("IsDeleted", a => a.IsDeleted == false);
-            fsql.GlobalFilter.Apply<LicenseClient>("IsDeleted", a => a.IsDeleted == false);
             Log.Debug("已应用全局软删除过滤，IsDeleted=true 的数据将被自动排除");
 
             fsql.UseJsonMap();
 
-            // 同步授权相关新表结构（无论 AutoSyncStructure 是否开启）
+            // 同步分片上传表结构（无论 AutoSyncStructure 是否开启）
             try
             {
                 fsql.CodeFirst.SyncStructure(
-                    typeof(LicenseClient),
-                    typeof(LicenseRecord),
-                    typeof(LicenseRequest),
-                    typeof(LicenseVerifyLog),
                     typeof(ChunkUpload),
                     typeof(ChunkUploadPart)
                 );
             }
             catch (Exception ex)
             {
-                Log.Warning("授权表同步失败（首次访问时会自动重试）: {Message}", ex.Message);
+                Log.Warning("分片上传表同步失败（首次访问时会自动重试）: {Message}", ex.Message);
             }
 
             services.AddSingleton<IFreeSql>(fsql);

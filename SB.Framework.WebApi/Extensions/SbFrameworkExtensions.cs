@@ -5,7 +5,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core;
-using SB.Framework.Core.License;
 using SB.Framework.Core.Middleware;
 using SB.Framework.Core.Util;
 using SB.Framework.Features;
@@ -25,7 +24,7 @@ public static class SbFrameworkExtensions
 {
     /// <summary>
     /// 冒烟检测模式：部署预检时由 deploy 流程用临时端口拉起本进程,只验证"新包能否正常启动"。
-    /// 此模式下绝不触碰生产副作用——跳过 DB 迁移(SeedDatabase)、不启动后台任务系统(含 License 心跳),
+    /// 此模式下绝不触碰生产副作用——跳过 DB 迁移(SeedDatabase)、不启动后台任务系统,
     /// 只构建 Web 宿主 + 映射 /health 供探活。由环境变量 SB_SMOKE_TEST=1 触发。
     /// 见 docs/AI_Deploy_Resilience.md。
     /// </summary>
@@ -132,12 +131,6 @@ public static class SbFrameworkExtensions
         bool isInstalled = File.Exists(Path.Combine(
             builder.Environment.ContentRootPath, "installed.lock"));
 
-#if !DISABLE_LICENSE
-        builder.Services.AddLicenseService();      // 主权功能，独立于 feature 体系，原样不动
-#else
-        builder.Services.AddSingleton<ILicenseService>(new NullLicenseService());
-#endif
-
         var featureCtx = new FeatureContext
         {
             Configuration = configuration,
@@ -164,8 +157,8 @@ public static class SbFrameworkExtensions
             // 随机名称生成(中文人名 / 生活服务备注名)——业务层注入 IRandomNameGenerator 即用
             builder.Services.AddSingleton<SB.Framework.Services.IRandomNameGenerator, SB.Framework.Services.RandomNameGenerator>();
             builder.Services.AddQdrantService(configuration);
-            // 冒烟模式不启动后台任务运行器(定时任务 + License 心跳都挂在它下面),避免临时探活实例
-            // 对生产发心跳/跑定时任务;但仍注册 IBackgroundTaskManager 保持 DI 依赖图完整。
+            // 冒烟模式不启动后台任务运行器(定时任务都挂在它下面),避免临时探活实例
+            // 跑定时任务;但仍注册 IBackgroundTaskManager 保持 DI 依赖图完整。
             builder.Services.AddBackgroundTasks(runTasks: !smoke);
             builder.Services.AddLoginRateLimiter();
             builder.Services.AddDatabaseHealthCheck(configuration);
@@ -253,10 +246,6 @@ public static class SbFrameworkExtensions
             };
         });
 
-#if !DISABLE_LICENSE
-        if (isInstalled && !app.Environment.IsDevelopment()) app.UseLicense();
-#endif
-
         app.UseMiddleware<GlobalExceptionMiddleware>();
         app.UseMiddleware<QueryCountMiddleware>();
         app.UseStaticFiles();
@@ -272,7 +261,6 @@ public static class SbFrameworkExtensions
         app.UseSwaggerDoc();
 
         // ★[F-5] feature 自定义中间件：固定锚点 = UseAuthorization 之后、MapControllers 之前
-        //   （所有插件中间件在 License 闸门内侧；插件不得插队到 License 校验之前）
         var modules = FeatureModuleActivator.GetSorted();   // 复用 AddSbFramework 阶段排好的实例
         if (modules.Count > 0)
         {

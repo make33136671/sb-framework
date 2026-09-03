@@ -11,8 +11,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591;1572;1573</NoWarn>
-    <PackageId Condition="'$(DisableLicense)' != 'true'">SB.Framework.WebApi</PackageId>
-    <PackageId Condition="'$(DisableLicense)' == 'true'">SB.Framework.WebApi.NoLicense</PackageId>
     <Version>0.4.18</Version>
     <Description>SB Framework Web API 基础设施</Description>
   </PropertyGroup>
@@ -45,7 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 开发期 ProjectReference（变体由发包参数统一控制，见 Core.csproj 注释） -->
+    <!-- 开发期 ProjectReference，dotnet pack 自动转成对应版本的包依赖 -->
     <ProjectReference Include="..\SB.Framework.Services\SB.Framework.Services.csproj" />
   </ItemGroup>
 
@@ -62,86 +60,6 @@
     />
     <ItemGroup>
       <Compile Include="$(BuildTimestampFile)" />
-    </ItemGroup>
-  </Target>
-
-  <UsingTask TaskName="GenerateLicenseKeyFile" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
-    <ParameterGroup>
-      <KeyDir ParameterType="System.String" Required="true" />
-      <FallbackDir ParameterType="System.String" Required="false" />
-      <OutputFile ParameterType="System.String" Required="true" />
-    </ParameterGroup>
-    <Task>
-      <Using Namespace="System.Security.Cryptography" />
-      <Code Type="Fragment" Language="cs"><![CDATA[
-var dir = Path.GetDirectoryName(OutputFile);
-if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-    Directory.CreateDirectory(dir);
-
-var keyDir = KeyDir;
-if (!string.IsNullOrEmpty(keyDir) && keyDir.StartsWith("~"))
-    keyDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), keyDir.Substring(2));
-
-var pubPath = Path.Combine(keyDir, "license_public.key");
-var privPath = Path.Combine(keyDir, "license_private.key");
-
-if ((!File.Exists(pubPath) || !File.Exists(privPath)) && !string.IsNullOrEmpty(FallbackDir))
-{
-    var fbPub = Path.Combine(FallbackDir, "license_public.key");
-    var fbPriv = Path.Combine(FallbackDir, "license_private.key");
-    if (File.Exists(fbPub) && File.Exists(fbPriv))
-    {
-        keyDir = FallbackDir;
-        pubPath = fbPub;
-        privPath = fbPriv;
-        Log.LogMessage(MessageImportance.High, "License: 使用项目目录密钥 → " + keyDir);
-    }
-}
-
-if (!File.Exists(pubPath) || !File.Exists(privPath))
-{
-    if (!Directory.Exists(keyDir))
-        Directory.CreateDirectory(keyDir);
-    var rsa = RSA.Create();
-    rsa.KeySize = 2048;
-    File.WriteAllText(privPath, rsa.ToXmlString(true));
-    File.WriteAllText(pubPath, rsa.ToXmlString(false));
-    rsa.Dispose();
-    Log.LogMessage(MessageImportance.High, "License: 已生成新的 RSA-2048 密钥对 → " + keyDir);
-}
-
-var publicKey = File.ReadAllText(pubPath).Replace("\"", "\\\"");
-File.WriteAllText(OutputFile,
-    "namespace SB.Framework;\ninternal static partial class BuildInfo\n{\n" +
-    "    public const string LicensePublicKey = \"" + publicKey + "\";\n}");
-Log.LogMessage(MessageImportance.High, "License: 公钥已硬编码到程序集 (from " + keyDir + ")");
-      ]]></Code>
-    </Task>
-  </UsingTask>
-
-  <Target Name="EmbedLicensePublicKey" BeforeTargets="CoreCompile"
-          Condition="'$(DisableLicense)' != 'true'">
-    <PropertyGroup>
-      <_LicenseKeyDir>$(SB_LICENSE_KEY_DIR)</_LicenseKeyDir>
-      <_LicenseKeyDir Condition="'$(_LicenseKeyDir)' == ''">$([System.Environment]::GetEnvironmentVariable('SB_LICENSE_KEY_DIR'))</_LicenseKeyDir>
-      <_LicenseKeyDir Condition="'$(_LicenseKeyDir)' == ''">$(ProjectDir)</_LicenseKeyDir>
-      <_LicenseKeyGenFile>$(IntermediateOutputPath)LicensePublicKey.g.cs</_LicenseKeyGenFile>
-    </PropertyGroup>
-    <GenerateLicenseKeyFile KeyDir="$(_LicenseKeyDir)" FallbackDir="$(ProjectDir)" OutputFile="$(_LicenseKeyGenFile)" />
-    <ItemGroup>
-      <Compile Include="$(_LicenseKeyGenFile)" />
-    </ItemGroup>
-  </Target>
-
-  <Target Name="EmbedEmptyLicenseKey" BeforeTargets="CoreCompile"
-          Condition="'$(DisableLicense)' == 'true'">
-    <PropertyGroup>
-      <_LicenseKeyGenFile>$(IntermediateOutputPath)LicensePublicKey.g.cs</_LicenseKeyGenFile>
-    </PropertyGroup>
-    <WriteLinesToFile File="$(_LicenseKeyGenFile)" Overwrite="true"
-      Lines="namespace SB.Framework%3B&#10;internal static partial class BuildInfo { public const string LicensePublicKey = &quot;&quot;%3B }" />
-    <ItemGroup>
-      <Compile Include="$(_LicenseKeyGenFile)" />
     </ItemGroup>
   </Target>
 
