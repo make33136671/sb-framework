@@ -55,3 +55,12 @@ license_public.key
 
 # Claude workflow 临时 worktree（误提交清理，不再追踪）
 .claude/worktrees/
+**/wwwroot/storage/brand/
+**/wwwroot/storage/images/
+**/wwwroot/storage/android-chrome-192x192.png
+**/wwwroot/storage/android-chrome-512x512.png
+**/wwwroot/storage/apple-touch-icon.png
+**/wwwroot/storage/favicon-16x16.png
+**/wwwroot/storage/favicon-32x32.png
+**/wwwroot/storage/favicon.ico
+SB.Framework.WebTest/wwwroot/storage/
