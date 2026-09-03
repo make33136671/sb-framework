@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SB Framework 功能测试台</title>
+<style>
+  :root {
+    --bg: #0a0e1a; --panel: #101728; --panel2: #16203a; --line: #233252;
+    --text: #dbe4f5; --muted: #7c8db0; --accent: #22d3ee; --accent2: #3b82f6;
+    --ok: #34d399; --err: #f87171; --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.6 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  header { padding: 14px 22px; border-bottom: 1px solid var(--line);
+           display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+           background: linear-gradient(90deg, #0d1426, #101a30); }
+  header h1 { font-size: 17px; margin: 0; }
+  header .badge { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  .login { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  input, button, select {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 5px 9px; font: inherit; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  button { cursor: pointer; transition: .15s; white-space: nowrap; }
+  button:hover { border-color: var(--accent); color: #fff; }
+  button.primary { background: linear-gradient(90deg, var(--accent2), var(--accent));
+                   color: #04121c; border: none; font-weight: 600; }
+  button.mini { padding: 3px 8px; font-size: 12px; }
+  #authState { font-size: 12px; padding: 2px 10px; border-radius: 10px; border: 1px solid var(--line); }
+  #authState.on { color: var(--ok); border-color: var(--ok); }
+  #authState.off { color: var(--muted); }
+  main { display: grid; grid-template-columns: 1fr 430px; gap: 14px; padding: 14px 22px; align-items: start; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  section.card h2 { margin: 0; padding: 9px 14px; font-size: 13.5px; letter-spacing: .4px;
+                    background: var(--panel2); border-bottom: 1px solid var(--line);
+                    display: flex; align-items: center; gap: 8px; }
+  section.card h2 .ico { font-size: 15px; }
+  .acts { padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+  .act { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .act input { flex: 1; min-width: 90px; }
+  .act button { min-width: 86px; }
+  .hint { font-size: 12px; color: var(--muted); padding: 0 12px 10px; }
+  .hint code { color: var(--accent); }
+  #panel { position: sticky; top: 14px; background: var(--panel);
+           border: 1px solid var(--line); border-radius: 10px; display: flex; flex-direction: column;
+           max-height: calc(100vh - 28px); }
+  #panel header2 { padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--panel2);
+                   display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+  #panel header2 .spacer { flex: 1; }
+  #results { overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .res { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .res .meta { padding: 6px 10px; font-size: 12px; display: flex; gap: 8px; align-items: center;
+               background: var(--panel2); flex-wrap: wrap; }
+  .res .meta .ep { color: var(--accent); font-family: Consolas, monospace; }
+  .res .meta .st { font-weight: 700; }
+  .res .meta .st.ok { color: var(--ok); } .res .meta .st.err { color: var(--err); }
+  .res .meta .st.http { color: var(--warn); }
+  .res pre { margin: 0; padding: 10px; max-height: 320px; overflow: auto;
+             font: 12px/1.5 Consolas, "Courier New", monospace; white-space: pre-wrap; word-break: break-all; }
+  .empty { color: var(--muted); text-align: center; padding: 40px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  .chain { border-top: 1px dashed var(--line); margin-top: 2px; padding-top: 8px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧪 SB Framework 功能测试台</h1>
+  <span class="badge" id="srvInfo">连接中…</span>
+  <span class="spacer"></span>
+  <span id="authState" class="off">未登录</span>
+  <div class="login">
+    <input id="u" placeholder="用户名" value="admin" style="width:90px">
+    <input id="p" placeholder="密码" value="111111" style="width:90px" type="password">
+    <input id="t" placeholder="2FA码(未绑可空)" style="width:110px">
+    <button class="primary" onclick="doLogin()">登录</button>
+    <button class="mini" onclick="logout()">登出</button>
+  </div>
+</header>
+
+<main>
+  <div class="grid" id="cards"></div>
+
+  <div id="panel">
+    <header2>
+      📋 执行结果
+      <span class="spacer"></span>
+      <button class="mini" onclick="document.getElementById('results').innerHTML=''">清空</button>
+    </header2>
+    <div id="results"><div class="empty">点击左侧任意按钮执行场景</div></div>
+  </div>
+</main>
+
+<script>
+/* ============ 基础设施 ============ */
+const TOKEN_KEY = 'webtest_jwt';
+const token = () => localStorage.getItem(TOKEN_KEY) || '';
+
+function setAuthState() {
+  const el = document.getElementById('authState');
+  if (token()) { el.textContent = '已登录 ✔'; el.className = 'on'; }
+  else { el.textContent = '未登录'; el.className = 'off'; }
+}
+
+async function doLogin() {
+  const f = new FormData();
+  f.append('username', document.getElementById('u').value);
+  f.append('password', document.getElementById('p').value);
+  f.append('totpCode', document.getElementById('t').value);
+  const r = await api('/test/auth/login', { method: 'POST', form: f, auth: false, ep: '/test/auth/login' });
+  const j = r.json;
+  if (j && j.code === 0 && j.data && j.data.accessToken) {
+    localStorage.setItem(TOKEN_KEY, j.data.accessToken);
+    setAuthState();
+  }
+  return j;
+}
+function logout() { localStorage.removeItem(TOKEN_KEY); setAuthState(); }
+
+/* 统一调用封装:自动带 token / 记录结果面板 */
+async function api(path, { method = 'GET', form = null, auth = true, ep = null } = {}) {
+  const headers = {};
+  if (auth && token()) headers['Authorization'] = 'Bearer ' + token();
+  let t0 = performance.now();
+  let resp, json = null, text = '';
+  try {
+    resp = await fetch(path, { method, headers, body: form });
+    text = await resp.text();
+    try { json = JSON.parse(text); } catch { /* 非 JSON(如 401 纯文本) */ }
+  } catch (e) {
+    log(ep || path, null, null, '网络错误: ' + e.message);
+    return null;
+  }
+  const ms = Math.round(performance.now() - t0);
+  log(ep || path, method, json ?? { raw: text }, null, resp.status, ms);
+  return { resp, json };
+}
+
+function log(ep, method, json, error, httpStatus, ms) {
+  const box = document.getElementById('results');
+  if (box.querySelector('.empty')) box.innerHTML = '';
+  let st = '', cls = '';
+  if (error) { st = '异常'; cls = 'err'; }
+  else if (json && typeof json.code !== 'undefined') {
+    st = json.code === 0 ? '成功' : `失败(code=${json.code})`;
+    cls = json.code === 0 ? 'ok' : 'err';
+  } else { st = '非标准返回'; cls = 'http'; }
+  const div = document.createElement('div');
+  div.className = 'res';
+  div.innerHTML = `
+    <div class="meta">
+      <span class="ep">${method || 'GET'} ${ep}</span>
+      <span class="st ${cls}">${st}</span>
+      ${httpStatus && httpStatus !== 200 ? `<span class="st http">HTTP ${httpStatus}</span>` : ''}
+      ${ms != null ? `<span class="badge">${ms}ms</span>` : ''}
+      <span class="spacer" style="flex:1"></span>
+    </div>
+    <pre>${escapeHtml(JSON.stringify(error ? { error } : json, null, 2))}</pre>`;
+  box.prepend(div);
+}
+function escapeHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+/* 表单快捷构造 */
+const F = (...kv) => { const f = new FormData(); for (let i = 0; i < kv.length; i += 2) f.append(kv[i], kv[i + 1]); return f; };
+const V = id => document.getElementById(id)?.value ?? '';
+
+/* ============ 场景定义(框架能力 → 业务动作映射) ============ */
+const CARDS = [
+  { ico: '🔐', title: '认证与身份(JWT / API Key / 限流)', acts: [
+    { b: 'WhoAmI', ep: '/test/auth/whoami', run: () => api('/test/auth/whoami'),
+      tip: '需先登录;验证 JwtAdmin 通道 + Claims 解析' },
+    { b: '无token对照', ep: '/test/auth/whoami', run: () => api('/test/auth/whoami', { auth: false }),
+      tip: '预期 HTTP 401 —— 鉴权关闭验证' },
+    { b: 'Key探针', ep: '/test/auth/apikeyprobe', run: () => api('/test/auth/apikeyprobe'),
+      tip: '带 sk_ key 时 operatorTag=key:xxx;JWT 时=用户名;匿名=anonymous' },
+    { b: '限流压测', ep: '/Auth/Login', run: async () => {
+        const f = F('username', 'ratelimit_probe', 'password', 'wrong', 'totpCode', '');
+        let last = null, hit429 = 0;
+        for (let i = 0; i < 22; i++) {
+          const r = await fetch('/Auth/Login', { method: 'POST', body: f });
+          if (r.status === 429) hit429++;
+          last = r.status;
+        }
+        log('/Auth/Login ×22', 'POST', { 说明: '连续错误登录 22 次', '命中429次数': hit429, lastStatus: last },
+            null, hit429 > 0 ? 200 : 429, null);
+      }, tip: '连发 22 次错误登录,触发 login 限流(PermitLimit=20/60s)后应出现 429' },
+  ]},
+
+  { ico: '🛒', title: '订单业务(CRUD / 软删 / 状态机 / 操作人)', acts: [
+    { b: '下单', ep: '/test/order/create', inputs: [
+        { id: 'oName', ph: '商品名', v: '测试手机壳' }, { id: 'oAmt', ph: '金额', v: '99.9' }],
+      run: () => api('/test/order/create', { method: 'POST', form: F('productName', V('oName'), 'amount', V('oAmt')) }) },
+    { b: '列表', ep: '/test/order/list', run: () => api('/test/order/list?page=1&pageSize=5') },
+    { b: '支付', ep: '/test/order/pay', inputs: [{ id: 'oId1', ph: '订单Id', v: '1' }],
+      run: () => api('/test/order/pay', { method: 'POST', form: F('id', V('oId1')) }),
+      tip: 'Pending→Paid;重复支付/取消单支付会被状态机拒绝' },
+    { b: '取消', ep: '/test/order/cancel', inputs: [{ id: 'oId2', ph: '订单Id' }],
+      run: () => api('/test/order/cancel', { method: 'POST', form: F('id', V('oId2'), 'reason', '测试台手动取消') }) },
+    { b: '详情', ep: '/test/order/detail', inputs: [{ id: 'oId3', ph: '订单Id' }],
+      run: () => api('/test/order/detail?id=' + V('oId3')) },
+    { b: '软删', ep: '/test/order/del', inputs: [{ id: 'oId4', ph: '订单Id' }],
+      run: () => api('/test/order/del', { method: 'POST', form: F('id', V('oId4')) }),
+      tip: 'ISoftDelete 软删;删除后再列表查不到' },
+    { b: '软删直查', ep: '/test/order/rawdeleted', inputs: [{ id: 'oId5', ph: '已删订单Id' }],
+      run: () => api('/test/order/rawdeleted?id=' + V('oId5')),
+      tip: '绕过全局过滤器直查,证明数据仍在库(IsDeleted=true)' },
+    { b: '统计缓存', ep: '/test/order/stats', run: () => api('/test/order/stats'),
+      tip: '5 秒缓存:连点两次,第二次显示"缓存命中";5 秒后再点变回实时计算' },
+  ]},
+
+  { ico: '⚙️', title: '后台任务(调度 / 熔断 / 任务日志)', acts: [
+    { b: '任务列表', ep: '/test/task/tasks', run: () => api('/test/task/tasks'),
+      tip: '应见框架内置 DatabaseBackup + 本项目注册的 OrderTimeout' },
+    { b: '触发巡检', ep: '/test/task/runonce', run: () => api('/test/task/runonce', { method: 'POST', form: F('name', 'OrderTimeout') }),
+      tip: '把创建超 1 分钟的 Pending 订单自动关单(Timeout)' },
+    { b: '启动/停止', ep: '/test/task/start', run: () => api('/test/task/start', { method: 'POST', form: F('name', 'OrderTimeout') }),
+      tip: '启动后每分钟自动巡检一次' },
+    { b: '任务日志', ep: '/test/task/logs', run: () => api('/test/task/logs'),
+      tip: 'SYS_BackgroundTaskLog 落库记录' },
+  ]},
+
+  { ico: '⚡', title: '缓存(ICacheService 全方法)', acts: [
+    { b: 'Provider', ep: '/test/cache/provider', run: () => api('/test/cache/provider'),
+      tip: '当前生效 Provider(appsettings CacheConfig 切 Memory/Redis)' },
+    { b: '写入', ep: '/test/cache/set', inputs: [
+        { id: 'cKey', ph: 'key', v: 'webtest:demo' }, { id: 'cVal', ph: 'value', v: 'hello-' + Date.now() % 10000 },
+        { id: 'cExp', ph: '过期秒', v: '10' }],
+      run: () => api('/test/cache/set', { method: 'POST', form: F('key', V('cKey'), 'value', V('cVal'), 'expireSeconds', V('cExp')) }) },
+    { b: '读取', ep: '/test/cache/get', inputs: [{ id: 'cKey2', ph: 'key' }],
+      run: () => api('/test/cache/get?key=' + encodeURIComponent(V('cKey2'))) },
+    { b: '移除', ep: '/test/cache/remove', inputs: [{ id: 'cKey3', ph: 'key' }],
+      run: () => api('/test/cache/remove', { method: 'POST', form: F('key', V('cKey3')) }) },
+    { b: '前缀移除', ep: '/test/cache/removebyprefix', inputs: [{ id: 'cPre', ph: '前缀', v: 'webtest:' }],
+      run: () => api('/test/cache/removebyprefix', { method: 'POST', form: F('prefix', V('cPre')) }) },
+  ]},
+
+  { ico: '✉️', title: '邮件(模板渲染 / 发送 / 验证码)', acts: [
+    { b: '渲染预览', ep: '/test/email/renderpreview', run: () => api('/test/email/renderpreview', { method: 'POST', form: F('code', '654321') }),
+      tip: '不出网:验证 {{code}}/{{appName}} 占位符替换;需先录入激活的 RegisterVerify 模板' },
+    { b: '真实发送', ep: '/test/email/send', inputs: [{ id: 'eTo', ph: '收件邮箱', v: '' }],
+      run: () => api('/test/email/send', { method: 'POST', form: F('to', V('eTo')) }),
+      tip: '需系统里配好 SMTP(EmailConfigController);结果落 SB_EmailLog' },
+    { b: '发验证码', ep: '/test/email/sendcode', inputs: [{ id: 'eTo2', ph: '收件邮箱' }],
+      run: () => api('/test/email/sendcode', { method: 'POST', form: F('to', V('eTo2')) }) },
+    { b: '校验验证码', ep: '/test/email/verifycode', inputs: [
+        { id: 'eTo3', ph: '邮箱' }, { id: 'eCode', ph: '6位码' }],
+      run: () => api('/test/email/verifycode', { method: 'POST', form: F('to', V('eTo3'), 'code', V('eCode')) }) },
+  ]},
+
+  { ico: '🔀', title: 'FlowEngine(图执行 / 自定义节点)', acts: [
+    { b: '风控审批流', ep: '/test/flow/riskapproval', inputs: [{ id: 'fAmt', ph: '订单金额', v: '1500' }],
+      run: () => api('/test/flow/riskapproval', { method: 'POST', form: F('amount', V('fAmt')) }),
+      tip: '≥1000 转人工,否则自动通过;if 分支 + 业务节点 + varSet 落结论' },
+    { b: '发货管道', ep: '/test/flow/shippipeline', inputs: [{ id: 'fCnt', ph: '订单数', v: '3' }],
+      run: () => api('/test/flow/shippipeline', { method: 'POST', form: F('orderCount', V('fCnt')) }),
+      tip: 'loop 循环扣库存,最终 stock=0;自定义 IFlowNodeExecutor 扩展点' },
+  ]},
+
+  { ico: '🧰', title: '工具箱(随机名 / 时区 / 表格解析)', acts: [
+    { b: '随机名', ep: '/test/tools/randomnames', run: () => api('/test/tools/randomnames?count=5') },
+    { b: '时区时间', ep: '/test/tools/time', run: () => api('/test/tools/time'),
+      tip: 'AppTime:存库 UTC / 业务用时区 / 时间戳互转' },
+    { b: '解析表格', ep: '/test/tools/parseexcel', file: true, run: () => {
+        const inp = document.getElementById('xFile');
+        if (!inp.files.length) { log('/test/tools/parseexcel', 'POST', null, '请先选择 xlsx/xls/csv 文件'); return; }
+        const f = new FormData(); f.append('file', inp.files[0]);
+        return api('/test/tools/parseexcel', { method: 'POST', form: f });
+      } },
+  ]},
+
+  { ico: '🩺', title: '系统设施(插件发现 / 数据库 / 日志)', acts: [
+    { b: '插件清单', ep: '/test/system/features', run: () => api('/test/system/features'),
+      tip: 'Feature 体系:AccessToken/BackupReceive 应为 enabled;appsettings Features:Disabled 关掉后这里变化' },
+    { b: '数据库检查', ep: '/test/system/dbcheck', run: () => api('/test/system/dbcheck'),
+      tip: '核心表计数(Admin/Menu/TestOrder/任务日志)' },
+    { b: '登录日志', ep: '/test/system/loginlogs', run: () => api('/test/system/loginlogs') },
+  ]},
+
+  { ico: '📦', title: '上传 / 备份 / 品牌(框架原生端点)', acts: [
+    { b: '直传文件', ep: '/Upload/Direct', file: true, run: () => {
+        const inp = document.getElementById('uFile');
+        if (!inp.files.length) { log('/Upload/Direct', 'POST', null, '请先选择文件'); return; }
+        const f = new FormData(); f.append('file', inp.files[0]);
+        return api('/Upload/Direct', { method: 'POST', form: f, auth: true });
+      }, tip: '需登录;大文件走 ChunkInit→ChunkUpload→ChunkMerge(见 Swagger)' },
+    { b: '备份检查', ep: '/Database/CheckBackup', run: () => api('/Database/CheckBackup') },
+    { b: '执行备份', ep: '/Database/Backup', run: () => api('/Database/Backup', { method: 'POST' }),
+      tip: '依赖库服务器上的备份工具(mysqldump/pg_dump)' },
+    { b: '生成品牌', ep: '/Brand/Regenerate', run: () => api('/Brand/Regenerate', { method: 'POST', form: F() }),
+      tip: '品牌图标自动生成(具体端点以 Swagger 为准)' },
+  ]},
+];
+
+/* ============ 渲染 ============ */
+function render() {
+  const root = document.getElementById('cards');
+  root.innerHTML = CARDS.map((c, ci) => `
+    <section class="card">
+      <h2><span class="ico">${c.ico}</span>${c.title}</h2>
+      <div class="acts">
+        ${c.acts.map((a, ai) => `
+          <div class="act">
+            <button onclick="CARDS[${ci}].acts[${ai}].run()">${a.b}</button>
+            ${(a.inputs || []).map(i => `<input id="${i.id}" placeholder="${i.ph}" value="${i.v || ''}">`).join('')}
+            ${a.file ? `<input type="file" id="${a.ep.includes('Upload') ? 'uFile' : 'xFile'}" style="flex:1">` : ''}
+          </div>`).join('')}
+      </div>
+      ${c.acts.some(a => a.tip) ? `<div class="hint">${c.acts.filter(a => a.tip).map(a => `• ${a.tip}`).join('<br>')}</div>` : ''}
+    </section>`).join('');
+}
+
+(async () => {
+  render();
+  setAuthState();
+  const r = await api('/test/home/info', { auth: false, ep: '/test/home/info' });
+  if (r && r.json && r.json.code === 0) {
+    const d = r.json.data;
+    document.getElementById('srvInfo').textContent =
+      `${d.product}(${d.productEn}) · 时区 ${d.timeZone} · 插件[${(d.loadedFeatures || []).map(f => f.featureName).join(',') || '无'}]`;
+  } else {
+    document.getElementById('srvInfo').innerHTML =
+      '系统未安装 —— 请先打开 <a href="/setup/index.html" target="_blank">/setup/index.html</a> 完成安装向导(需要可用的 MySQL/PG 数据库),安装后刷新本页';
+  }
+})();
+</script>
+</body>
+</html>
