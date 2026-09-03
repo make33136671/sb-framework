@@ -49,13 +49,10 @@ dotnet new webapi -n Sb.Apps.<App>.WebApi
     <!-- 可选插件 -->
     <PackageReference Include="SB.Feature.AccessToken" Version="0.2.3" />
     <PackageReference Include="SB.Feature.BackupReceive" Version="0.1.1" />
-    <PackageReference Include="SB.Feature.LicenseManage" Version="0.1.1" />
     <PackageReference Include="SB.FlowEngine" Version="0.2.1" />
   </ItemGroup>
 </Project>
 ```
-
-> 若需关闭授权验证，引用 `SB.Framework.WebApi.NoLicense`（同时 Core/Models/Services 也切 `.NoLicense` 变体）。
 
 ## Step 3: Program.cs（两行装配）
 

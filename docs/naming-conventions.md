@@ -129,7 +129,7 @@ public class Project { ... }
 
 | 类型 | 前缀 | 示例 |
 |------|------|------|
-| 基座 | `sb_` | `sb_admin` / `sb_menu` / `sb_login_log` / `sb_license_client` |
+| 基座 | `sb_` | `sb_admin` / `sb_menu` / `sb_login_log` |
 | 派生 PM | `sb_pm_` | `sb_pm_project` / `sb_pm_requirement` / `sb_pm_task_item` |
 | 派生 ERP（未来） | `sb_erp_` | `sb_erp_order` / `sb_erp_customer` |
 
@@ -184,7 +184,6 @@ SB_ERP_<DOMAIN>_<KEY>      # 派生 ERP（未来）
 
 **例**：
 ```bash
-SB_LICENSE_KEY_DIR=/path/to/keys
 SB_NUGET_API_KEY=glpat-xxx
 SB_PM_DB_PASSWORD=xxx
 ```
@@ -251,7 +250,7 @@ SB_PM_DB_PASSWORD=xxx
 - `revert` 撤回 commit
 
 **scope** 可选：业务域或工程名。
-- 基座：`feat(license): ...` / `fix(cache): ...` / `build(nuget): ...`
+- 基座：`feat(auth): ...` / `fix(cache): ...` / `build(nuget): ...`
 - 派生：`feat(projects): ...` / `fix(chat): ...`
 
 **subject**：中文，≤ 50 字。
@@ -287,10 +286,10 @@ SB_PM_DB_PASSWORD=xxx
 | NuGet | `Sb.Framework.WebApi` | （不发包，仅作为消费方） |
 | 表名 | `sb_admin` | `sb_pm_project` |
 | appsettings 顶级 key | `Sb.Framework`（如有） | `Sb.Apps.Pm`（如有） |
-| 环境变量 | `SB_LICENSE_KEY_DIR` | `SB_PM_DB_PASSWORD` |
+| 环境变量 | `SB_NUGET_API_KEY` | `SB_PM_DB_PASSWORD` |
 | URL admin | `/admin/Auth/Login` | `/admin/Project/List` |
 | URL api | `/api/Setup/Status` | `/api/Project/Webhook` |
-| Git 分支 | `feature/license-cache` | `feature/project-config-import` |
+| Git 分支 | `feature/cache-refactor` | `feature/project-config-import` |
 | Git tag | `v0.1.0-preview.1` | `pm-v1.2.3` |
 
 ---

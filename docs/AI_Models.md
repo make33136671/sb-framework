@@ -1,6 +1,6 @@
 # Entity Models & Enums
 
-> 本文档为**实体事实源**，逐类对照源码生成（25 个表实体）。若与旧文档冲突，以此为准。
+> 本文档为**实体事实源**，逐类对照源码生成（21 个表实体）。若与旧文档冲突，以此为准。
 > 所有表前缀 `SB_`（除 `BackgroundTaskLog` 为 `SYS_`）。实现 `ISoftDelete` 的实体自动应用全局过滤 `IsDeleted == false`。
 
 ## 核心接口与统一类型
@@ -17,7 +17,7 @@ public interface IEntity { int Id { get; set; } }
 public interface ISoftDelete { bool IsDeleted { get; set; } }
 ```
 
-实现 `ISoftDelete` 的实体：**Admin、AdminRole、Member、Menu、ApiKey**。`LicenseClient` 有 `IsDeleted` 字段但**未实现**该接口。
+实现 `ISoftDelete` 的实体：**Admin、AdminRole、Member、Menu、ApiKey**。
 
 ### IModuleInitializer（`SB.Framework.Models/IModuleInitializer.cs`）
 
@@ -255,68 +255,7 @@ ProductEn(50) / ProductCn(100) / PrimaryDomain?(200) / LogoPath?(500) / ClientIp
 
 ---
 
-## 七、授权域（License）
-
-> 签发端 `SB.Feature.LicenseManage` **无自有实体**，全部复用 `SB.Framework.Models` 的 License 实体。
-
-### LicenseClient — 表 `SB_License_Client` · `IEntity`（**未实现 ISoftDelete**，有 IsDeleted 字段）
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| Id | int PK | 主键 |
-| ProductEn / ProductCn | string?(200) | 产品标识/名称 |
-| Domain | string(500) | 声明域名（客户端 PrimaryDomain） |
-| LastActualDomain | string?(500) | 最近 Verify/Check 上报实际域名；不一致标色 |
-| ServerIP | string?(100) | 服务器 IP |
-| ClientKey | string?(100) | 客户端密钥（UUID） |
-| HardwareId | string?(200) | 硬件 ID 哈希 |
-| MachineName / OsDescription / MacAddresses | string? | 机器信息 |
-| ProcessorCount | int? | CPU 核心数 |
-| Remark | string?(500) | 备注 |
-| Status | int (=0) | 0=正常, 1=禁用 |
-| IsDeleted | bool (=false) | 软删除标记（与 Status 语义不同） |
-| LastHeartbeat | DateTime? | 最后心跳 |
-| CreatedTime / UpdatedTime | DateTime | `now()` |
-
-### LicenseRecord — 表 `SB_License_Record` · `IEntity`
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| Id | int PK | 主键 |
-| ClientId / Client | int / 导航 | 关联客户 |
-| VerifyMode | LicenseVerifyMode (=Both) | 0=仅ClientKey,1=仅HardwareId,2=双验证。服务注释标注"已废弃，仅保留申请时兼容" |
-| Domains | string?(text) | 绑定域名列表 JSON；null=不验证 |
-| ProductEn | string?(100) | 绑定产品；null=不验证 |
-| ClientKey / HardwareId | string? | 绑定凭据 |
-| IssuedAt / ExpiresAt | DateTime | 签发/到期 |
-| AllowedRoutes | string?(2000) | 到期后可访问路由前缀 JSON |
-| AllowAdminAfterExpiry / AllowClientApiAfterExpiry | bool (=false) | 到期后放行后台/客户端 API |
-| LicenseData | string(text) | 签名后的授权文件内容 |
-| IsDownloaded | bool (=false) | 客户端是否已下载 |
-| Status | int (=0) | 0=有效, 1=已吊销 |
-| CreatedTime | DateTime | `now()`，不可更新 |
-
-### LicenseRequest — 表 `SB_License_Request` · `IEntity`
-
-| 属性 | 类型 | 说明 |
-|------|------|------|
-| Id | int PK | 主键 |
-| ClientId / Client | int / 导航 | 关联客户 |
-| Domain | string(500) | 申请时域名 |
-| ServerIP / ClientKey / HardwareId | string? | 申请时信息 |
-| Status | LicenseRequestStatus (=Pending) | 0=待审批,1=已批准,2=已拒绝 |
-| RejectReason | string?(500) | 拒绝原因 |
-| RecordId / Record | int? / 导航 | 批准后关联授权记录 |
-| CreatedTime | DateTime | `now()`，不可更新 |
-| ProcessedTime | DateTime? | 处理时间 |
-
-### LicenseVerifyLog — 表 `SB_License_VerifyLog` · `IEntity`
-
-ClientId/Client(导航) / Domain / ActualDomain? / ServerIP? / ClientKey? / HardwareId? / LicenseValid / ProductEn?(100) / ProductCn?(200) / ExpiresAt? / Message?(500) / CreatedTime(`now()`不可更新)
-
----
-
-## 八、后台任务 / 日志域
+## 七、后台任务 / 日志域
 
 ### BackgroundTaskLog — 表 `SYS_BackgroundTaskLog` · `IEntity`（⚠️ 前缀是 `SYS_` 非 `SB_`）
 
@@ -357,7 +296,7 @@ UserId / UserType(0=H5会员,1=Admin) / Username(100) / IpAddress?(50) / UserAge
 
 ---
 
-## 九、插件域（SB.Feature.AccessToken）
+## 八、插件域（SB.Feature.AccessToken）
 
 ### ApiKey — 表 `SB_ApiKey` · `IEntity, ISoftDelete` · 带 `[Index]`
 
@@ -373,7 +312,7 @@ UserId / UserType(0=H5会员,1=Admin) / Username(100) / IpAddress?(50) / UserAge
 | TokenHash | string(64) | sha256/HMAC(明文) hex；明文不入库 |
 | TokenPrefix | string(16) | 明文前 12 位，list 显示用 |
 | Scopes | string?(500) | 逗号分隔 scope；null=所有 `[Scope]` 端点放行 |
-| FullAccess | bool | **god**：忽略 scope、穿透所有端点、旁路 License；仅 super 可签发 |
+| FullAccess | bool | **god**：忽略 scope、穿透所有端点；仅 super 可签发 |
 | IpAllowlist | string?(500) | 允许 IP/CIDR |
 | ExpiresAt | DateTime? | 过期时间 |
 | LastUsedAt | DateTime? | 最后使用 |
@@ -394,13 +333,10 @@ KeyId（未命中为 0） / KeyName(100) / TokenPrefix(16) / Action(20: Created/
 
 ---
 
-## 十、DTO（非表，`SB.Framework.Models/Dto/`）
+## 九、DTO（非表，`SB.Framework.Models/Dto/`）
 
 | DTO | 字段 |
 |-----|------|
-| HeartbeatRequest | ClientKey? / HardwareId? / Domain? / LicenseKeyHash? / ProductEn? / ProductCn? / MachineName? / OsDescription? / ProcessorCount? / MacAddresses? / ServerIP? |
-| IssueLicenseRequest | ClientId / ExpiresAt / Domains? / ProductEn? / ClientKey? / HardwareId? / AllowedRoutes? / AllowAdminAfterExpiry / AllowClientApiAfterExpiry |
-| QuickGenerateRequest | ProductEn? / ProductCn? / ClientKey? / HardwareId? / Domain? / MachineName? / Days? / ExpiresAt? / VerifyMode(=2) |
 | DatabaseConfigDto | DbType="MySql" / Server="127.0.0.1" / Port="3306" / Database="Saibo" / User="root" / Password |
 | RedisConfigDto | Connection="localhost:6379" / InstanceName="SB:" |
 | DeployProjectDto | Name / Key / Path |
@@ -410,7 +346,7 @@ KeyId（未命中为 0） / KeyName(100) / TokenPrefix(16) / Action(20: Created/
 
 ---
 
-## 十一、枚举总表
+## 十、枚举总表
 
 ### 全局枚举（`SB.Framework.Models/Enums.cs`）
 
@@ -431,8 +367,6 @@ KeyId（未命中为 0） / KeyName(100) / TokenPrefix(16) / Action(20: Created/
 | ChunkUploadStatus | Uploading=0, Completed=1, Expired=2 | ChunkUpload.cs |
 | TaskLogLevel | Error=0, Warning=1, Info=2 | BackgroundTaskLog.cs |
 | LogSource | Task=0, Exception=1 | BackgroundTaskLog.cs |
-| LicenseVerifyMode | ClientKeyOnly=0, HardwareIdOnly=1, Both=2 | LicenseRecord.cs |
-| LicenseRequestStatus | Pending=0, Approved=1, Rejected=2 | LicenseRequest.cs |
 | DeployJobStatus | static class 常量（字符串） | DeployJob.cs |
 
 ### Qdrant 类型（非表，`SB.Framework.Models/Qdrant/`）
@@ -446,8 +380,8 @@ KeyId（未命中为 0） / KeyName(100) / TokenPrefix(16) / Action(20: Created/
 
 ## 关键事实
 
-1. 共 **25 个表实体**：21 个在 Models 根目录，2 个在 AccessToken 插件，1 个 BackupRemoteRecord（BackupReceive 项目根），LoginLog。LicenseManage **无自有实体**。
-2. 实现 `ISoftDelete`：Admin、AdminRole、Member、Menu、ApiKey。`LicenseClient` 有 `IsDeleted` 但未实现接口。
+1. 共 **21 个表实体**：17 个在 Models 根目录，2 个在 AccessToken 插件，1 个 BackupRemoteRecord（BackupReceive 项目根），LoginLog。
+2. 实现 `ISoftDelete`：Admin、AdminRole、Member、Menu、ApiKey。
 3. `AdminRoleMenu` 未实现 `IEntity`（主键仍为 Id）。
 4. **实体/属性无 `[Obsolete]` 标记**（仅 AppController 4 个 action 有）。
 5. `StringLength=-2`（max/text）：SystemSetting.DataContent、SystemSetting.DataContentConfig、DatabaseBackup.RemoteUploadError。

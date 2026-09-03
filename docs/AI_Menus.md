@@ -66,12 +66,12 @@ packages/utils generate-routes-backend.ts convertRoutes()
 | # | 禁止 | 后果 / 依据 |
 |---|------|------------|
 | 1 | **手写 SQL / JSON 菜单数据、写独立 seeder 直接 Insert SB_Menu** | 与启动同步互相覆盖：同 Path 被同步 Update 改回声明值；不同 Path 的脏数据永远残留（同步不删未声明菜单） |
-| 2 | **顶级菜单 Path / Name 与框架重复**（`/system`、`/dashboard`、`/email`、`/member`、`/license-manage`、`/backup-receive` 及其子路径） | 同 Path 菜单被同步强制改回框架的 Name/Component/OrderNo/ParentId，业务菜单“消失” |
+| 2 | **顶级菜单 Path / Name 与框架重复**（`/system`、`/dashboard`、`/email`、`/member`、`/backup-receive` 及其子路径） | 同 Path 菜单被同步强制改回框架的 Name/Component/OrderNo/ParentId，业务菜单“消失” |
 | 3 | **声明菜单但前端不建对应 views 组件文件** | generate-routes-backend.ts 查不到 pageMap → console.error + not-found 兜底，页面 404 |
 | 4 | **前端 fork 丢失 `access.ts` 的 `LAYOUT` / `PARENT` layoutMap 映射** | 中间层容器与一级菜单渲染失败（历史踩坑见 AI_Migration_Pitfalls.md §3.1） |
 | 5 | **`ParentPath` 指向不存在 / 拼错的 Path** | 同步仅 Warning 后跳过（DatabaseSeeder.cs:153），菜单静默丢失 |
 | 6 | **`GetMenus()` 里读取注入字段 / 做数据库查询** | 初始化器不跑构造函数，字段为 null 直接崩 |
-| 7 | **在 `GetMenus()` 之外动态拼菜单**（运行时按条件改库） | 每次启动被同步重置；条件差异应放在声明里（参考 AdminService.cs `#if !DISABLE_LICENSE`） |
+| 7 | **在 `GetMenus()` 之外动态拼菜单**（运行时按条件改库） | 每次启动被同步重置；条件差异应放在声明里 |
 | 8 | **用 `ParentPath = ""` 表示顶级** | Phase1 判定是 `ParentPath == null`，空字符串会进 Phase2 找父 `""` 失败被跳过 |
 | 9 | **升级时修改已发布菜单的 `Path`** | 旧行残留（同步不删）+ 新行新建 → 菜单重复；Path 是身份标识，只改 ParentPath/Title 等 |
 | 10 | **手改数据库 / 菜单管理页修改声明菜单的字段、拖动层级** | 下次启动全部被重置（覆盖字段清单见 1.2） |
@@ -83,7 +83,7 @@ packages/utils generate-routes-backend.ts convertRoutes()
 3. **Name 全局唯一、PascalCase、带模块前缀**：如 `TgvaultProduct` / `TgvaultProductEdit`。它是 vue-router 的 route name，前端缺 name 直接 console.error，重名会破坏 keep-alive 与导航。
 4. **Component 与前端 views 目录一一对应**：`"/tgvault/product/index"` ↔ `apps/web-antd/src/views/tgvault/product/index.vue`；路径分隔用 `/`，不要带 `.vue`（会自动补）。
 5. **顶级菜单 `Component = "LAYOUT"`**；二/三层容器菜单 `Component = ""` 即可（出 API 时自动转 `"PARENT"`），前端 layoutMap 必须有 `PARENT → ParentLayout`。
-6. **OrderNo 约定**：框架已占用顶级档位 `0`(Dashboard)、`10`(Member)、`80`(Email)、`90`(授权管理)、`95`(云端备份)、`100`(System)。业务顶级菜单用 **20–70 区间或 100 之后**；子菜单从 `1` 起步、留间隙便于插入。
+6. **OrderNo 约定**：框架已占用顶级档位 `0`(Dashboard)、`10`(Member)、`80`(Email)、`95`(云端备份)、`100`(System)。业务顶级菜单用 **20–70 区间或 100 之后**；子菜单从 `1` 起步、留间隙便于插入。
 7. **图标用 Iconify 名称、保持 `ion:` 系列**（框架主用 Ionicons）：如 `ion:grid-outline`、`ion:mail-outline`；同一模块内前缀保持一致。
 8. **编辑/详情页配 `HideInMenu = true`** 并给独立 Path（参考 AdminService.cs:128）。
 9. **挂载到框架菜单（如开发工具）必须用 `ParentPath`**，Path 仍保持全局绝对路径（`/system/xxx`），见 §3 示例二。
@@ -112,7 +112,7 @@ public sealed class TgvaultInitializer : IModuleInitializer
             Component = "LAYOUT",                         // 顶级固定 LAYOUT
             Title = "TGVault",
             Icon = "ion:cube-outline",                    // ion: 系列
-            OrderNo = 20,                                 // 避开 0/10/80/90/95/100
+            OrderNo = 20,                                 // 避开 0/10/80/95/100
             Children = new()
             {
                 new() { Name = "TgvaultProduct",  Path = "/tgvault/product",  Component = "/tgvault/product/index", Title = "产品管理", Icon = "ion:pricetag-outline", OrderNo = 1 },
@@ -123,7 +123,7 @@ public sealed class TgvaultInitializer : IModuleInitializer
 }
 ```
 
-> 参照真实样本：`SB.Feature.LicenseManage/LicenseManageInitializer.cs`、`SB.Feature.BackupReceive/BackupReceiveInitializer.cs`、`SB.Framework.Services/EmailService.cs:36`。
+> 参照真实样本：`SB.Feature.BackupReceive/BackupReceiveInitializer.cs`、`SB.Framework.Services/EmailService.cs:36`。
 
 ### 示例二：挂载到框架已有菜单（ParentPath）
 

@@ -53,7 +53,7 @@ push 时通过 `--api-key` 参数传;GET / restore 不需要 key。
 
 ## push framework 包(发包流程)
 
-bump csproj `<Version>` → **删 bin/obj 干净重建** → `dotnet pack`（正常变体 + `-p:DisableLicense=true` NoLicense 变体）打出 nupkg 后，把全部 `*.nupkg`（含 `.NoLicense`）推上去：
+bump csproj `<Version>` → **删 bin/obj 干净重建** → `dotnet pack` 打出 nupkg 后，把全部 `*.nupkg` 推上去：
 
 ```bash
 # 内网直连后端（实测可用，2026-06-10）；HTTP 源 push 需临时 NuGet.config 开 allowInsecureConnections
@@ -67,7 +67,7 @@ cat > /tmp/push.config <<'XML'
 </configuration>
 XML
 
-for pkg in /path/to/nupkgs/*.nupkg; do        # 含正常 + .NoLicense 双变体
+for pkg in /path/to/nupkgs/*.nupkg; do
   dotnet nuget push "$pkg" \
     --source baget --configfile /tmp/push.config \
     --api-key d77f86fba8cd73cee8e4bcb3938a9fb3 \
@@ -89,7 +89,7 @@ dotnet restore
 ```
 
 NuGet client 按 `packageSources` 顺序查询:先 BaGet,然后 nuget.org。BaGet 上的包包括:
-- saibo 自己的 SB.Framework.* / SB.Framework.*.NoLicense
+- saibo 自己的 SB.Framework.*
 - 通过 Mirror 缓存的 nuget.org 包(每次 cache miss 会自动从上游拉,客户端透明)
 
 ## Mirror 行为

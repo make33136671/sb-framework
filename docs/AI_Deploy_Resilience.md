@@ -13,7 +13,7 @@
 ### ① 预检门控（治本·切换前拦截坏包）
 `Deploy` 在真正覆盖 `/app` 之前：
 1. 把上传的 zip 解压到**临时 staging 目录**（`/app/.smoke-<guid>`，不碰线上）。
-2. 从 `/app` 拷入运行所需的 `appsettings*.json` / `installed.lock` / `client.key`。
+2. 从 `/app` 拷入运行所需的 `appsettings*.json` / `installed.lock`。
 3. 用临时端口以**冒烟模式**启动：`dotnet <staging>/<dll> --urls http://127.0.0.1:<ephemeral>`，环境变量 `SB_SMOKE_TEST=1`。
 4. 轮询 `http://127.0.0.1:<ephemeral>/health`，绿了 = 新包能正常启动。
 5. 杀掉冒烟进程，清理 staging。
@@ -21,8 +21,8 @@
 
 **冒烟模式（`SB_SMOKE_TEST=1`）必须关掉的副作用**（否则临时实例会污染生产）：
 - `SeedDatabase()`（DB 迁移）— 跳过
-- 后台任务系统（`AddBackgroundTasks`）— 不注册；**License 心跳本身是后台任务，一并停掉**
-- 即冒烟实例只构建 Web 宿主 + 映射 `/health`，只读探活，不写库、不发心跳、不跑定时任务。
+- 后台任务系统（`AddBackgroundTasks`）— 不注册
+- 即冒烟实例只构建 Web 宿主 + 映射 `/health`，只读探活，不写库、不跑定时任务。
 
 ### ② 看门狗自动回滚（兜底·独立于 API 存活）
 supervisord 里新增独立进程 `pm-deploy-guard`（shell 循环，与 API 完全解耦，脚本烤进镜像 `/usr/local/bin`，不依赖 `/app` 内容）：

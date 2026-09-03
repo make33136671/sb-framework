@@ -24,7 +24,7 @@
 1. **纯前端操作**：剪贴板复制（navigator.clipboard.writeText 后）、纯 UI 提示
 2. **本地表单校验**：`message.error('请输入xxx')`
 3. **silent 模式 API**：`api.post(url, data, { silent: true })` 跳过拦截器，业务自己弹
-4. **业务事件提示**：非 API 直接产生的状态提示（如 LicenseUpdatePanel 的"授权已被吊销"）
+4. **业务事件提示**：非 API 直接产生的状态提示（如前端本地状态变更的提示）
 
 ---
 
@@ -67,7 +67,7 @@
 
 ### 时间显示
 - **时间组件用项目自研 `TimeTag`**（`apps/web-antd/src/components/TimeTag`）
-- 后端时间是 UTC（带 Z 后缀）→ 前端按 `appTimeZone` 格式化（从 `/admin/Verification/Status` 拉）
+- 后端时间是 UTC（带 Z 后缀）→ 前端按 `appTimeZone` 格式化
 - TimeTag `time` 为空或纯占位符（`-` / `--`）时不显示时区行（避免"-- + Asia/Shanghai +8"）
 - TimeTag `trackColor` prop 自定义轨道色（用 shadcn `:root` token，不要传 `--ant-color-*`）
 
@@ -218,7 +218,7 @@ public class MyTask : BaseBackgroundTask
 ## 6. 云端中心架构（CloudConfig）
 
 ### 设计
-所有云端服务（在线授权 / 数据库备份接收 / 未来其他）共用一个根地址 `CloudConfig.ServerUrl`，安装向导填一次，运行时各功能拼子路径调用。
+所有云端服务（数据库备份接收 / 未来其他）共用一个根地址 `CloudConfig.ServerUrl`，安装向导填一次，运行时各功能拼子路径调用。
 
 ### 字段
 - `appsettings.json` 加 `"CloudConfig": { "ServerUrl": "https://cloud.example.com" }`
@@ -227,14 +227,10 @@ public class MyTask : BaseBackgroundTask
 ### Helper（业务代码用）
 ```csharp
 // AppSettings.cs
-public string GetLicenseServerUrl()  // 拼 {ServerUrl}/api/license
 public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 ```
 
 新增云端功能：在 AppSettings 加同样的 helper 拼子路径，业务调 helper 而不是直接拼字符串。
-
-### 向后兼容
-`LicenseConfig.LicenseServerUrl` 字段保留，新部署留空，由 `CloudConfig.ServerUrl + /api/license` 自动拼接。
 
 ---
 
@@ -279,7 +275,7 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 
 ### 访问令牌（AccessToken 插件）
 - 由 `SB.Feature.AccessToken` 插件提供：账号即 token（密码 / API Key 两种认证）
-- API Key 支持 scoped key（`Scopes` RBAC）与 **FullAccess(god) key**（旁路 License，取代旧 MasterKey，可吊销/审计）
+- API Key 支持 scoped key（`Scopes` RBAC）与 **FullAccess(god) key**（可吊销/审计）
 - 明文 token 只在签发时回显一次；安装向导 / 后台可签发，`super` 角色可签 FullAccess
 - 带 IP 白名单、过期时间、每分钟限流；审计日志 `SB_ApiKeyAuditLog`
 
@@ -293,15 +289,7 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 ## 10. 构建参数
 
 ### 默认（客户交付）
-- 授权验证 ON（不传 `-p:DisableLicense=true`）
-- 授权管理 / 备份接收 / 访问令牌：由 **NuGet 插件**（`SB.Feature.*`）决定，引用即启用
-
-### 编译开关
-| Flag | 作用 |
-|------|------|
-| `-p:DisableLicense=true` | 关闭授权验证（同时切换包为 `.NoLicense` 变体：PackageId 后缀 + `DISABLE_LICENSE` 编译符号 + 空公钥嵌入） |
-
-> 旧 `-p:EnableLicenseManage` / `-p:EnableBackupReceive` 编译开关已废弃，改为 NuGet 插件（`SB.Feature.LicenseManage` / `SB.Feature.BackupReceive`），引用即启用、`Features:Disabled` 可关。
+- 备份接收 / 访问令牌等可选功能：由 **NuGet 插件**（`SB.Feature.*`）决定，引用即启用
 
 ### 默认过滤
 构建产物时**默认排除**：
@@ -323,9 +311,6 @@ public string GetBackupUploadUrl()   // 拼 {ServerUrl}/api/BackupReceive/Upload
 
 ### 后端代码改动后
 **立即重启 API**（不要询问用户）。
-
-### 调试
-**Development 环境跳过授权验证**（`if (!app.Environment.IsDevelopment()) app.UseLicense();`），避免授权服务器不可达打断调试。生产构建不受影响。
 
 ---
 
@@ -367,11 +352,10 @@ import { TimeTag } from '#/components/TimeTag';
 | 组件 | 场景 | 关键 props / 注意 |
 |------|------|------------------|
 | **TimeTag** | 时间戳 + 时区标签 | `time` / `color` / `timezone` / `placeholder` (默认 `--`)；`time` 为空或纯占位符时不显示时区行 |
-| **TimeProgress** | 时间区间进度可视化（授权剩余、备份倒数等） | `startTime` / `endTime` / `mode` (默认 `elapsed`) / `color` / `trackColor` / `variant` / `striped`；color 必须用 shadcn `:root` token (`hsl(var(--destructive))`)，不要传 `var(--ant-color-*)` |
+| **TimeProgress** | 时间区间进度可视化（备份倒数等） | `startTime` / `endTime` / `mode` (默认 `elapsed`) / `color` / `trackColor` / `variant` / `striped`；color 必须用 shadcn `:root` token (`hsl(var(--destructive))`)，不要传 `var(--ant-color-*)` |
 | **TimezoneDisplay** | 单独展示时区文本 | `timezone` (IANA ID，空值显示 `--`) |
 | **AmountDisplay** | 所有金额展示（充值/订单/提现） | `amount` / `currency` / `currencyIcon` / `mode` (`icon`/`text`) / `decimals` |
 | **SmartUpload / DirectUpload / ChunkUpload** | 文件上传 | 三组件 props/emits/slots 一致；Smart 默认推荐自动选直传/分片，强制场景用 Direct/Chunk |
-| **LicenseExpiryReminder** | 授权到期弹窗 | 已挂 `basic.vue` `#extra`，业务页面不要重复挂载 |
 | **PermissionDescription** | 用户/角色的"我有什么权限"卡片 | 自动读 `usePermission()`，按 `userType` 渲染 |
 
 **禁忌**（替换后看似工作但失去全系统统一）：
@@ -431,10 +415,6 @@ using SB.Framework.Core.Expand;
 #### `SB.Framework.Core/FreeSql/BaseRepositoryExtensions.cs`
 FreeSql 仓储扩展（`OrderByPropertyName` 等 ApplySorting helper）。
 
-#### `SB.Framework.Core/License/`
-License 子系统 — 详见 [AI_License_System.md](AI_License_System.md)。
-业务一般通过 `AppGlobal.AppSettings.GetLicenseServerUrl()` helper 调用，不直接碰内部类。
-
 #### `SB.Framework.Core/Middleware/` + `SB.Framework.WebApi/Middleware/`
 
 | 中间件 | 用途 |
@@ -467,7 +447,6 @@ License 子系统 — 详见 [AI_License_System.md](AI_License_System.md)。
 #### CloudConfig helper（`AppSettings.cs`）
 
 ```csharp
-AppGlobal.AppSettings.GetLicenseServerUrl()    // 拼 {ServerUrl}/api/license
 AppGlobal.AppSettings.GetBackupUploadUrl()     // 拼 {ServerUrl}/api/BackupReceive/Upload
 ```
 新增云端服务必须**在 AppSettings 加同样的 helper**（详见 §6），业务调 helper 不直接拼字符串。
@@ -500,33 +479,23 @@ AppGlobal.AppSettings.GetBackupUploadUrl()     // 拼 {ServerUrl}/api/BackupRece
 
 框架内置了多个可选功能。**新增功能时必须先判断它属于哪一档**，对号入座，不能用错机制。
 
-### 14.1 三档分级标准
+### 14.1 两档分级标准
 
 | 档位 | 判定标准 | 典型功能 | 开关机制 |
 |------|---------|---------|---------|
-| **主权功能** | 客户不能自行关闭；关闭即破坏商业控制（授权到期、防盗版） | 授权验证 `LicenseMiddleware` | **编译期 `#if DISABLE_LICENSE`**，由构建参数 `-p:DisableLicense=true` 决定（同时切换 `.NoLicense` 包变体），产物中物理不存在关闭分支 |
-| **运维后门** | 由框架作者/运维持有，不暴露给最终用户；泄漏不会破坏授权但有安全风险 | AccessToken 插件的 **FullAccess(god) API Key**（穿透 JWT + 旁路 License，取代旧 MasterKey） | **插件 + 角色约束**：`SB.Feature.AccessToken` 提供，`super` 角色可签发、可吊销、可审计，建议配 IP 白名单 |
-| **纯功能性** | 客户开关无所谓，关了是他自己损失，不影响商业控制 | 插件（云端备份、授权管理）、邮件、限流参数、Qdrant | **NuGet 插件引用即启用**（`Features:Disabled` 可关），或 `appsettings.json` 配置 |
+| **运维后门** | 由框架作者/运维持有，不暴露给最终用户；泄漏有安全风险 | AccessToken 插件的 **FullAccess(god) API Key**（穿透 JWT） | **插件 + 角色约束**：`SB.Feature.AccessToken` 提供，`super` 角色可签发、可吊销、可审计，建议配 IP 白名单 |
+| **纯功能性** | 客户开关无所谓，关了是他自己损失 | 插件（云端备份）、邮件、限流参数、Qdrant | **NuGet 插件引用即启用**（`Features:Disabled` 可关），或 `appsettings.json` 配置 |
 
-### 14.2 两套交付场景对照
-
-| 场景 | 客户拿到 | 主权功能防护 |
-|------|---------|------------|
-| **A. 纯产物交付**（大多数） | 编译好的 dll + 配置文件，不含源码 | 客户改不了 dll，显式调用或内置均可 |
-| **B. 协作开发**（客户即开发者，能改 Program.cs） | 派生项目源码 + 框架 NuGet 包 | **必须用编译期 `#if`**：授权写死在 `UseSbFramework()` 内部，客户改不了框架 dll；三重锁：dll 内置 → 无关闭分支 → RSA 私钥签名 |
-
-### 14.3 新增功能时的决策树
+### 14.2 新增功能时的决策树
 
 ```
 新功能要不要让客户关闭？
-├── 不能关（关了我失控）→ 主权功能 → #if DISABLE_LICENSE 编译期，写进 UseSbFramework/AddSbFramework 内部
 ├── 可以关，但是运维/作者持有的后门 → 运维后门 → AccessToken 插件 FullAccess key（角色约束 + 可吊销 + IP 白名单）
 └── 随便关，纯功能性 → 做成 SB.Feature.* 插件（引用即启用、Features:Disabled 可关）或 appsettings.json 配置
 ```
 
-### 14.4 运维后门的实现范式（当前以 AccessToken FullAccess 为模板）
+### 14.3 运维后门的实现范式（当前以 AccessToken FullAccess 为模板）
 
-- 旧「MasterKey 万能密钥」（`AppSettings.MasterKey` + `MasterKeyMiddleware` + `X-Master-Key` 头）**已废弃**，源码中不再存在。
-- 取代方案：`SB.Feature.AccessToken` 插件的 `ApiKey.FullAccess = true`（god key）——忽略 scope、穿透所有端点、旁路 License。
+- `SB.Feature.AccessToken` 插件的 `ApiKey.FullAccess = true`（god key）——忽略 scope、穿透所有端点。
 - 签发权限：仅 `super` 角色，且需功能开关 `EnableFullAccess=true` 才生效；支持吊销（审计 `SB_ApiKeyAuditLog`）与 IP 白名单。
 - **新增同类运维后门功能**：优先复用 AccessToken 的 scoped key / FullAccess key 机制，不要在框架里自造静态密钥中间件。

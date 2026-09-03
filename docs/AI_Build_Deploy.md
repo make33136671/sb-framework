@@ -28,7 +28,7 @@ dotnet build sb-framework.sln
 
 ### 打包推 NuGet（`scripts/pack-push.sh`）
 
-把框架子项目编译成 NuGet 包（**正常 + NoLicense 双变体**），推送到 BaGet 私有源。改完框架必须走这步，派生项目才能 restore 到新版本。
+把框架子项目编译成 NuGet 包（单一包，无变体），推送到 BaGet 私有源。改完框架必须走这步，派生项目才能 restore 到新版本。
 
 ```bash
 ./scripts/pack-push.sh --bump                              # 所有可打包项目 patch+1 后推送
@@ -37,7 +37,7 @@ dotnet build sb-framework.sln
 ./scripts/pack-push.sh --project SB.Framework.WebApi --no-push  # 只打包不推送
 ```
 
-- 可打包项目：Models / Core / Services / WebApi / Analyzers / Feature.AccessToken / Feature.BackupReceive / Feature.LicenseManage（**DevHost 不打包**）。
+- 可打包项目：Models / Core / Services / WebApi / Analyzers / Feature.AccessToken / Feature.BackupReceive（**DevHost 不打包**）。
 - **铁律**（来自 CHANGELOG 0.4.3 事故）：每次发包**必须删 bin/obj 干净重建**，否则包版本 bump 但内部程序集版本未变，派生项目运行时 `FileNotFoundException` 崩溃。脚本默认强制清理。
 - 源：默认公网 `https://nuget.saibo.club/v3/index.json`；内网用 `--source-http`。API key 优先取环境变量 `SB_BAGET_API_KEY`。
 
@@ -56,14 +56,13 @@ curl http://localhost:6010/api/Setup/Status   # {"code":0,"data":{"installed":fa
 ```bash
 ./sb-build.sh --project <csproj路径> [options]
 # 常用：
-./sb-build.sh --project src/App.WebApi                 # 默认: 清dist + 删config + 打zip + 跳过License
+./sb-build.sh --project src/App.WebApi                 # 默认: 清dist + 删config + 打zip
 ./sb-build.sh --project src/App.WebApi --version 2.0.0
-./sb-build.sh --project src/App.WebApi --with-license  # 注入 License 公钥(需 SB_LICENSE_KEY_DIR)
 ./sb-build.sh --project src/App.WebApi --rid linux-x64
 ./sb-build.sh --project src/App.WebApi --deploy /opt/apps/pm/api --restart   # 直接部署
 ```
 
-关键默认：清空 dist、删除 appsettings*.json 与 wwwroot（防覆盖线上）、保留 `installed.lock`、打 zip、**默认 `--no-license`**（`-p:DisableLicense=true`）。
+关键默认：清空 dist、删除 appsettings*.json 与 wwwroot（防覆盖线上）、保留 `installed.lock`、打 zip。
 
 ### 派生项目 SemVer 自动版本号（推荐）
 
@@ -107,7 +106,7 @@ dotnet publish <App.WebApi.csproj> -c Release -o dist \
 ### Linux（systemd）
 
 ```bash
-./scripts/sb-build.sh --project <App.WebApi.csproj> --with-license --rid linux-x64
+./scripts/sb-build.sh --project <App.WebApi.csproj> --rid linux-x64
 # 上传 dist/ 到服务器，创建 systemd 服务：
 ```
 
@@ -222,4 +221,4 @@ public class YourEntityController : ControllerBase
 
 ## 七、冒烟模式（部署预检）
 
-环境变量 `SB_SMOKE_TEST=1`：跳过 `SeedDatabase`（DB 迁移）与后台任务运行器（含 License 心跳），但保留 `IBackgroundTaskManager` 的 DI 注册（否则注入它的控制器解析失败）。临时实例只读探活 `/health`，不污染生产。
+环境变量 `SB_SMOKE_TEST=1`：跳过 `SeedDatabase`（DB 迁移）与后台任务运行器，但保留 `IBackgroundTaskManager` 的 DI 注册（否则注入它的控制器解析失败）。临时实例只读探活 `/health`，不污染生产。

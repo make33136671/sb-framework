@@ -18,7 +18,7 @@
 
 ```
 sb-framework/
-├── SB.Framework.Core/      # 基础设施 (JWT, Util, License, Middleware, 插件框架, BaseCrudService)
+├── SB.Framework.Core/      # 基础设施 (JWT, Util, Middleware, 插件框架, BaseCrudService)
 ├── SB.Framework.Models/    # 实体、DTO、枚举、接口 (IEntity / IModuleInitializer / Result)
 ├── SB.Framework.Services/  # 应用服务 + 扩展点 (IFreeSqlConfigurator / IStartupSyncHook)
 ├── SB.Framework.WebApi/    # Controllers + Middleware + 一键装配 (AddSbFramework / UseSbFramework)
@@ -27,7 +27,6 @@ sb-framework/
 ├── SB.FlowEngine/          # 图执行引擎（独立 NuGet 包）
 ├── SB.Feature.AccessToken/     # 插件：统一访问令牌
 ├── SB.Feature.BackupReceive/   # 插件：云端备份接收端
-├── SB.Feature.LicenseManage/   # 插件：授权签发端
 ├── scripts/                # 构建 / 打包 / 部署脚本
 └── docs/                   # AI documentation (this directory)
 ```
@@ -46,7 +45,7 @@ Services (引 Core + Models)
 WebApi (引 Services)                  ←── DevHost 引 WebApi + Feature 插件
 ```
 
-Feature 插件（AccessToken / BackupReceive / LicenseManage）**只引 Core + Models**，通过 `FrameworkReference: Microsoft.AspNetCore.App` 拿 MVC 类型 —— 避免循环依赖的关键设计。
+Feature 插件（AccessToken / BackupReceive）**只引 Core + Models**，通过 `FrameworkReference: Microsoft.AspNetCore.App` 拿 MVC 类型 —— 避免循环依赖的关键设计。
 
 ## 一键装配（★ 核心）
 
@@ -60,8 +59,8 @@ app.UseSbFramework();          // 接管线
 await app.RunAsync();
 ```
 
-- **`AddSbFramework`**（`SB.Framework.WebApi/Extensions/SbFrameworkExtensions.cs`）：读配置 → Serilog → `FeatureScanner.Scan`（插件发现，最早）→ 实例化 feature 清单 → License DI → **`installed.lock` 门控**（已安装：FreeSql + Jwt + 业务服务 + 缓存/邮件/后台任务 + feature DI + Controller 跨程序集发现；未安装：仅 Authentication + MemoryCache）→ `AdminRoutePrefixConvention`。
-- **`UseSbFramework`** 管线顺序：HSTS → CORS → RateLimiter → Serilog → `LicenseMiddleware`(主权闸门，最外层) → `GlobalException` → QueryCount → StaticFiles → `SetupMiddleware`(安装门控) → Routing → `ApiKeyMiddleware` → Authorization → Swagger → feature 中间件 → HealthChecks → MapControllers → SeedDatabase。
+- **`AddSbFramework`**（`SB.Framework.WebApi/Extensions/SbFrameworkExtensions.cs`）：读配置 → Serilog → `FeatureScanner.Scan`（插件发现，最早）→ 实例化 feature 清单 → **`installed.lock` 门控**（已安装：FreeSql + Jwt + 业务服务 + 缓存/邮件/后台任务 + feature DI + Controller 跨程序集发现；未安装：仅 Authentication + MemoryCache）→ `AdminRoutePrefixConvention`。
+- **`UseSbFramework`** 管线顺序：HSTS → CORS → RateLimiter → Serilog → `GlobalException` → QueryCount → StaticFiles → `SetupMiddleware`(安装门控) → Routing → `ApiKeyMiddleware` → Authorization → Swagger → feature 中间件 → HealthChecks → MapControllers → SeedDatabase。
 - **冒烟模式**：`SB_SMOKE_TEST=1` 跳过 DB 迁移与后台任务，只探活 `/health`（部署预检）。
 
 ## 插件框架（SB.Feature.\*）
@@ -92,7 +91,7 @@ await app.RunAsync();
 - **仓储模式:** `BaseCrudService<T> : BaseRepository<T>`（约束 `T : class, IEntity`），提供 `Detail` / `Del`（自动软删）/ 排序 / 分页。
 - **Tables:** 前缀 `sb_`（e.g., `SB_Admin`, `SB_Member`）；派生表 `sb_<app>_`。
 - **Auto-sync:** 启动时 `CodeFirst.SyncStructure` 自动建表（无迁移文件）。
-- **全局软删过滤:** Admin / Menu / AdminRole / Member / LicenseClient 自动 `Apply("IsDeleted", ...)`。
+- **全局软删过滤:** Admin / Menu / AdminRole / Member 自动 `Apply("IsDeleted", ...)`。
 - **慢查询监控:** `Aop.CommandAfter` 阈值 `SlowQueryThresholdMs`（默认 200ms）→ Warning 日志。
 - **扩展点:** `IFreeSqlConfigurator`（派生项目配置 GlobalFilter / Mapper / Converter，按 `Order` 执行）。
 - **Config:** `appsettings.json` → `DbConfig` section。
@@ -132,29 +131,11 @@ Pluggable provider architecture（`EmailProviderFactory`）：Google SMTP / Rese
 
 Related services: `IEmailService`, `EmailProviderFactory`, `EmailRateLimitService`, `VerificationCodeService`
 
-## License System
-
-> 旧「MasterKey / 静态密钥」已废弃，由 **AccessToken 插件** 取代（scoped key + FullAccess god key，可吊销/审计）。
-
-### Client-side（LicenseController）
-- Check license status, request authorization, download & apply license
-- `LicenseMiddleware` validates license for protected routes（`#if !DISABLE_LICENSE` 编译期开关）
-- Whitelist: setup, auth, health check paths
-
-### Server-side（SB.Feature.LicenseManage 插件）
-- RSA key pair management, client management
-- Approve/reject license requests, generate/revoke licenses
-- Verification logs
-- 典型部署在 **NoLicense 主包**上（自己不被授权束缚 + 能给下游签发）
-
-详细见 [AI_License_System.md](AI_License_System.md)。
-
 ## AccessToken（SB.Feature.AccessToken 插件）
 
 统一访问令牌：账号即 token（密码 / API Key 两种认证）。
 - `ApiKey`（表 `SB_ApiKey`）：AccountId、TokenHash(sha256)、TokenPrefix、Scopes(RBAC)、FullAccess(god)、IpAllowlist、ExpiresAt、RateLimitPerMinute；明文只签发时回显一次。
 - 实现 `IApiKeyAuthenticator` 核心缝，注册 `ScopeFilter`（端点 `[Scope]` 声明，默认 deny）。
-- 取代原 agent token 全部能力 + MasterKey（FullAccess 旁路 License，可吊销/审计）。
 
 ## Background Tasks
 
@@ -208,7 +189,6 @@ Related services: `IEmailService`, `EmailProviderFactory`, `EmailRateLimitServic
   "ProjectAssemblyName": "",
   "ExcludeControllers": [],
   "PrimaryDomain": "",
-  "LicenseConfig": { "Key": "" },
   "CloudConfig": { "ServerUrl": "" },
   "DeployConfig": { "Projects": [] },
   "Features": { "Disabled": [] },
@@ -233,4 +213,3 @@ Related services: `IEmailService`, `EmailProviderFactory`, `EmailRateLimitServic
 | Password util | `SB.Framework.Core/Util/PasswordUtil.cs` |
 | 时间工具（强制） | `SB.Framework.Core/Util/AppTime.cs` |
 | Global exception | `SB.Framework.Core/Middleware/GlobalExceptionMiddleware.cs` |
-| License middleware | `SB.Framework.Core/License/` |

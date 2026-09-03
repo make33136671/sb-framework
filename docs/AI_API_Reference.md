@@ -16,7 +16,6 @@
 1. **`SystemSettingController.List` 无 HTTP verb 属性**（源码 `SystemSettingController.cs:30`）——属性路由不可达，疑似漏标 `[HttpGet]`。⚠️ 不可用。
 2. **`AppController` 4 个 `[Obsolete]` action**：`UploadApi`、`DeployApiByPath`、`UploadProject`、`DeployProjectByPath`——已废弃，改用 **`Upload` + `Deploy` 两步流程**（带冒烟预检）。
 3. `BackupReceiveController` 控制器级无 `[Route]`，每个 action 显式绝对路由（不受 admin 前缀影响）。
-4. `EntitlementController` / `VerifyController` 部分 POST action 参数无显式绑定属性，依赖 `[ApiController]` 简单类型默认 `FromQuery` 推断。
 
 ---
 
@@ -276,21 +275,9 @@
 | POST | `ChunkMerge` | form: `uploadId` | 合并分片 |
 | GET | `ChunkProgress` | query: `uploadId` | 上传进度查询 |
 
-### 20. VerificationController — `admin/Verification/[action]` · `[Authorize(JwtAdmin)]`
-
-| Verb | Action | 参数 | 行为 |
-|------|--------|------|------|
-| GET | `Status` | — | 授权状态+客户端标识（**AllowAnonymous**） |
-| POST | `RequestLicense` | query: `domain`(推断) | 向授权服务器申请 |
-| POST | `CheckUpdate` | query: `serverUrl?`, `actualDomain?` | 查询新授权 |
-| POST | `ApplyLicense` | query: `recordId`, `serverUrl?` | 下载并应用新授权 |
-| POST | `ApplyKey` | query: `licenseKey?` | 离线应用授权 Key |
-
----
-
 ## 二、SB.Feature.AccessToken
 
-### 21. AccessTokenController — `/admin/AccessToken/[action]`（绝对，显式含 admin）· `[Authorize(JwtAdmin)]`
+### 20. AccessTokenController — `/admin/AccessToken/[action]`（绝对，显式含 admin）· `[Authorize(JwtAdmin)]`
 
 | Verb | Action | 参数 | 行为 |
 |------|--------|------|------|
@@ -305,7 +292,7 @@
 
 ## 三、SB.Feature.BackupReceive
 
-### 22. BackupReceiveController — 控制器级无 `[Route]`，action 级绝对路由
+### 21. BackupReceiveController — 控制器级无 `[Route]`，action 级绝对路由
 
 | Verb | Action | 路由 | 参数 | 行为 |
 |------|--------|------|------|------|
@@ -319,40 +306,7 @@
 
 ---
 
-## 四、SB.Feature.LicenseManage
-
-### 23. EntitlementController — `admin/Entitlement/[action]` · `[Authorize(JwtAdmin)]`
-
-| Verb | Action | 参数 | 行为 |
-|------|--------|------|------|
-| GET | `GetPublicKey` | — | 公钥 XML + 是否有密钥对 |
-| POST | `RegenerateKeyPair` | — | 重新生成密钥对（旧授权失效） |
-| GET | `ClientList` | query: `page`, `pageSize`, `keyword?` | 客户分页 |
-| GET | `ClientDetail` | query: `id` | 客户详情 |
-| POST | `ClientEdit` | query(推断): `id`, `remark?`, `status?` | 编辑客户 |
-| GET | `RequestList` | query: `page`, `pageSize`, `status?` | 授权申请分页 |
-| POST | `ApproveRequest` | query(推断): `requestId`, `expiresAt`, `verifyMode`(默认Both) + **FromBody**: `allowedRoutes?` | 审批申请 |
-| POST | `RejectRequest` | query(推断): `requestId`, `reason?` | 拒绝申请 |
-| GET | `RecordList` | query: `page`, `pageSize`, `clientId?` | 授权记录分页 |
-| POST | `IssueLicense` | **FromBody** `req`(IssueLicenseRequest) | 统一签发授权 |
-| POST | `QuickGenerate` | **FromBody** `request`(QuickGenerateRequest) | 快速签发（粘贴客户端信息） |
-| POST | `DeleteClient` | query(推断): `id` | 软删除客户 |
-| POST | `RevokeLicense` | query(推断): `recordId` | 吊销授权 |
-| GET | `VerifyLogList` | query: `page`, `pageSize`, `clientId?` | 验证日志分页 |
-
-### 24. VerifyController — `/api/verify/[action]`（绝对）· `[AllowAnonymous]`
-
-| Verb | Action | 参数 | 行为 |
-|------|--------|------|------|
-| POST | `Heartbeat` | **FromBody** `request`(HeartbeatRequest) | 客户端心跳上报 |
-| POST | `Request` | query(推断): `domain`, `productEn?`, `productCn?`, `clientKey?`, `hardwareId?`, `machineName?`, `osDescription?`, `processorCount?`, `macAddresses?`, `serverIP?` | 客户端申请授权 |
-| POST | `Verify` | query(推断): `domain?`, `actualDomain?`, `productEn?`, `productCn?`, `clientKey?`, `hardwareId?`, `currentKey?`, `serverIP?`, `licenseValid`(默认false), `message?` | 验证上报+吊销查询（返回 `{revoked}`） |
-| GET | `Check` | query(推断): `domain?`, `actualDomain?`, `productEn?`, `productCn?`, `clientKey?`, `hardwareId?`, `machineName?`, `osDescription?`, `processorCount?`, `macAddresses?`, `currentKey?` | 查询可下载新授权 |
-| GET | `Download` | query: `recordId` | 下载授权文件 |
-
----
-
-## 五、SB.FlowEngine
+## 四、SB.FlowEngine
 
 **无 Controller**（纯图执行引擎，业务节点经 `IFlowNodeExecutor` 接入）。
 
@@ -381,19 +335,14 @@
 | 17 | SB.Framework.WebApi | SystemSettingCategoryController | 6 |
 | 18 | SB.Framework.WebApi | SystemSettingController | 9（含 1 个不可达） |
 | 19 | SB.Framework.WebApi | UploadController | 6 |
-| 20 | SB.Framework.WebApi | VerificationController | 5 |
-| 21 | SB.Feature.AccessToken | AccessTokenController | 6 |
-| 22 | SB.Feature.BackupReceive | BackupReceiveController | 5 |
-| 23 | SB.Feature.LicenseManage | EntitlementController | 14 |
-| 24 | SB.Feature.LicenseManage | VerifyController | 5 |
+| 20 | SB.Feature.AccessToken | AccessTokenController | 6 |
+| 21 | SB.Feature.BackupReceive | BackupReceiveController | 5 |
 | — | SB.FlowEngine | （无） | 0 |
 
-**合计：24 个 Controller，194 个 Action**（其中 `SystemSettingController.List` 因缺 verb 属性，属性路由不可达）。
+**合计：21 个 Controller，170 个 Action**（其中 `SystemSettingController.List` 因缺 verb 属性，属性路由不可达）。
 
 **AllowAnonymous 汇总**：
 - `ApiController`：AuthLogin / AuthRegister / AuthForgotPassword / SendVerificationCode / VerifyCode / Upload
 - `AuthController`：Login / Logout / Upload
 - `SetupController`：全部
-- `VerificationController`：Status
-- `VerifyController`：全部
 - `BackupReceiveController`：Upload

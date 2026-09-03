@@ -282,7 +282,6 @@ if (disabledModules.Length > 0)
 |------|------|
 | `SB.Framework.WebApi/Extensions/SbFrameworkExtensions.cs` | 框架初始化，注册控制器 |
 | `SB.Framework.WebApi/Extensions/DatabaseSeeder.cs` | 数据库同步，菜单管理 |
-| `SB.Framework.WebApi/Extensions/LicenseSetup.cs` | License 依赖注册 |
 | `SB.Framework.Services/SetupService.cs` | 安装向导，Docker 检测 |
 | `SB.Framework.Services/AdminService.cs` | 系统管理菜单注册 |
 | `SB.Framework.Services/EmailService.cs` | 邮件模块菜单注册 |

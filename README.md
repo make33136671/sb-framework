@@ -9,13 +9,11 @@
 
 | Package | 版本 | 内容 | 位置 |
 |---------|------|------|------|
-| `SB.Framework.Core` | 0.4.6 | 基础工具/原语（Auth / License / Util / Middleware / **插件框架** / BaseCrudService） | `SB.Framework.Core/` |
+| `SB.Framework.Core` | 0.4.6 | 基础工具/原语（Auth / Util / Middleware / **插件框架** / BaseCrudService） | `SB.Framework.Core/` |
 | `SB.Framework.Models` | 0.4.7 | 基础领域模型（实体 / DTO / 枚举 / `IEntity` / `IModuleInitializer` / `Result`） | `SB.Framework.Models/` |
 | `SB.Framework.Services` | 0.4.13 | 基础应用服务 + 扩展点（`IFreeSqlConfigurator` / `IStartupSyncHook`） | `SB.Framework.Services/` |
 | `SB.Framework.WebApi` | 0.4.14 | Controllers + 中间件 + 一键装配（`AddSbFramework` / `UseSbFramework`） | `SB.Framework.WebApi/` |
 | `SB.Framework.Analyzers` | 0.4.6 | Roslyn 编译期约束（SB0001 禁 `DateTime.Now` / SB0002 禁 `[FromBody]`） | `SB.Framework.Analyzers/` |
-
-> 以上包均有 `.NoLicense` 变体（如 `SB.Framework.WebApi.NoLicense`），通过 `dotnet pack -p:DisableLicense=true` 构建，用于关闭授权验证的部署。
 
 流程引擎（独立包，只依赖 Core）：
 
@@ -27,9 +25,8 @@
 
 | Package | 版本 | 职责 |
 |---------|------|------|
-| `SB.Feature.AccessToken` | 0.2.3 | 统一访问令牌（API Key + 密码，scoped key + FullAccess 旁路 License） |
+| `SB.Feature.AccessToken` | 0.2.3 | 统一访问令牌（API Key + 密码，scoped key + FullAccess） |
 | `SB.Feature.BackupReceive` | 0.1.1 | 云端备份接收端 |
-| `SB.Feature.LicenseManage` | 0.1.1 | 授权签发端（管理客户/审批/签发/吊销） |
 
 另含开发期调试启动壳：
 

@@ -5,6 +5,8 @@
 > 本文是要长期遵循的地基文档。所有 `SB.Feature.*` 功能包按本文范式扩展。
 >
 > ⚠️ **一致性勘误（2026-08-05）**：§6.3 原文描述的 `MasterKeyMiddleware` / `X-Master-Key` 万能密钥 **已从源码移除**，由 `SB.Feature.AccessToken` 插件的 **FullAccess(god) API Key** 取代（可吊销/审计/IP 白名单）。§6.3 的"运维后门"归类结论保留，但实现范式改为 AccessToken，详见 §6.3 末尾修订。其余章节（发现层 / 清单层 / 数据装配层 / 装配时序 / 包发布）与源码一致。
+>
+> ⚠️ **重大变更（2026-09）**：授权验证（License）体系已从框架主线**整体移除**——本文第 6 章（主权功能边界）与第 10 章（样板插件 SB.Feature.LicenseManage）已随之删除，其余章节中的 License 表述已同步清理。旧授权方案的完整实现（含签发端、验证链、双变体打包）保留在 git 分支 `archive/with-license`，日后开发新授权方式时参考。插件机制本身不变，样板以第 9 章 `SB.Feature.BackupReceive` 为准。
 
 ---
 
@@ -15,11 +17,9 @@
 3. [程序集发现机制](#3-程序集发现机制完整代码)
 4. [装配时序：改造后的 AddSbFramework / UseSbFramework](#4-装配时序改造后的-addsbframework--usesbframework)
 5. [与 IModuleInitializer 的关系](#5-与-imoduleinitializer-的关系)
-6. [主权功能边界](#6-主权功能边界)
 7. [配置系统](#7-配置系统)
 8. [包发布矩阵](#8-包发布矩阵)
 9. [样板插件一：SB.Feature.BackupReceive](#9-样板插件一sbfeaturebackupreceive)
-10. [样板插件二：SB.Feature.LicenseManage](#10-样板插件二sbfeaturelicensemanage)
 11. [派生项目接入示例](#11-派生项目接入示例)
 12. [未来新增一个插件的标准步骤](#12-未来新增一个插件的标准步骤)
 13. [已决策 / 待实现时确认 汇总](#13-已决策--待实现时确认-汇总)
@@ -31,7 +31,7 @@
 
 ### 1.1 一句话定义
 
-把框架里用 `#if ENABLE_*` 条件编译塞进主包的可选功能（授权管理、备份接收端等），抽成**独立 NuGet 包 `SB.Feature.{Name}`**。**引包即启用**：框架启动时读 `.deps.json` 自动发现所有 `SB.Feature.*` 程序集并装配，无需派生项目手写任何注册代码；`appsettings` 的 `Features:Disabled` 黑名单可运行期关闭某个 feature。
+把框架里用 `#if ENABLE_*` 条件编译塞进主包的可选功能（备份接收端等），抽成**独立 NuGet 包 `SB.Feature.{Name}`**。**引包即启用**：框架启动时读 `.deps.json` 自动发现所有 `SB.Feature.*` 程序集并装配，无需派生项目手写任何注册代码；`appsettings` 的 `Features:Disabled` 黑名单可运行期关闭某个 feature。
 
 ### 1.2 三层职责分解
 
@@ -128,17 +128,17 @@ namespace SB.Framework.Features;
 ///
 /// 为什么落 Core 而非 Models：ConfigureServices/Configure 的签名引用 IServiceCollection/
 /// IApplicationBuilder（ASP.NET 抽象）。Models 是纯数据层，不该认识这些类型。Core 已引
-/// DI/Builder（见 License/LicenseServiceExtensions.cs），放这里零新增依赖。
+/// DI/Builder，放这里零新增依赖。
 /// </summary>
 public interface IFeatureModule
 {
     // ① 自我标识 —— 黑名单匹配、日志、去重的 key
-    /// <summary>插件唯一名，约定 = 包名去 "SB.Feature." 前缀，如 "LicenseManage" / "BackupReceive"。
+    /// <summary>插件唯一名，约定 = 包名去 "SB.Feature." 前缀，如 "AccessToken" / "BackupReceive"。
     /// 用于 appsettings "Features:Disabled" 黑名单匹配、配置子节 key、启动日志。
     /// 必须全局唯一；重名时后发现的覆盖先发现的。</summary>
     string FeatureName { get; }
 
-    /// <summary>展示名（菜单/日志可读），如 "授权管理"。</summary>
+    /// <summary>展示名（菜单/日志可读），如 "云端备份接收"。</summary>
     string DisplayName { get; }
 
     // ② 本插件的业务程序集 —— 发现 Service / Controller / IModuleInitializer 的范围
@@ -175,8 +175,7 @@ public interface IFeatureModule
     // ⑥ 中间件钩子（默认空实现）
     /// <summary>中间件管线期：插件需要自己的中间件时用（如某 Feature 要 app.UseXxx）。
     /// 默认空——两个样板插件都不需要（控制器足矣）。
-    /// 固定锚点：UseAuthorization 之后、MapControllers 之前（即所有插件中间件在 License 闸门内侧，
-    /// 见 §6 主权边界）。插件【不得】插队到 License 校验之前。</summary>
+    /// 固定锚点：UseAuthorization 之后、MapControllers 之前。插件中间件不早于授权管线。</summary>
     void Configure(IApplicationBuilder app, FeatureContext ctx) { }
 }
 ```
@@ -223,9 +222,9 @@ namespace SB.Framework.Features;
 /// 用特性而非接口成员：依赖是类型级元数据，可在 Activator.CreateInstance 之前反射读取用于排序，
 /// 且不强迫 99% 无依赖插件写空集合。
 ///
-/// 用法（未来的报表插件）：
-///   [DependsOnFeature(typeof(LicenseManageFeature))]
-///   public sealed class LicenseReportFeature : IFeatureModule { ... }
+/// 用法（未来的报表插件依赖备份插件）：
+///   [DependsOnFeature(typeof(BackupReceiveFeature))]
+///   public sealed class BackupReportFeature : IFeatureModule { ... }
 /// </summary>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
 public sealed class DependsOnFeatureAttribute : Attribute
@@ -249,7 +248,7 @@ public sealed class DependsOnFeatureAttribute : Attribute
 
 ### 3.1 关键技术决策（评审收敛）
 
-- **【已决策】用 `lib.GetDefaultAssemblyNames(ctx)` 取真实程序集名，绝不用 `lib.Name`（包名）。** 这是 4 份设计里 `discovery` 唯一处理对、其余三份会踩坑的点。实测：包 `SB.Framework.Core.NoLicense/0.2.1` 产出的**程序集名是 `SB.Framework.Core`**（`.NoLicense` 只是 NuGet PackageId，`AssemblyName` 不带后缀）。若按 `lib.Name` 去 `Assembly.Load("SB.Feature.X.NoLicense")`，而程序集叫 `SB.Feature.X`，**加载失败**。从 runtime assembly group 取的才是 `Assembly.Load` 能用的名字，也天然把双变体归一。
+- **【已决策】用 `lib.GetDefaultAssemblyNames(ctx)` 取真实程序集名，绝不用 `lib.Name`（包名）。** 这是 4 份设计里 `discovery` 唯一处理对、其余三份会踩坑的点。实测：NuGet PackageId 与 `AssemblyName` 可以不同（如历史上 `SB.Framework.Core.NoLicense` 包产出的程序集名是 `SB.Framework.Core`）。若按 `lib.Name` 去 `Assembly.Load`，而程序集叫另一个名字，**加载失败**。从 runtime assembly group 取的才是 `Assembly.Load` 能用的名字。
 - **【已决策】黑名单过滤在"程序集清单层"，不在"FeatureName 装配层"。** 被 Disabled 的 feature 程序集**不进** `AllScanAssemblies`，于是装配侧（DI/Controller）和数据侧（`IModuleInitializer`）遍历同一份被过滤的清单，**一处过滤三处生效**。这是堵住"功能关了菜单还在"事故（§5.4）的决定性设计。
 - **【已决策】三层兜底链**：(A) 派生项目显式清单（单文件/裁剪发布）→ (B) deps.json → (C) 已加载程序集。
 
@@ -321,7 +320,7 @@ public static class FeatureScanner
             return ResolveFromLoadedAssemblies(o); // (C) 再兜底：deps.json 缺失（极少见）
 
         // 关键：GetDefaultAssemblyNames 取真实程序集名而非包名 lib.Name
-        // —— 双变体包 SB.Framework.Core.NoLicense 的 AssemblyName 仍是 SB.Framework.Core
+        // —— 包名(PackageId)与程序集名(AssemblyName)可以不同,这里必须用后者
         var names = ctx.RuntimeLibraries
             .SelectMany(lib => lib.GetDefaultAssemblyNames(ctx))
             .Select(an => an.Name!)
@@ -357,7 +356,7 @@ namespace SB.Framework.Features;
 
 /// <summary>单个 feature 的元数据。发现层写，装配/数据/生命周期三层读。</summary>
 public sealed record FeatureDescriptor(
-    string FeatureName,          // 短名，"SB.Feature.LicenseManage" → "LicenseManage"
+    string FeatureName,          // 短名，"SB.Feature.BackupReceive" → "BackupReceive"
     Assembly Assembly,
     bool Enabled,                // 经黑名单过滤后的最终状态
     string? DisabledReason);     // "disabled by config" / "load failed: ..." / null
@@ -424,7 +423,7 @@ public sealed class FeatureCatalog
             if (!asmName.StartsWith(o.FeaturePrefix, StringComparison.OrdinalIgnoreCase))
                 continue; // 其余框架程序集不算 feature
 
-            var shortName = asmName[o.FeaturePrefix.Length..];           // "LicenseManage"
+            var shortName = asmName[o.FeaturePrefix.Length..];           // "BackupReceive"
             bool isDisabled = disabled.Contains(shortName) || disabled.Contains(asmName);
             features.Add(new FeatureDescriptor(
                 shortName, asm,
@@ -564,12 +563,6 @@ public static WebApplicationBuilder AddSbFramework(this WebApplicationBuilder bu
     builder.Services.AddSetupServices();
     bool isInstalled = File.Exists(Path.Combine(builder.Environment.ContentRootPath, "installed.lock"));
 
-#if !DISABLE_LICENSE
-    builder.Services.AddLicenseService();      // ① 主权功能，独立于 feature 体系，原样不动
-#else
-    builder.Services.AddSingleton<ILicenseService>(new NullLicenseService());
-#endif
-
     var featureCtx = new FeatureContext {
         Configuration = configuration, Environment = builder.Environment,
         IsInstalled = isInstalled, LoadedFeatures = modules,
@@ -628,20 +621,14 @@ public static WebApplication UseSbFramework(this WebApplication app)
     var modules = FeatureModuleActivator.GetSorted();   // 复用 AddSbFramework 阶段排好的实例
     /* HSTS / Cors / RateLimiter / Serilog request logging 不变 */
 
-#if !DISABLE_LICENSE
-    if (isInstalled && !app.Environment.IsDevelopment())
-        app.UseLicense();        // ★主权闸门：最外层，插件够不到。不动
-#endif
-
     app.UseStaticFiles();
     app.UseMiddleware<SetupMiddleware>();
     app.UseRouting();
-    // 旧 MasterKeyMiddleware 已移除。运维后门由 AccessToken 插件 FullAccess key 承担：
-    // LicenseMiddleware 内部对 FullAccess key 直接放行（见 LicenseMiddleware.cs:80-91），无需额外中间件。
+    // 旧 MasterKeyMiddleware 已移除。运维后门由 AccessToken 插件 FullAccess key 承担
+    // （忽略 scope、穿透所有端点，可吊销/审计/IP 白名单），无需额外中间件。
     app.UseAuthorization();
 
     // ★[F-5] feature 自定义中间件：固定锚点 = UseAuthorization 之后、MapControllers 之前
-    //   （所有插件中间件在 License 闸门内侧）
     var featureCtx = FeatureModuleActivator.BuildAppContext(app, isInstalled, modules);
     foreach (var m in modules)
         m.Configure(app, featureCtx);
@@ -664,10 +651,9 @@ public static WebApplication UseSbFramework(this WebApplication app)
 
 1. **`[F-1]` 必须第一**——catalog 是 `[F-2/3/4]` 的输入。
 2. **`[F-4]` AddApplicationPart 必须在 `AddControllersWithViews()` 之后链式调用**，因为它是 `IMvcBuilder` 扩展。现状 `AddControllersWithViews` 在方法末尾，feature 装配（`[F-2/3]`）在它之前，`[F-4]` 紧接其后。
-3. **License DI（①）在 feature 发现之前**——保证插件即使想注入 `ILicenseService` 也拿得到。
-4. **feature Service 注册（`[F-2/3]`）裹在 `isInstalled` 分支内**——未安装时不注册依赖 `IFreeSql` 的东西。
-5. **`[F-5]` feature 中间件锚点固定在 `UseAuthorization` 之后、`MapControllers` 之前**——所有插件中间件在 License 闸门内侧，不得插队到 License 之前。
-6. **`[F-6]` IModuleInitializer 同步落在 `SeedDatabase`**，时机不变（`MapControllers` 之后、仅 `isInstalled`）。
+3. **feature Service 注册（`[F-2/3]`）裹在 `isInstalled` 分支内**——未安装时不注册依赖 `IFreeSql` 的东西。
+4. **`[F-5]` feature 中间件锚点固定在 `UseAuthorization` 之后、`MapControllers` 之前**——插件中间件不早于授权管线。
+5. **`[F-6]` IModuleInitializer 同步落在 `SeedDatabase`**，时机不变（`MapControllers` 之后、仅 `isInstalled`）。
 
 > **待实现时确认**：`FeatureModuleActivator`（实例化清单 + `Activator.CreateInstance` + 拓扑排序 + 缓存已排序实例供 Use 阶段复用）的具体形态。它要在 `[F-1]` 之后、`[F-3]` 之前完成实例化与排序，并把结果存进进程级缓存（同 `FeatureRuntime.Catalog` 风格）。`BuildAppContext` 把 `WebApplication` 的 `IApplicationBuilder` 面 + `IsInstalled` + 已排序 modules 组装成 `FeatureContext`。
 
@@ -697,35 +683,35 @@ public static WebApplication UseSbFramework(this WebApplication app)
 
 **这是 4 份设计里最重要的正确决策，评审一致采纳。**
 
-矛盾真身：现状样板 `LicenseManageService` 把 `IModuleInitializer`（声明式，要无构造实例化读 `GetMenus()`）和 `[AutoDependencyInjection]`（注入式，要带 3 个依赖的构造函数跑 `GenerateLicense()`）**焊在同一个类**上。框架今天靠 `GetUninitializedObject`（造一个构造没跑、字段全 null 的半成品）+ "`GetMenus()` 里别碰 `_fsql`"的纪律走钢丝。`IModuleInitializer.cs` 注释明文警告这一点——这是个活雷。
+矛盾真身：早期样板把 `IModuleInitializer`（声明式，要无构造实例化读 `GetMenus()`）和 `[AutoDependencyInjection]`（注入式，要带依赖的构造函数跑业务逻辑）**焊在同一个类**上。框架只能靠 `GetUninitializedObject`（造一个构造没跑、字段全 null 的半成品）+ "`GetMenus()` 里别碰 `_fsql`"的纪律走钢丝。`IModuleInitializer.cs` 注释明文警告这一点——这是个活雷。
 
 **新范式把一身二/三职的类物理拆开**，矛盾从"运行期靠纪律规避"降级为"架构上不可能发生"：
 
 ```csharp
 // 文件1：清单（薄,无状态,无字段）—— Activator.CreateInstance 实例化,不进容器
-public sealed class LicenseManageFeature : IFeatureModule
+public sealed class BackupReceiveFeature : IFeatureModule
 {
-    public string FeatureName => "LicenseManage";
-    public string DisplayName => "授权管理";
+    public string FeatureName => "BackupReceive";
+    public string DisplayName => "云端备份接收";
     // FeatureAssemblies 默认 = 本程序集,不用写
 }
 
 // 文件2：声明式数据 —— 仍是 IModuleInitializer,仍被 GetUninitializedObject 实例化
-//         但它现在【没有任何构造依赖】,纯声明 → GetUninitializedObject 对它绝对安全,雷被拆除
-public sealed class LicenseManageInitializer : IModuleInitializer
+//         但它【没有任何构造依赖】,纯声明 → GetUninitializedObject 对它绝对安全,雷被拆除
+public sealed class BackupReceiveInitializer : IModuleInitializer
 {
-    public string ModuleName => "授权管理";
-    public int InitOrder => 70;
+    public string ModuleName => "云端备份接收";
+    public int InitOrder => 80;
     public List<MenuDefinition> GetMenus() => new() { /* …原样搬过来… */ };
 }
 
 // 文件3：业务 Service —— 纯 [AutoDependencyInjection],构造注入 IFreeSql/ILogger/IHostEnvironment
 //         不再实现 IModuleInitializer,构造注入与"无参实例化"的矛盾彻底消失
 [AutoDependencyInjection]
-public class LicenseManageService    // 不再 : IModuleInitializer
+public class BackupReceiveService    // 不再 : IModuleInitializer
 {
-    public LicenseManageService(IFreeSql fsql, ILogger<LicenseManageService> logger, IHostEnvironment env) { … }
-    // GenerateLicense / QuickGenerate / … 原样
+    public BackupReceiveService(IFreeSql fsql, ILogger<BackupReceiveService> logger, IHostEnvironment env) { … }
+    // 业务方法原样
 }
 ```
 
@@ -736,92 +722,11 @@ public class LicenseManageService    // 不再 : IModuleInitializer
 **【已决策】黑名单过滤放在"程序集清单层"（§3.1），不放"FeatureName 装配层"。**
 
 盲区证据：`DatabaseSeeder.SeedDatabase` 独立调用 `DiscoverModuleInitializers` **4 次**（line 49/73/206/276），每次全量扫 `IModuleInitializer`，**不认 `Features:Disabled`**。若黑名单只在装配层按 FeatureName 过滤，会出现：
-- 装配侧：`LicenseManage` 的 DI/Controller 不装 ✅
-- 数据侧：`DatabaseSeeder.SyncModuleMenus` 照样把"授权管理"菜单同步进库 ❌
+- 装配侧：`BackupReceive` 的 DI/Controller 不装 ✅
+- 数据侧：`DatabaseSeeder.SyncModuleMenus` 照样把"云端备份接收"菜单同步进库 ❌
 - 结果：**功能关了，菜单还在，点进去 404**——真实运维事故。
 
 把过滤下沉到程序集清单层后："关一个 feature = 它的程序集从 `AllScanAssemblies` 消失 = DI/Controller/IModuleInitializer 同时扫不到它"，**一处过滤三处生效**，事故消失。
-
-### 5.5 License 表归属（澄清一个假警报）
-
-落地时有人担心"License 4 实体留 Models、建表声明在插件、验证侧无插件也要写表 → 崩溃"。**源码否掉这个崩溃前提**：`AdminService.cs:32`（核心模块，`InitOrder=0`，零 `#if`）的 `GetEntityTypes()` **已经把 4 个 License 实体放进去了**，注释写"授权验证实体（核心基础设施，始终需要建表）"。
-
-**【已决策】**：
-- 4 张 License 表（`LicenseClient`/`LicenseRecord`/`LicenseRequest`/`LicenseVerifyLog`）由**核心 `AdminService` 无条件建表，现状不动**，根本不依赖 LicenseManage 插件在不在。
-- `LicenseManageInitializer.GetEntityTypes()` **必须留空**（默认实现），绝不重复声明这 4 个实体——否则语义上是"插件声明了不属于它的表"。
-- 这条与"实体归属判据"（§8.4）一致：被核心反向引用的实体留 Models 且由核心建表。
-
----
-
-## 6. 主权功能边界
-
-主权功能 = 商业控制底线，客户不能关。**它独立于插件体系，两套机制并存，互不引用。** 关键区分线：
-
-| 维度 | 主权（授权验证） | 插件（SB.Feature.*） |
-|---|---|---|
-| 控制方式 | 编译期 `#if DISABLE_LICENSE` + 双变体包 | 运行期 deps.json 扫描 + 黑名单 |
-| 能否关 | **关不掉**（关 = 商业失守） | 可关（`Features:Disabled`） |
-| 管线位置 | 管线最外层闸门 | 闸门内侧 |
-| 程序集 | 常驻主包，无 `#if` 包裹 | 独立 `SB.Feature.*` 包 |
-
-### 6.1 五条边界规则（已决策，经源码验证）
-
-**规则 1 — 程序集发现对 License 变体完全不敏感。** deps.json 扫描按程序集名前缀 `SB.Feature.` 过滤；`NoLicense` 后缀只加在 4 个主包的 PackageId 上（程序集名不带后缀）。插件包名 `SB.Feature.LicenseManage` 不带 License 变体后缀。→ **NoLicense 主包下插件发现 100% 正常**，天然解耦，零特殊处理。
-
-**规则 2 — 中间件管线位置写死在框架，插件不得插队到 License 之前。** 顺序：
-
-```
-UseStaticFiles
-→ [#if !DISABLE_LICENSE] LicenseMiddleware     ← 主权闸门（最外层,插件够不到;FullAccess key 在此放行）
-→ SetupMiddleware
-→ UseRouting
-→ UseAuthorization
-→ ★ 插件中间件锚点 [F-5]（所有插件中间件在此,License 内侧）
-→ MapControllers
-```
-`LicenseMiddleware` 是"先验证授权、再放行"的闸门，任何插件中间件必须在闸门**内侧**。
-
-**规则 3 — 装配时序：插件发现整体早于"按发现结果干活"，但晚于 License DI 注册。** 见 §4.3。License DI（①）在插件发现之前；插件发现在 Service/Controller 注册之前。**这取代了 v1 要求派生项目手写顺序的做法**：Program.cs 回到 `builder.AddSbFramework(); app.UseSbFramework();` 两行。
-
-**规则 4 — 白名单是主权资产，插件无权修改。** `LicenseMiddleware._whitelistPaths` 硬编码、不从配置读取（防篡改）。插件**不得**向白名单注入路径。后果：任何插件业务接口在生产 + 授权失效时会被 License 拦 403——**这是对的**，授权失效本就该全站停摆。唯一例外（插件的授权无关健康/回调端点需在授权失效时仍可达）必须说服框架维护者改主权代码加进硬编码白名单，不能自助。两个样板都不需要进白名单。
-
-**规则 5 — `isInstalled` 门控对插件同样适用。** 未安装时框架不注册 `IFreeSql`。插件发现可照常扫描登记（轻量、无副作用），但**插件 Service 的 DI 注册必须裹在 `isInstalled` 分支里**（复用 `[F-2/3]` 的 `if (isInstalled)` 门）。安装向导阶段只用到 `IModuleInitializer`（`GetUninitializedObject` 创建，不进 DI、不碰 `IFreeSql`），故建表/菜单/种子在安装时正常工作。
-
-### 6.2 授权管理插件的特殊性：NoLicense 项目能装 LicenseManage
-
-**【已决策】能，且这是该插件最典型的部署形态。** "验证授权（客户端，拿公钥）"和"签发授权（服务端，拿私钥）"是反向两端。一个授权中心服务的正确姿态恰恰是：**自己不被授权束缚**（NoLicense 主包，`NullLicenseService`，永不 403）+ **同时能给下游签发**（装 `SB.Feature.LicenseManage`）。PM 实测就是 `.NoLicense` 主包。
-
-实现障碍排查（逐项确认无障碍）：
-
-| 潜在障碍 | 实际情况 | 结论 |
-|---|---|---|
-| 公钥被置空是否影响签发？ | NoLicense 的 `EmbedEmptyLicenseKey` 只置空**验证用的硬编码公钥**。签发用的是**私钥文件**（运行时从 `KeyDirectory`/ContentRoot 读），两套东西 | ✅ 无影响 |
-| `NullLicenseService` 挡住签发接口？ | 它只让 `LicenseMiddleware` 永远放行。`EntitlementController`/`VerifyController` 是普通 admin 接口，不依赖 `ILicenseService` 验证结果 | ✅ 无影响 |
-| 插件发现在 NoLicense 下工作？ | deps.json 扫 `SB.Feature.` 前缀，与主包 `.NoLicense` 后缀正交（规则1） | ✅ 正常 |
-| 私钥从哪来？ | `Features.LicenseManage.KeyDirectory` 配置；空则 ContentRoot | ✅ 配置可控 |
-
-唯一运维约束：签发后台须持有私钥（`license_private.key`），且该私钥须与下游项目内嵌的公钥配对——这是 License 体系本来的约定。
-
-### 6.3 运维后门归类：第二档，实现已迁至 AccessToken FullAccess
-
-> **【一致性修订 2026-08-05】**：旧 `MasterKeyMiddleware` / `AppSettings.MasterKey` / `X-Master-Key` **已从源码移除**。下述"运维后门"分类结论仍成立，但实现方式改为 `SB.Feature.AccessToken` 的 FullAccess key。
-
-旧设计（已移除）：`AppSettings.MasterKey` 是配置字段（安装向导写入），中间件条件挂载（`if (!string.IsNullOrEmpty(MasterKey))`），空字符串 = 通道不挂载 = 后门关闭。它凌驾于授权验证之上（`LicenseMiddleware` 内部也认 `X-Master-Key` 绕过所有限制）。
-
-**现行实现**（`SB.Feature.AccessToken`）：`ApiKey.FullAccess = true`（god key）——忽略 scope、穿透所有端点、旁路 License（`LicenseMiddleware` 对 FullAccess key 直接放行，见 `LicenseMiddleware.cs:80-91`）。能力上等价于旧 MasterKey，且**可吊销、可审计（`SB_ApiKey_Audit`）、可配 IP 白名单**。仅 `super` 角色可签发，且需功能开关 `EnableFullAccess=true`。
-
-在"功能开关三档"里的精确归位：
-- 第 1 档**主权**（编译期 `#if` + 双变体，客户不能关）= **授权验证 License**。
-- 第 2 档**运维后门**（由框架作者/运维持有，不暴露给最终用户）= **AccessToken FullAccess key**。
-- 第 3 档**纯功能性**（独立 NuGet 插件，引则有）= **`SB.Feature.*`**。
-
-FullAccess key 配置走插件（`SB_ApiKey` 表 + `EnableFullAccess` 开关），**不进 `Features` 配置节**（不是插件静态配置）。
-
-### 6.4 主权/插件经 LicensePayload 隐式耦合（须显式承认）
-
-"两套机制并存互不干扰"在**运行机制**上成立，但在**代码物理边界**上：`LicensePayload`/`DomainMatcher`/`DomainExpander` 在 `SB.Framework.Core/License/`，是**签发端（插件）写、验证端（主权常驻）读的共享序列化契约**。`LicenseManage` 用私钥签 `LicensePayload`，主权 `LicenseService` 用公钥验同一份 Payload，RSA 签名的字段必须对齐。
-
-**【已决策】**：`LicensePayload` 的任何字段变更是**跨越主权/插件边界的 breaking change**，必须主权侧与插件侧同步发版。文档显式承认这条耦合线。
 
 ---
 
@@ -836,17 +741,13 @@ FullAccess key 配置走插件（`SB_ApiKey` 表 + `EnableFullAccess` 开关）�
 
   "Features": {
     // 黑名单：按 FeatureName 短名禁用某个已引入的插件。默认全空 = 全部启用
-    // 也支持完整程序集名 "SB.Feature.LicenseManage" 作精确兜底（短名歧义时）
+    // 也支持完整程序集名 "SB.Feature.BackupReceive" 作精确兜底（短名歧义时）
     "Disabled": [ "BackupReceive" ],
 
     // 缺失依赖时是否容忍（默认 false = 报错中止）。降级场景用
     "IgnoreMissingDependencies": false,
 
     // 每个插件的私有配置子节，key = 插件的 FeatureName（= IModuleInitializer.ModuleName 风格）
-    "LicenseManage": {
-      "KeyDirectory": "",            // 私钥目录，空 = ContentRoot
-      "DefaultValidDays": 365
-    },
     "BackupReceive": {
       "StoragePath": "wwwroot/storage/remote-backups",  // 相对 ContentRoot
       "MaxFileSizeMB": 500,
@@ -858,8 +759,8 @@ FullAccess key 配置走插件（`SB_ApiKey` 表 + `EnableFullAccess` 开关）�
 
 设计要点（已决策）：
 - `Disabled` 用 **FeatureName**（运维友好，与日志/`ModuleName` 一致）。
-- 每个插件配置子节直接挂 `Features.{FeatureName}` 下，**不另起顶级节**：① 一眼看出是插件配置；② 卸载后残留集中好清理；③ 不污染主权 `AppSettings` 顶级类。
-- 主权/云端配置**不进** `Features` 节：`CloudConfig.ServerUrl`、`LicenseConfig.Key` 保持顶级（它们属于客户端侧 License，与"是否装了某插件"无关）。旧 `MasterKey` 顶级字段**已移除**，运维后门能力由 AccessToken 插件的 FullAccess key 承担。
+- 每个插件配置子节直接挂 `Features.{FeatureName}` 下，**不另起顶级节**：① 一眼看出是插件配置；② 卸载后残留集中好清理；③ 不污染 `AppSettings` 顶级类。
+- 云端配置**不进** `Features` 节：`CloudConfig.ServerUrl` 保持顶级（它属于云端中心地址，与"是否装了某插件"无关）。旧 `MasterKey` 顶级字段**已移除**，运维后门能力由 AccessToken 插件的 FullAccess key 承担（可吊销/审计/IP 白名单）。
 
 ### 7.2 插件读自身配置：强类型 Options，框架自动绑定
 
@@ -890,14 +791,14 @@ public sealed class BackupReceiveFeature : IFeatureModule {
 // Service 里照常注入 IOptions<BackupReceiveOptions>
 ```
 
-> **配置类放插件包内**（如 `BackupReceiveOptions` 在 `SB.Feature.BackupReceive` 程序集），因为只有该插件读它。实体（`LicenseClient` 等）留 Models（§8.4）。
+> **配置类放插件包内**（如 `BackupReceiveOptions` 在 `SB.Feature.BackupReceive` 程序集），因为只有该插件读它。被核心反向引用的实体才留 Models（§8.4）。
 
 ### 7.3 启动日志
 
 按 `[F-7]` 在 `UseSbFramework` 末尾调 `catalog.LogStartupSummary()`：
 
 ```
-[Features] loaded: BackupReceive, LicenseManage
+[Features] loaded: BackupReceive, AccessToken
 [Features] SomeFeature discovered but skipped: disabled by config
 [Features] BrokenFeature discovered but skipped: load failed: Could not load file or assembly ...
 ```
@@ -910,7 +811,7 @@ public sealed class BackupReceiveFeature : IFeatureModule {
 
 - **补强 A（强烈建议）**：启动日志不只打 feature 名，**打"这个 feature 引入了什么"**——新增菜单数、新增实体表名、新增路由前缀：
   ```
-  [Features] LicenseManage: +5 menus, +0 tables, routes [/Entitlement/*, /api/verify/*]
+  [Features] BackupReceive: +5 menus, +0 tables, routes [/api/backup-remote/*]
   ```
   数据都已能拿到（`IModuleInitializer.GetMenus().Count` / `GetEntityTypes()` / 该程序集 Controller 路由）。这让"凭空多出的菜单/接口"在日志里有据可查、可溯源到具体 feature。
 - **补强 B（建议）**：提供只读诊断端点 `/admin/features`（走 MasterKey 或 admin 鉴权），列出"已装载 feature + 各自菜单/表/路由 + 启用状态 + Disabled 原因"。把"翻日志"升级为"一个接口看全貌"。
@@ -924,35 +825,26 @@ public sealed class BackupReceiveFeature : IFeatureModule {
 ### 8.1 是否新建 SB.Framework.Abstractions？——否（已决策）
 
 `IFeatureModule` 清单接口 + `FeatureContext` **放 `SB.Framework.Core`**。理由：
-- Core 已具备 `IServiceCollection`/`IApplicationBuilder`/`IConfiguration`/`IHostEnvironment` 类型（见 `License/LicenseServiceExtensions.cs` 已 `using Microsoft.AspNetCore.Builder` + DI，定义 `AddLicense(IServiceCollection)`/`UseLicense(IApplicationBuilder)`）。放清单接口**零新增依赖**。
+- Core 已具备 `IServiceCollection`/`IApplicationBuilder`/`IConfiguration`/`IHostEnvironment` 类型（已 `using Microsoft.AspNetCore.Builder` + DI）。放清单接口**零新增依赖**。
 - **关键**：`FeatureContext` **不含 `ApplicationPartManager`**（Controller 发现收归框架发现器 [F-4]），所以清单接口**不需要 `Microsoft.AspNetCore.Mvc.Core`**。Core 现在不引 MVC.Core，无需为此加。
 - 否决"新建 Abstractions"：两个样板都要 Core，未来纯逻辑插件占比低，为它单拆一个包收益不抵维护成本（YAGNI）。若未来真出现大量"零 Core 依赖"的纯逻辑插件，再抽不迟。
 
 > 这同时化解了一个自相矛盾的设计：若既新建 Abstractions 又在 ctx 塞 `ApplicationPartManager`（MVC 类型），Abstractions 就得引 MVC.Core，"最底层轻包"立刻变重。把 AddApplicationPart 收归框架，两难同时消失。
 
-### 8.2 主包是否还需双变体？——需要，保持现状（已决策）
+### 8.2 / 8.3 包变体：所有包永远单变体（原双变体机制已随授权体系移除）
 
-License **客户端侧全部无条件常驻主包**（`LicenseMiddleware`/`LicenseClientService`/`LicenseHeartbeatTask`/`LicenseVerifyClient` 均无 `#if`）。`DISABLE_LICENSE` 在主包做两件**物理移除**：① `NullLicenseService` 顶掉真实验证；② csproj `EmbedEmptyLicenseKey` 把硬编码公钥置空。这两件嵌在主包代码/构建里，拆插件不动它们。→ 4 个主包继续各出双变体。
+历史设计曾按 `DISABLE_LICENSE` 编译开关为主包出 `.NoLicense` 双变体。授权验证体系整体移除后，`DISABLE_LICENSE` 开关、`.NoLicense` 后缀、公钥嵌入 Target 已全部删除——**现在所有包只有一个变体**，插件包从来都是单变体（判定标准原本就是"包内是否存在按编译开关增删的代码"），主包现在与插件一致。
 
-### 8.3 插件包是否需双变体？——不需要，永远单变体（已决策）
-
-判定标准：*该包内是否存在"按 `DISABLE_LICENSE` 物理增删的授权验证代码或嵌入密钥"*。
-
-- `SB.Feature.LicenseManage`：是**签发**端（私钥签 Key），不含任何"验证本进程自身授权"的代码，不挂 `LicenseMiddleware`，不嵌自校验公钥。`DISABLE_LICENSE` 对它无意义。→ 单变体。
-- `SB.Feature.BackupReceive`：纯业务，与授权验证零交集。→ 单变体。
-
-若错误地给插件出双变体，两个包**逐字节相同**（无 `#if` 可裁剪），纯冗余 + 增发布矩阵维度 + 让派生项目纠结引哪个。**单变体是正确的最小集。**
-
-> 注意区分两个 License 符号：
-> - `DISABLE_LICENSE`（控制客户端**验证**物理移除）→ 决定主包双变体。插件完全不碰。
-> - `ENABLE_LICENSE_MANAGE` / `ENABLE_BACKUP_RECEIVE`（旧的服务端**签发** / 接收端编译开关）→ **拆插件后整个删除**。包存在与否就是开关。
+> 注意区分两类历史符号（均已删除，仅存档参考）：
+> - `DISABLE_LICENSE`（曾控制主包双变体）
+> - `ENABLE_LICENSE_MANAGE` / `ENABLE_BACKUP_RECEIVE`（旧的服务端签发 / 接收端编译开关）→ **拆插件时就已删除**。包存在与否就是开关。
 
 ### 8.4 实体归属判据（已决策）
 
-**不一刀切"实体跟着 feature 走"。判据：实体是否被主权/核心侧反向引用。**
+**不一刀切"实体跟着 feature 走"。判据：实体是否被核心侧反向引用。**
 
-- **被核心引用 → 留 Models**：4 个 License 实体（`LicenseClient`/`LicenseRecord`/`LicenseRequest`/`LicenseVerifyLog`）被核心 `AdminService.GetEntityTypes()` 显式声明、且 `LicenseVerifyMode` 枚举被验证侧/心跳侧共享。搬进插件会让主权侧反依赖插件包（方向错误）。→ **留 `SB.Framework.Models`**。
-- **无核心引用 → 进插件**：`BackupRemoteRecord` 现状被 `#if ENABLE_BACKUP_RECEIVE` 包裹，无任何核心侧引用。去掉 `#if` 后不该在 Models 留孤儿实体。→ **移入 `SB.Feature.BackupReceive`**。
+- **被核心引用 → 留 Models**：实体被核心服务（如 `AdminService.GetEntityTypes()`）显式声明、或枚举被多方共享时，搬进插件会让核心反依赖插件包（方向错误）。→ **留 `SB.Framework.Models`**。
+- **无核心引用 → 进插件**：`BackupRemoteRecord` 无任何核心侧引用。→ **放在 `SB.Feature.BackupReceive`**。
 
 ### 8.5 BaseCrudService 下沉（已决策）
 
@@ -972,23 +864,23 @@ namespace SB.Framework.Services {
 
 ### 8.6 插件对框架包的依赖写法（已决策）
 
-插件 csproj **引正常版框架包**（`SB.Framework.Core` 不带 `.NoLicense` 后缀）+ **浮动版本下限**（`Version="0.3.0"` 即 `[0.3.0,)`）。因为 NoLicense 包产出的 dll **同名**（`SB.Framework.Core.dll`），派生项目顶层的直接 PackageReference（如 PM 引 `.NoLicense`）的 transitive 解析会让最终 bin 里只有一份 dll，由派生项目顶层选变体统一收敛。PM 实测可行。
+插件 csproj **引框架包**（`SB.Framework.Core`）+ **浮动版本下限**（`Version="0.3.0"` 即 `[0.3.0,)`），NuGet restore 时由语义化版本规则收敛到最新兼容版。
 
 Web 类型来源：插件 Controller 需 `[ApiController]`/`IActionResult`/`IFormFile`。插件包**不能**引 `SB.Framework.WebApi`（循环），用 `<FrameworkReference Include="Microsoft.AspNetCore.App" />` 拿 MVC 类型。
 
 ### 8.7 完整发布矩阵表
 
-| 包 | 角色 | License 客户端验证代码/嵌入公钥 | 变体数 | 包名 / 程序集名 |
-|---|---|---|---|---|
-| `SB.Framework.Models` | 主包·实体/DTO/`IModuleInitializer` | 无（随主包链出双变体保持依赖链一致） | **2** | `SB.Framework.Models` / `.NoLicense` → dll `SB.Framework.Models` |
-| `SB.Framework.Core` | 主包·原语 + `BaseCrudService`(下沉) + `LicenseMiddleware` + **`IFeatureModule`/`FeatureCatalog`/`FeatureScanner`** | **有**（`LicenseMiddleware`/`LicenseService`，受 `DISABLE_LICENSE`） | **2** | `SB.Framework.Core` / `.NoLicense` → dll `SB.Framework.Core` |
-| `SB.Framework.Services` | 主包·基础服务 + License 客户端侧 + `BaseCrudService` 转发壳 | **有**（`LicenseClientService` 等常驻） | **2** | `SB.Framework.Services` / `.NoLicense` |
-| `SB.Framework.WebApi` | 主包·装配壳 + 嵌入公钥 + 挂 `LicenseMiddleware` + feature 装配 | **有**（`EmbedLicensePublicKey`/`UseLicense`） | **2** | `SB.Framework.WebApi` / `.NoLicense` |
-| `SB.Framework.Analyzers` | 主包·分析器 | 无 | **2**（随主包链） | `SB.Framework.Analyzers` / `.NoLicense` |
-| `SB.Framework.DevHost` | 开发工具 | 无 | **1** | `SB.Framework.DevHost` |
-| **`SB.Feature.LicenseManage`** | **插件·签发后台** | **无** | **1** ✅ | `SB.Feature.LicenseManage` |
-| **`SB.Feature.BackupReceive`** | **插件·备份接收端** | **无** | **1** ✅ | `SB.Feature.BackupReceive` |
-| 未来 `SB.Feature.*` | 插件·纯功能 | 无（按定义） | **1**（永远单变体） | `SB.Feature.{Name}` |
+| 包 | 角色 | 包名 / 程序集名 |
+|---|---|---|
+| `SB.Framework.Models` | 主包·实体/DTO/`IModuleInitializer` | `SB.Framework.Models` → dll `SB.Framework.Models` |
+| `SB.Framework.Core` | 主包·原语 + `BaseCrudService`(下沉) + **`IFeatureModule`/`FeatureCatalog`/`FeatureScanner`** | `SB.Framework.Core` → dll `SB.Framework.Core` |
+| `SB.Framework.Services` | 主包·基础服务 + `BaseCrudService` 转发壳 | `SB.Framework.Services` |
+| `SB.Framework.WebApi` | 主包·装配壳 + feature 装配 | `SB.Framework.WebApi` |
+| `SB.Framework.Analyzers` | 主包·分析器 | `SB.Framework.Analyzers` |
+| `SB.Framework.DevHost` | 开发工具 | `SB.Framework.DevHost` |
+| **`SB.Feature.AccessToken`** | **插件·API Key 认证** | `SB.Feature.AccessToken` |
+| **`SB.Feature.BackupReceive`** | **插件·备份接收端** | `SB.Feature.BackupReceive` |
+| 未来 `SB.Feature.*` | 插件·纯功能 | `SB.Feature.{Name}` |
 
 > 新增包引用：`SB.Framework.Core.csproj` 加 `<PackageReference Include="Microsoft.Extensions.DependencyModel" />`（发现层读 `DependencyContext`）。
 
@@ -1079,7 +971,7 @@ public sealed class BackupReceiveFeature : IFeatureModule
 }
 ```
 
-### 9.5 声明式数据（独立无状态，推荐拆出 — 与 LicenseManage 范式统一）
+### 9.5 声明式数据（独立无状态，推荐拆出）
 
 ```csharp
 // 文件：SB.Feature.BackupReceive/BackupReceiveInitializer.cs
@@ -1125,7 +1017,7 @@ public class BackupReceiveService : BaseCrudService<BackupRemoteRecord>   // 不
 }
 ```
 
-> **待实现时确认**：是否如上拆出 `BackupReceiveInitializer`。BackupReceive 的 `IModuleInitializer` 方法本就不碰注入字段，合体（Service 同时实现 `IModuleInitializer`）也安全。但**推荐拆**，与 LicenseManage 范式统一、并彻底规避 `GetUninitializedObject` 风险。
+> **已落地**：`BackupReceiveInitializer` 已按上述形态拆出。其 `IModuleInitializer` 方法本就不碰注入字段，合体（Service 同时实现 `IModuleInitializer`）也安全，但拆类彻底规避 `GetUninitializedObject` 风险。
 
 ### 9.7 Controller（去 `#if`，移入插件，收敛为 ControllerBase）
 
@@ -1156,145 +1048,13 @@ public class BackupReceiveController : ControllerBase   // 现状是 Controller(
 
 ---
 
-## 10. 样板插件二：SB.Feature.LicenseManage
-
-> 形态：姿态 C 标准范式（清单 / Initializer / Service **三类分离**）。覆盖"**不需要基类、直接用 `IFreeSql`**"的插件类型 + 跨界依赖 `Core.License`。
-
-### 10.1 csproj
-
-```xml
-<!-- SB.Feature.LicenseManage.csproj -->
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <RootNamespace>SB.Feature.LicenseManage</RootNamespace>
-    <AssemblyName>SB.Feature.LicenseManage</AssemblyName>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <PackageId>SB.Feature.LicenseManage</PackageId>
-    <Version>0.1.0</Version>
-    <Description>SB Feature 授权管理（签发端：管理客户/审批/签发/吊销）</Description>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="SB.Framework.Core" Version="0.3.0" />   <!-- DomainExpander / LicensePayload -->
-    <PackageReference Include="SB.Framework.Models" Version="0.3.0" /> <!-- 4实体 + DTO + 枚举 + IModuleInitializer -->
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />          <!-- EntitlementController/VerifyController -->
-  </ItemGroup>
-  <!-- LicenseManage 不依赖 BaseCrudService —— LicenseManageService 直接用 IFreeSql.Select<>，不继承基类。
-       两个样板恰好覆盖"要基类(BackupReceive) / 不要基类(LicenseManage)"两种，验证 Core+Models 最小依赖面够用。 -->
-</Project>
-```
-
-### 10.2 清单（独立薄壳）
-
-```csharp
-// 文件：SB.Feature.LicenseManage/LicenseManageFeature.cs
-using Microsoft.Extensions.DependencyInjection;
-using SB.Framework.Features;
-
-namespace SB.Feature.LicenseManage;
-
-public sealed class LicenseManageFeature : IFeatureModule
-{
-    public string FeatureName => "LicenseManage";
-    public string DisplayName => "授权管理";
-    public Type   OptionsType => typeof(LicenseManageOptions);   // KeyDirectory / DefaultValidDays
-
-    public void ConfigureServices(IServiceCollection services, FeatureContext ctx)
-    {
-        // 接口绑定逃生口：自动 DI 只注册具体类型不绑接口，按接口注入的必须手动绑
-        // （此处示例，若 LicenseManage 有按接口注入的依赖才需要；无则可删整个方法）
-        // services.AddScoped<ILicenseVerifyClient, LicenseVerifyClient>();
-        // 注意：不在这里 AddScoped<LicenseManageService> —— 它标了 [AutoDependencyInjection] 自动注册
-    }
-}
-```
-
-### 10.3 配置类
-
-```csharp
-// 文件：SB.Feature.LicenseManage/LicenseManageOptions.cs
-namespace SB.Feature.LicenseManage;
-
-public sealed class LicenseManageOptions
-{
-    public string KeyDirectory     { get; set; } = "";   // 空 = ContentRoot
-    public int    DefaultValidDays { get; set; } = 365;
-}
-```
-
-### 10.4 声明式数据（独立无状态，雷已拆除）
-
-```csharp
-// 文件：SB.Feature.LicenseManage/LicenseManageInitializer.cs
-using SB.Framework.Models;
-
-namespace SB.Feature.LicenseManage;
-
-// 纯声明、无构造依赖 → GetUninitializedObject 对它绝对安全
-public sealed class LicenseManageInitializer : IModuleInitializer
-{
-    public string ModuleName => "授权管理";
-    public int    InitOrder  => 70;
-    public List<MenuDefinition> GetMenus() => new() { /* 5个子菜单，逐字同现状 */ };
-    // GetEntityTypes() 不实现 → 默认空。4张 License 表由核心 AdminService 无条件建（§5.5）
-}
-```
-
-### 10.5 业务 Service（纯注入式，不再实现 IModuleInitializer）
-
-```csharp
-// 文件：SB.Feature.LicenseManage/LicenseManageService.cs
-using FreeSql;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using SB.Framework.Core.License;   // DomainExpander / LicensePayload（主权/插件共享契约 §6.4）
-using SB.Framework.Models;         // 4实体 / Result
-using SB.Framework.Models.Dto;     // IssueLicenseRequest / QuickGenerateRequest / HeartbeatRequest
-
-namespace SB.Feature.LicenseManage;
-
-[AutoDependencyInjection]
-public class LicenseManageService   // 不再 : IModuleInitializer —— 矛盾消失
-{
-    private readonly IFreeSql _fsql;
-    private readonly ILogger<LicenseManageService> _logger;
-    private readonly IHostEnvironment _env;
-    private readonly LicenseManageOptions _opt;
-    public LicenseManageService(IFreeSql fsql, ILogger<LicenseManageService> logger,
-                                IHostEnvironment env, IOptions<LicenseManageOptions> opt)
-    { _fsql = fsql; _logger = logger; _env = env; _opt = opt.Value; }
-
-    // GetPublicKeyXml / GenerateKeyPair / FindOrCreateClient / ClientList / QuickGenerate /
-    // GenerateLicense(用 DomainExpander.Expand + new LicensePayload{...}) / CheckLicense /
-    // RevokeLicense / Verify / ProcessHeartbeat …
-    // —— 方法体与现状逐字相同，仅把 KeyDirectory 改读 _opt.KeyDirectory（空→ContentRoot）。
-}
-```
-
-### 10.6 Controllers（去 `#if`，移入插件）
-
-```csharp
-// 文件：SB.Feature.LicenseManage/EntitlementController.cs（+ VerifyController.cs）
-// 去掉 #if ENABLE_LICENSE_MANAGE，命名空间换 SB.Feature.LicenseManage，注入 LicenseManageService 不变。
-// 路由是 [Route("[controller]/[action]")] / [Route("/api/verify/[action]")]：
-//   [controller] token 解析成类名 Entitlement/Verify，与命名空间无关 → 搬包后路由不变，安全。
-```
-
----
-
 ## 11. 派生项目接入示例
 
 以 PM 为例。**核心收益：Program.cs 从 ~35 行降到 5 行，feature 启用从"失效的编译宏"改为"引包"。**
 
-### 11.1 现状的真 bug（插件化的存在理由）
+### 11.1 历史背景：编译宏方案的真 bug（插件化的存在理由）
 
-PM 现状 csproj 写 `<DefineConstants>$(DefineConstants);ENABLE_LICENSE_MANAGE;ENABLE_BACKUP_RECEIVE</DefineConstants>`，但这两个 feature 的源码在**框架包里**，被 `#if` 包裹。`Directory.Build.targets` 显示 `ENABLE_*` 在 **Debug 默认开、Release 默认关**。PM 引的是 `SB.Framework.WebApi.NoLicense` 0.2.2 **预编译 Release 包** → **这两个 feature 在 PM 生产包里大概率是空的**，PM csproj 那行常量是**死代码、误导性配置**。
-
-> `#if`-in-package 对预编译 NuGet dll 是 no-op：PM 设 `DefineConstants` 只影响 PM 自己编译的代码，影响不了已编进 `SB.Framework.*.dll` 的 `#if` 块。**这正是必须做插件化的硬证据。**
+早期 PM csproj 写 `<DefineConstants>$(DefineConstants);ENABLE_LICENSE_MANAGE;ENABLE_BACKUP_RECEIVE</DefineConstants>`，但 feature 源码在**框架包里**、被 `#if` 包裹。`#if`-in-package 对预编译 NuGet dll 是 no-op：派生项目设 `DefineConstants` 只影响自己编译的代码，影响不了已编进 `SB.Framework.*.dll` 的 `#if` 块 → **feature 在生产包里大概率是空的**。**这正是当年必须做插件化的硬证据**（如今 `ENABLE_*` 开关已彻底删除，包存在与否就是开关）。
 
 ### 11.2 新 Program.cs
 
@@ -1319,13 +1079,13 @@ await app.RunAsync();
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- 删掉 ENABLE_LICENSE_MANAGE / ENABLE_BACKUP_RECEIVE 死常量。feature 改由引包决定。-->
+    <!-- feature 由引包决定，无需任何编译常量 -->
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SB.Framework.WebApi.NoLicense" Version="0.3.0" />
+    <PackageReference Include="SB.Framework.WebApi" Version="0.3.0" />
     <!-- 引哪个 feature 包 = 启用哪个 feature。这是"声明式装配"的物理体现。-->
-    <PackageReference Include="SB.Feature.LicenseManage" Version="0.1.0" />
-    <PackageReference Include="SB.Feature.BackupReceive" Version="0.1.0" />
+    <PackageReference Include="SB.Feature.AccessToken" Version="0.2.3" />
+    <PackageReference Include="SB.Feature.BackupReceive" Version="0.1.1" />
     <ProjectReference Include="..\Sb.Apps.Pm.Services\Sb.Apps.Pm.Services.csproj" />
   </ItemGroup>
 </Project>
@@ -1349,21 +1109,21 @@ PM 部署后想临时停用备份接收端，无需重新构建，改 `appsettin
 { "Features": { "Disabled": [ "BackupReceive" ] } }
 ```
 
-重启即生效。启动日志：`[Features] loaded: LicenseManage` + `[Features] BackupReceive discovered but skipped: disabled by config`。DI/Controller/菜单**同时**消失（程序集清单层过滤，§5.4）。
+重启即生效。启动日志：`[Features] loaded: AccessToken` + `[Features] BackupReceive discovered but skipped: disabled by config`。DI/Controller/菜单**同时**消失（程序集清单层过滤，§5.4）。
 
 ---
 
 ## 12. 未来新增一个插件的标准步骤
 
-以新增"授权统计报表"插件 `SB.Feature.LicenseReport`（依赖 `LicenseManage`）为例。
+以新增"备份统计报表"插件 `SB.Feature.BackupReport`（依赖 `BackupReceive`）为例。
 
-**步骤 1 — 建包。** 新建 `SB.Feature.LicenseReport.csproj`：
+**步骤 1 — 建包。** 新建 `SB.Feature.BackupReport.csproj`：
 ```xml
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <AssemblyName>SB.Feature.LicenseReport</AssemblyName>
-    <PackageId>SB.Feature.LicenseReport</PackageId>
+    <AssemblyName>SB.Feature.BackupReport</AssemblyName>
+    <PackageId>SB.Feature.BackupReport</PackageId>
     <Version>0.1.0</Version>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
@@ -1371,39 +1131,39 @@ PM 部署后想临时停用备份接收端，无需重新构建，改 `appsettin
   <ItemGroup>
     <PackageReference Include="SB.Framework.Core" Version="0.3.0" />
     <PackageReference Include="SB.Framework.Models" Version="0.3.0" />
-    <PackageReference Include="SB.Feature.LicenseManage" Version="0.1.0" />  <!-- 依赖另一插件 -->
+    <PackageReference Include="SB.Feature.BackupReceive" Version="0.1.1" />  <!-- 依赖另一插件 -->
     <FrameworkReference Include="Microsoft.AspNetCore.App" />                 <!-- 有 Controller 才需要 -->
   </ItemGroup>
 </Project>
 ```
 
-**步骤 2 — 写清单。** `LicenseReportFeature : IFeatureModule`：
+**步骤 2 — 写清单。** `BackupReportFeature : IFeatureModule`：
 ```csharp
-[DependsOnFeature(typeof(LicenseManageFeature))]   // 声明依赖 → 拓扑排序保证它后装配
-public sealed class LicenseReportFeature : IFeatureModule
+[DependsOnFeature(typeof(BackupReceiveFeature))]   // 声明依赖 → 拓扑排序保证它后装配
+public sealed class BackupReportFeature : IFeatureModule
 {
-    public string FeatureName => "LicenseReport";
-    public string DisplayName => "授权统计报表";
-    public Type   OptionsType => typeof(LicenseReportOptions);   // 有私有配置才写
+    public string FeatureName => "BackupReport";
+    public string DisplayName => "备份统计报表";
+    public Type   OptionsType => typeof(BackupReportOptions);   // 有私有配置才写
 }
 ```
 
 **步骤 3 — 写功能（按需）。**
-- 有新表/菜单 → 写 `LicenseReportInitializer : IModuleInitializer`（无状态，纯声明 `GetEntityTypes()`/`GetMenus()`）。
+- 有新表/菜单 → 写 `BackupReportInitializer : IModuleInitializer`（无状态，纯声明 `GetEntityTypes()`/`GetMenus()`）。
 - 有业务逻辑 → 写 `[AutoDependencyInjection]` Service（构造注入），**不**在清单 `AddScoped`。
 - 有 API → 写 `ControllerBase` Controller（绝对 `[Route]`，命名空间随意）。
 - 有按接口注入的依赖 / Options / HttpClient → 在清单 `ConfigureServices` 里手动绑。
-- 有自己的中间件 → 在清单 `Configure` 里 `app.UseXxx`（自动落在 License 闸门内侧）。
+- 有自己的中间件 → 在清单 `Configure` 里 `app.UseXxx`（锚点在 UseAuthorization 之后、MapControllers 之前）。
 
-**步骤 4 — 写配置类（按需）。** `LicenseReportOptions`（POCO，放插件包内），框架据 `OptionsType` 自动绑定 `Features:LicenseReport`。
+**步骤 4 — 写配置类（按需）。** `BackupReportOptions`（POCO，放插件包内），框架据 `OptionsType` 自动绑定 `Features:BackupReport`。
 
-**步骤 5 — 发包。** `dotnet pack` → 发到 baget（`nuget.saibo.club`）。**单变体**（`SB.Feature.*` 永远单变体）。
+**步骤 5 — 发包。** `dotnet pack` → 发到 baget（`nuget.saibo.club`）。**单变体**。
 
-**步骤 6 — 派生项目接入。** 派生项目 csproj 加一行 `<PackageReference Include="SB.Feature.LicenseReport" Version="0.1.0" />`，**Program.cs 零改动**，重新发布即自动装配。
+**步骤 6 — 派生项目接入。** 派生项目 csproj 加一行 `<PackageReference Include="SB.Feature.BackupReport" Version="0.1.0" />`，**Program.cs 零改动**，重新发布即自动装配。
 
-**步骤 7 — 验证。** 启动看日志 `[Features] loaded: ..., LicenseReport`；若依赖缺失会报 `Feature 循环依赖` 或缺失依赖错误。
+**步骤 7 — 验证。** 启动看日志 `[Features] loaded: ..., BackupReport`；若依赖缺失会报 `Feature 循环依赖` 或缺失依赖错误。
 
-> **不做的事**：不写 `AddLicenseReportFeature()` 扩展方法（违背引包即生效）；不出双变体；不在派生项目 Program.cs 登记；不改框架代码（除非要进 License 白名单 §6.1 规则4）。
+> **不做的事**：不写 `AddBackupReportFeature()` 扩展方法（违背引包即生效）；不在派生项目 Program.cs 登记；不改框架代码。
 
 ---
 
@@ -1412,7 +1172,7 @@ public sealed class LicenseReportFeature : IFeatureModule
 ### 13.1 已决策（用户拍板 3 条）
 
 1. **自动发现 + 默认启用 + 配置可关**：deps.json 扫 `SB.Feature.*`，自动装配，`Features:Disabled` 黑名单可关，启动日志打印清单。
-2. **主权功能（授权验证）独立于插件体系**：继续 `#if` 双变体，两套机制并存，不做成插件。
+2. **授权验证体系原设计为主权功能独立于插件体系**——**2026-09 已整体移除**（历史见 `archive/with-license` 分支），如需新授权方案建议按插件（`SB.Feature.*`）形态重新设计。
 3. **派生项目无包袱**：纯从架构最优出发，Program.cs 回到两行，不为兼容旧写法妥协。
 
 ### 13.2 已决策（评审收敛）
@@ -1421,7 +1181,7 @@ public sealed class LicenseReportFeature : IFeatureModule
 |---|---|---|
 | C1 | 自动扫描 vs v1 显式注册 | 自动扫描（deps.json 消除 v1 否决理由）；本文取代 v1 |
 | C2 | 清单接口名/形状 | `IFeatureModule` + `IReadOnlyList<Assembly>`(默认本程序集) + `FeatureContext`(不含 PartManager) + `OptionsType` |
-| C3/8.4 | 实体归属 | 判据式：被核心引用留 Models（License 4 实体），无引用进插件（BackupRemoteRecord） |
+| C3/8.4 | 实体归属 | 判据式：被核心引用留 Models，无引用进插件（BackupRemoteRecord） |
 | C4/8.1 | 清单接口放哪 | 放 `SB.Framework.Core`，**不**新建 Abstractions（YAGNI） |
 | C5 | DI 注册路径 | `[AutoDependencyInjection]` 自动扫为主路径；`ConfigureServices` 只做接口绑定等特例；**禁止**双注册 |
 | C6/5.3 | 清单 vs IModuleInitializer | 正交并存 + 拆类（清单/Initializer/Service 三分），**不**合并到一个类型 |
@@ -1429,22 +1189,19 @@ public sealed class LicenseReportFeature : IFeatureModule
 | D2/5.4 | 黑名单作用范围 | 程序集清单层过滤（一处过滤三处生效），**不**在 FeatureName 装配层 |
 | D5/5.5 | License 表归属 | 4 张表由核心 `AdminService` 无条件建（现状不动），插件 `GetEntityTypes()` 留空 |
 | D6/3.1 | 包名≠程序集名 | 用 `GetDefaultAssemblyNames`，**禁止**用 `lib.Name` |
-| D7/8.6 | 插件对框架包依赖 | 引正常版（dll 同名）+ 浮动版本，派生项目顶层选变体收敛 |
+| D7/8.6 | 插件对框架包依赖 | 引框架包 + 浮动版本，NuGet 语义化版本收敛 |
 | 8.5 | BaseCrudService | 下沉到 Core，Services 留 `[Obsolete]` 转发壳过渡 |
-| 8.3 | 插件变体数 | 永远单变体 |
-| 6.3 | MasterKey 归类 | 第二档运维后门，配置开关条件挂载，新架构零改动 |
-| 6.4 | 主权/插件耦合 | 经 Core.License 的 `LicensePayload` 共享契约耦合，字段变更是跨边界 breaking |
+| 8.2/8.3 | 包变体数 | 永远单变体（原 `.NoLicense` 双变体已随授权体系移除） |
+| 6.3 | MasterKey 归类 | 第二档运维后门，由 AccessToken FullAccess key 承担（旧 X-Master-Key 已删除） |
 
 ### 13.3 待实现时确认
 
 | 点 | 说明 |
 |---|---|
 | `FeatureModuleActivator` 形态 | 实例化清单（`Activator.CreateInstance`）+ 拓扑排序 + 缓存已排序实例供 Use 阶段复用的具体类。在 [F-1] 后、[F-3] 前完成 |
-| BackupReceive 是否拆 Initializer | 推荐拆（§9.5/9.6，与 LicenseManage 范式统一）；其 `IModuleInitializer` 方法不碰注入字段，合体也安全。需拍板 |
 | PM 业务是否一次性 feature 化 | PmServices/agent/webterm 重构成 `Sb.Apps.Pm.Services` feature，还是先保留 `ProjectAssemblyName` 旧路径。两者都能跑 |
 | 可审计性补强 A/B | 启动日志副作用清单格式 + `/admin/features` 诊断端点 DTO。可观测性增强，不阻塞核心 |
 | `IFeatureSingleFilePublish` 落地方式 | 单文件发布时派生项目显式 `new XxxSingleFilePublish()` 传入，还是反射扫描。推荐显式（最稳） |
-| `LicensePayload` 同步发版机制 | 主权侧与插件侧 Payload 字段对齐的版本协调流程（CI 检查/约定） |
 
 ---
 
@@ -1481,23 +1238,21 @@ public sealed class LicenseReportFeature : IFeatureModule
 3. 故意建一个 dummy `SB.Feature.Dummy` 包引入，启动日志出现 `loaded: Dummy`，加进 `Features:Disabled` 后变 `skipped`，且其菜单不入库（验证 §5.4 一处过滤三处生效）。
 4. dummy 包放一个 `[Route("/api/dummy/ping")]` Controller，验证 `AddApplicationPart` 生效（能路由），不引包时不存在。
 
-发版：`SB.Framework.* 0.3.0`（双变体）。
+发版：`SB.Framework.* 0.3.0`（单变体）。
 
-### 阶段 2：两个样板插件包
+### 阶段 2：样板插件包（历史记录，LicenseManage 已随授权体系移除）
 
 | 任务 | 产物 |
 |---|---|
-| 建 `SB.Feature.BackupReceive`：移 `BackupRemoteRecord`(去`#if`) + Options + 清单 + Initializer + Service(`[AutoDI]`,继承Core基类) + Controller(`ControllerBase`) | `SB.Feature.BackupReceive 0.1.0`（单变体） |
-| 建 `SB.Feature.LicenseManage`：清单 + Initializer(无状态) + Service(纯`[AutoDI]`) + Options + Entitlement/Verify Controller | `SB.Feature.LicenseManage 0.1.0`（单变体） |
-| 从框架主包**删除**已抽出的源（`LicenseManageService`/`BackupReceiveService`/3 个 Controller/`BackupRemoteRecord`） | 框架主包瘦身 |
-| 确认 4 个 License 实体**仍留** `SB.Framework.Models`，核心 `AdminService` 仍建表 | Models 不动 |
+| 建 `SB.Feature.BackupReceive`：移 `BackupRemoteRecord`(去`#if`) + Options + 清单 + Initializer + Service(`[AutoDI]`,继承Core基类) + Controller(`ControllerBase`) | `SB.Feature.BackupReceive`（单变体） |
+| 建 `SB.Feature.AccessToken`：清单 + Service + Controller + Options（API Key 认证） | `SB.Feature.AccessToken`（单变体） |
+| 从框架主包**删除**已抽出的源（`BackupReceiveService` 等） | 框架主包瘦身 |
 
 **验证标准**：
-1. 一个**纯净测试宿主**（引 `SB.Framework.WebApi 0.3.0` + 两个 feature 包）启动，日志 `[Features] loaded: BackupReceive, LicenseManage`。
-2. `/api/BackupReceive/Upload`、`/Entitlement/*`、`/api/verify/*` 三组路由可达（验证跨程序集 Controller 发现）。
-3. 备份接收建表（`backup_remote_record`）、授权管理菜单入库；4 张 License 表由核心建（不依赖插件）。
-4. `Features:Disabled:["LicenseManage"]` 后，授权管理菜单不入库、`/Entitlement/*` 404、签发 Service 不注册（验证黑名单全链生效）。
-5. **NoLicense 宿主装 LicenseManage**（§6.2 场景）：用 `.NoLicense` 主包 + `SB.Feature.LicenseManage`，验证签发功能正常、自身永不 403。
+1. 纯净测试宿主（引框架包 + feature 包）启动，日志 `[Features] loaded: BackupReceive, AccessToken`。
+2. `/api/BackupReceive/Upload` 路由可达（验证跨程序集 Controller 发现）。
+3. 备份接收建表（`backup_remote_record`）。
+4. `Features:Disabled:["BackupReceive"]` 后，菜单不入库、路由 404、Service 不注册（验证黑名单全链生效）。
 
 ### 阶段 3：派生项目适配（PM 先行）
 
@@ -1509,7 +1264,7 @@ public sealed class LicenseReportFeature : IFeatureModule
 | Nexus / vshop 同样升级（PM 验证通过后） | 各派生项目 |
 
 **验证标准**：
-1. PM 全量构建（含 admin/h5 前端）通过，产物启动日志 `[Features] loaded: BackupReceive, LicenseManage`。
+1. PM 全量构建（含 admin/h5 前端）通过，产物启动日志 `[Features] loaded: BackupReceive, AccessToken`。
 2. PM 既有功能（登录 admin/111111、CRUD、agent、webterm）行为不变。
 3. PM 部署后改 `appsettings` 黑名单关掉 BackupReceive，重启验证运维侧热关闭（不重新构建）。
 4. 对比迁移前后：菜单、API、数据库 schema 一致（无丢失、无重复建表）。
@@ -1518,4 +1273,4 @@ public sealed class LicenseReportFeature : IFeatureModule
 
 ---
 
-> **文档维护约定**：本文是地基文档。新增 `SB.Feature.*` 包时**无需改本文**（§12 步骤已覆盖）；只有"接口契约 / 发现机制 / 主权边界 / 配置结构"变更才更新本文，并同步 `docs/AI_Conventions.md` 的功能开关三档分级。`LicensePayload` 字段变更须按 §6.4 跨主权/插件边界协调。
+> **文档维护约定**：本文是地基文档。新增 `SB.Feature.*` 包时**无需改本文**（§12 步骤已覆盖）；只有"接口契约 / 发现机制 / 配置结构"变更才更新本文，并同步 `docs/AI_Conventions.md`。
