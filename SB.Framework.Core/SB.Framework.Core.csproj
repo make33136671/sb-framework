@@ -8,7 +8,7 @@
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);1591</NoWarn>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>0.4.9</Version>
+    <Version>0.5.0</Version>
     <Authors>Sb Framework</Authors>
     <Description>SB Framework 核心库：工具、Feature 插件体系、认证缝、品牌图标生成。</Description>
   </PropertyGroup>

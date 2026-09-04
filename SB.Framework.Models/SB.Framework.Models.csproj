@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
-    <Version>0.4.8</Version>
+    <Version>0.5.0</Version>
     <Description>SB Framework 基础领域模型</Description>
   </PropertyGroup>
 

@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-04
+
+> **Breaking**:授权验证(License)体系整体移除,`.NoLicense` 双变体机制终结 —— 主包只发单一版本,派生项目把 `*.NoLicense` 引用改成正常包名并升到 0.5.0 即可(本项目内授权代码历史见 `archive/with-license` 分支)。开发期 ProjectReference 链上的派生项目无需引用 Analyzers 包(SB0001/0002/0003 随链生效)。
+
+### Removed
+
+- **授权验证体系整体移除** —— `SB.Framework.Core/License/` 全目录(验证中间件/RSA 验签/机器指纹/域名匹配/时间回退防护)、`SB.Feature.LicenseManage` 签发端项目、LicenseClient/Record/Request/VerifyLog 实体与 License DTO、LicenseClientService/HeartbeatTask/VerifyClient、VerificationController、`AppSettings.LicenseConfig`、RSA 公钥嵌入 MSBuild Target、`DISABLE_LICENSE` 编译开关与 `.NoLicense` 双变体 PackageId。完整历史代码保留在 `archive/with-license` 分支,日后新授权方案从此分支取材。
+- 安装向导返回值 `licenseEnabled` 恒 false(字段保留避免前端炸);系统设置不再出现「授权设置」分类;「授权信息」菜单移除。
+
+### Changed
+
+- **多数据库兼容** —— 实体清理 27 处 `DbType` 方言硬编码(24 处 timestamp/3 处 text),同一套实体 MySQL/PG 通吃(FreeSql 按 DataType 自动映射);新增分析器 **SB0003** 编译期禁止 `[Column]` 写 `DbType`。
+- **分析器传递修复** —— Core 对 Analyzers 的 ProjectReference 曾带 `PrivateAssets=all`,SB0001/0002 实际只对 Services 生效;现各项目直接引用 Analyzers,SB 规则覆盖全部框架与派生项目,并清掉了暴露出的存量违规(AppSettings/Setup/AppController/AccessToken 系列 DateTime.Now→AppTime,SetupController 安装接口补 `[AllowJsonBody]`)。
+- **IBackgroundTaskManager 无条件注册** —— 任务管理器不再裹在 isInstalled 分支内(仅依赖 ILogger);任务运行器仍只在已安装且非冒烟时装配。派生项目 HostedService/Controller 任何状态都能构造注入,不再出现未安装态 DI 校验崩溃。
+- 打包脚本移除双变体构建,`pack-push.sh` 单变体出包。
+
+### Added
+
+- **SB.Framework.WebTest 永久功能测试台** —— 真实业务场景映射框架全部能力(认证三态/订单状态机/软删双路/后台任务/FlowEngine 双流/ApiKey 全链),自带零构建测试台 UI(wwwroot/test.html),PG 真库端到端验证通过。
+
 ## [0.4.9] - 2026-06-14
 
 > 仅 `SB.Framework.WebApi`（含 `.NoLicense`）改动，其余包（Core/Models/Services/Analyzers）不变，派生项目只需把 `SB.Framework.WebApi(.NoLicense)` 升到 `0.4.9`。

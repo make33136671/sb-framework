@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -7,7 +7,7 @@
     <AssemblyName>SB.Framework.Services</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.4.17</Version>
+    <Version>0.5.0</Version>
     <Description>SB Framework 基础应用服务 + 扩展点</Description>
   </PropertyGroup>
 

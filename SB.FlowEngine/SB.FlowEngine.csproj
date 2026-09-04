@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <Version>0.2.1</Version>
+    <Version>0.2.2</Version>
     <Description>SB 图执行引擎(前端 @saibo/flow-engine 的服务端对称实现):读 FlowGraph 执行,内置 if/loop/goto/label/变量/wait/subFlow 控制节点,业务节点经 IFlowNodeExecutor 接入,支持节点级 retry/stopOnError/delay 执行机制</Description>
   </PropertyGroup>
   <ItemGroup>
