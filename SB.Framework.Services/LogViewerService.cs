@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SB.Framework.Core.Attribute;
@@ -10,6 +10,20 @@ namespace SB.Framework.Services
     [AutoDependencyInjection]
     public class LogViewerService : IModuleInitializer
     {
+    /// <summary>
+    /// 以共享读写方式读取日志文件 —— 当前活跃日志正被 Serilog 独占写入,
+    /// File.ReadAllLines 默认请求独占会抛 IOException(文件被另一进程使用)。
+    /// </summary>
+    private static string[] ReadAllLinesShared(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        using var reader = new StreamReader(stream);
+        var lines = new List<string>();
+        while (reader.ReadLine() is { } line)
+            lines.Add(line);
+        return lines.ToArray();
+    }
+
         #region IModuleInitializer
 
         public string ModuleName => "运行日志模块";
@@ -115,7 +129,7 @@ namespace SB.Framework.Services
                         if (!File.Exists(path)) continue;
 
                         files.Add(fileName);
-                        var lines = File.ReadAllLines(path);
+                        var lines = ReadAllLinesShared(path);
                         totalLines += lines.Length;
 
                         var taken = (tail > 0 && tail < lines.Length)
@@ -188,7 +202,7 @@ namespace SB.Framework.Services
             if (filePath == null)
                 return Result.Fail("文件不存在或路径非法");
 
-            var allLines = System.IO.File.ReadAllLines(filePath);
+            var allLines = ReadAllLinesShared(filePath);
             var totalLines = allLines.Length;
 
             // 取最后 tail 行

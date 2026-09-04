@@ -72,7 +72,7 @@ public class AppSettingsController : Controller
     /// </summary>
     [HttpPost]
     [RequestSizeLimit(2 * 1024 * 1024)]
-    public async Task<Result> Upload([FromForm] IFormFile file, [FromForm] bool restart = true)
+    public async Task<Result> Upload(IFormFile file, [FromForm] bool restart = true)
     {
         if (file == null || file.Length == 0)
             return Result.Fail("请选择文件");

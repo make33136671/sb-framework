@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SB.Framework.Models;
 using SB.Framework.Services;
@@ -27,6 +27,7 @@ namespace SB.Framework.WebApi.Controllers
         /// <param name="page">页码</param>
         /// <param name="pageSize">单页系统设置数量</param>
         /// <returns>系统设置分页对象</returns>
+        [HttpGet]
         public Result List(string key = "", string name = "", string field = "", string order = "", int page = 1, int pageSize = 10)
         {
             return _systemSettingService.GetList(key, name, field, order, page, pageSize);
@@ -84,6 +85,9 @@ namespace SB.Framework.WebApi.Controllers
         [HttpPost(Name = "SystemSettingSaveList")]
         public Result SaveList([FromForm] string settings)
         {
+            if (string.IsNullOrWhiteSpace(settings))
+                return Result.Fail("数据内容为空,保存失败!");
+
             var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             jsonOptions.Converters.Add(new LenientStringConverter());
             List<SystemSetting> systemSettingList = System.Text.Json.JsonSerializer.Deserialize<List<SystemSetting>>(settings, jsonOptions)!;

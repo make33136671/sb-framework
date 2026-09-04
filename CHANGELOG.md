@@ -2,6 +2,17 @@
 
 本仓库遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 和 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [0.5.4] - 2026-09-04
+
+> Swagger 全量回归后暴露的三处修复;SB.Framework.Services 0.5.1 与 WebApi 0.5.2~0.5.4 配套发布,tgvault-api 已在 PG 真库完成 183 端点全量 API 测试(0 个 5xx)。
+
+### Fixed
+
+- **Swagger 文档生成 500**(`SB.Framework.WebApi 0.5.2`):`AppSettingsController.Upload` 的 `IFormFile` 参数去掉显式 `[FromForm]`(Swashbuckle 6.9 禁止该组合)。
+- **Swagger 歧义 method**(`0.5.3`):`SystemSettingController.List` 补 `[HttpGet]`(无显式 HTTP method 的 action 无法生成 OpenAPI)。
+- **SystemSetting/SaveList 空参 500**(`0.5.4`):`settings=null` 直接进 JSON 反序列化抛 ArgumentNullException,补空值防线返回业务失败。
+- **日志查看器读活跃日志 500**(`SB.Framework.Services 0.5.1`):Serilog 正在写的 ndjson 被独占锁定,`File.ReadAllLines` 抛 IOException;改用 `FileShare.ReadWrite` 共享读(LogViewer Read/Diag/下载链路通用)。
+
 ## [Unreleased]
 
 ## [0.5.0] - 2026-09-04
