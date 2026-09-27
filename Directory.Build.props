@@ -2,4 +2,15 @@
   <PropertyGroup>
     <!-- 原编译开关属性声明区：DISABLE_LICENSE 等编译开关已移除，框架主线为无授权验证版本 -->
   </PropertyGroup>
+
+  <!-- 公共 NuGet 元数据（nuget.org）；子项目 csproj 中的同名属性优先级更高，可覆盖 -->
+  <PropertyGroup>
+    <Authors>SB Framework</Authors>
+    <Company>SB Framework</Company>
+    <Copyright>Copyright (c) 2026 SB Framework</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/make33136671/sb-framework</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/make33136671/sb-framework.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
 </Project>
