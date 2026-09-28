@@ -288,6 +288,60 @@ namespace SB.Framework.Services
             }
         }
 
+        private static bool IsValidHexColor(string? value)
+            => value != null
+            && System.Text.RegularExpressions.Regex.IsMatch(value.Trim(), @"^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$");
+
+        /// <summary>
+        /// 安装向导「生成 Logo」（仅未安装时可调用）。
+        /// 按产品名/单字标/配色推导品牌规格，渲染 Logo（与 images/logo.png 一致）并返回 base64 预览图。
+        /// 纯内存渲染，不落盘：用户接受后前端把 logoBase64 随 Install 提交，由安装流程持久化
+        /// （FaviconGenerator 生成 favicon 集 + logo.png）；若留空则由 BrandIconGenerator 生成全套。
+        /// </summary>
+        public Result GenerateLogo(SetupGenerateLogoRequest request)
+        {
+            if (IsInstalled())
+                return Result.Fail("系统已安装，无需再生成");
+
+            var spec = BrandIconGenerator.DefaultSpec(request?.ProductEn, request?.ProductCn);
+
+            if (!string.IsNullOrWhiteSpace(request?.Monogram))
+            {
+                var mono = request.Monogram.Trim().ToUpperInvariant();
+                if (mono.Length is < 1 or > 3)
+                    return Result.Fail("单字标必须是 1-3 个字符");
+                spec.Monogram = mono;
+            }
+            if (!string.IsNullOrWhiteSpace(request?.AccentFrom))
+            {
+                if (!IsValidHexColor(request.AccentFrom))
+                    return Result.Fail("渐变起色格式不正确（应为 #RRGGBB）");
+                spec.AccentFrom = request.AccentFrom.Trim();
+            }
+            if (!string.IsNullOrWhiteSpace(request?.AccentTo))
+            {
+                if (!IsValidHexColor(request.AccentTo))
+                    return Result.Fail("渐变止色格式不正确（应为 #RRGGBB）");
+                spec.AccentTo = request.AccentTo.Trim();
+            }
+
+            try
+            {
+                var logoBytes = BrandIconGenerator.RenderLogoPng(spec, 512);
+                var dataUrl = $"data:image/png;base64,{Convert.ToBase64String(logoBytes)}";
+                return Result.Success("已生成品牌 Logo", new
+                {
+                    logoBase64 = dataUrl,
+                    spec,
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "生成品牌 Logo 失败");
+                return Result.Fail($"生成失败: {ex.Message}");
+            }
+        }
+
         /// <summary>
         /// 执行完整安装
         /// </summary>

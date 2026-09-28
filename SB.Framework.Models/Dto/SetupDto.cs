@@ -1,4 +1,4 @@
-﻿namespace SB.Framework.Models.Dto
+namespace SB.Framework.Models.Dto
 {
     public class DatabaseConfigDto
     {
@@ -21,6 +21,26 @@
         public string Name { get; set; } = null!;
         public string Key { get; set; } = null!;
         public string Path { get; set; } = null!;
+    }
+
+    /// <summary>
+    /// 安装向导「生成 Logo」请求（仅未安装时可调用）。
+    /// 按产品名推导品牌规格并渲染 Logo，返回 base64 预览图（与 images/logo.png 一致）。
+    /// 用户接受后前端将其放入 Install 的 LogoBase64；也可改传上传图，或留空（留空由安装流程自动生成）。
+    /// </summary>
+    public class SetupGenerateLogoRequest
+    {
+        public string? ProductCn { get; set; }
+        public string? ProductEn { get; set; }
+
+        /// <summary>单字标（可选，1-3 字符；缺省按产品英文名推导，如 tgvault → TG）</summary>
+        public string? Monogram { get; set; }
+
+        /// <summary>渐变起色（可选，#RRGGBB；缺省品牌青 #22D3EE）</summary>
+        public string? AccentFrom { get; set; }
+
+        /// <summary>渐变止色（可选，#RRGGBB；缺省品牌蓝 #3B82F6）</summary>
+        public string? AccentTo { get; set; }
     }
 
     public class SetupRequest

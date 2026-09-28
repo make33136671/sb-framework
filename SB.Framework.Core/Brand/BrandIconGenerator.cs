@@ -48,6 +48,19 @@ namespace SB.Framework.Core.Brand
         private static readonly int[] IcoSizes = { 16, 32, 48 };
 
         /// <summary>
+        /// 渲染应用图标（深色圆角底）并返回 PNG 字节流。
+        /// 与 GenerateAll 写入 images/logo.png 的内容完全一致（同一 RenderMark 绘制路径），
+        /// 供安装向导「生成 Logo」预安装调用：前端拿到 base64 即可预览/直接提交为 LogoBase64。
+        /// </summary>
+        public static byte[] RenderLogoPng(SbBrandSpec spec, int size = 512)
+        {
+            using var img = RenderMark(size, spec, dark: spec.DarkBg);
+            var ms = new MemoryStream();
+            img.Save(ms, new PngEncoder());
+            return ms.ToArray();
+        }
+
+        /// <summary>
         /// 从 ProductEn 推导默认规格：取单词首字母（最多 2 个）作单字标，如 tgvault → TG
         /// </summary>
         public static SbBrandSpec DefaultSpec(string? productEn, string? productCn)

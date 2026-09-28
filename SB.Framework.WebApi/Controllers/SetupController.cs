@@ -73,6 +73,21 @@ public class SetupController : Controller
     }
 
     /// <summary>
+    /// 生成品牌 Logo（仅未安装时可用）。
+    /// 按产品名/单字标/配色渲染品牌图标，返回 base64 预览图（与安装后的 images/logo.png 一致）。
+    /// 安装向导据此预览：用户可用生成结果、改传上传图，或留空（安装时自动生成默认品牌图标）。
+    /// </summary>
+    [HttpPost]
+    [AllowJsonBody(Reason = "嵌套对象 + 前端 setupFetch 统一 JSON 提交，与 TestDatabase/TestRedis/Install 一致")]
+        public Result GenerateLogo([FromBody] SetupGenerateLogoRequest request)
+    {
+        if (_setupService.IsInstalled())
+            return Result.Fail("系统已安装");
+
+        return _setupService.GenerateLogo(request);
+    }
+
+    /// <summary>
     /// 执行系统安装
     /// </summary>
     [HttpPost]
