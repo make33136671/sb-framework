@@ -55,12 +55,9 @@ license_public.key
 
 # Claude workflow 临时 worktree（误提交清理，不再追踪）
 .claude/worktrees/
+# brand/ 由 install 按客户实例生成，不入库（见上方说明）
 **/wwwroot/storage/brand/
-**/wwwroot/storage/images/
-**/wwwroot/storage/android-chrome-192x192.png
-**/wwwroot/storage/android-chrome-512x512.png
-**/wwwroot/storage/apple-touch-icon.png
-**/wwwroot/storage/favicon-16x16.png
-**/wwwroot/storage/favicon-32x32.png
-**/wwwroot/storage/favicon.ico
+# 注意：images/ 与整套基础图标（favicon.ico / favicon-*.png / apple-touch-icon.png /
+# android-chrome-*.png / images/logo.png）必须随代码入库，作为未上传 logo 时的 fallback，
+# 因此这里不再忽略它们（历史忽略规则会与本意图冲突，已移除）。
 SB.Framework.WebTest/wwwroot/storage/
