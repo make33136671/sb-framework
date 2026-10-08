@@ -90,6 +90,11 @@ namespace SB.Framework.WebApi.Controllers
 
             var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             jsonOptions.Converters.Add(new LenientStringConverter());
+            // 必须与全局序列化配置（SbFrameworkExtensions.AddJsonOptions 的 JsonStringEnumConverter）对称：
+            // 读取端点把枚举序列化成字符串（displayType:"InputNumber"），前端整行回传时
+            // 若这里按数字解析枚举 → JsonException → 500「服务器内部错误」，系统设置永远存不上。
+            // 同时容忍数字与字符串两种写法（旧前端/手工构造的载荷）。
+            jsonOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
             List<SystemSetting> systemSettingList = System.Text.Json.JsonSerializer.Deserialize<List<SystemSetting>>(settings, jsonOptions)!;
 
             return _systemSettingService.SaveList(systemSettingList);

@@ -11,7 +11,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591;1572;1573</NoWarn>
-    <Version>0.5.4</Version>
+    <Version>0.5.5</Version>
     <Description>SB Framework Web API 基础设施</Description>
   </PropertyGroup>
 
