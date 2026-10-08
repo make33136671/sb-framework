@@ -19,7 +19,8 @@
 #   派生项目运行时 FileNotFoundException 崩溃。本脚本默认强制清理,不要关。
 #
 # 典型用法:
-#   NUGET_ORG_API_KEY=xxx ./pack-push.sh                          # 全部包发到 nuget.org
+#   ./pack-push.sh                                                # 全部包发到 nuget.org
+#     （key 从 ~/.config/sb-framework/nuget-credentials 自动读取，无需手输）
 #   ./pack-push.sh --project SB.Framework.WebApi --bump           # 只发 WebApi,patch +1
 #   ./pack-push.sh --source baget                                 # 发到私有 BaGet
 #   ./pack-push.sh --project SB.Framework.WebApi --no-push        # 只打包不推送(本地验证)
@@ -55,13 +56,43 @@ SOURCE_BAGET_HTTPS="https://nuget.saibo.club/v3/index.json"
 SOURCE_BAGET_HTTP="http://192.168.10.68/v3/index.json"   # 内网后端(HTTP,需 allowInsecureConnections)
 SOURCE_NUGET="https://api.nuget.org/v3/index.json"
 
-# API key：
-#   · BaGet  —— 优先 SB_BAGET_API_KEY 环境变量；否则用文档里那个已知默认值
-#     （见 docs/AI_BaGet_Feed.md。**这是历史遗留的明文密钥**，建议尽快改成只读环境变量。）
-#   · nuget.org —— 必须由 NUGET_ORG_API_KEY 提供，**没有内置默认值**
-#     （公网发布凭据不该进代码库）。缺了会明确报错并告诉你去哪申请。
-BAGET_API_KEY="${SB_BAGET_API_KEY:-d77f86fba8cd73cee8e4bcb3938a9fb3}"
-NUGET_API_KEY="${NUGET_ORG_API_KEY:-}"
+# API key 读取顺序（2026-10-08）：
+#   ① 环境变量（CI 里用这个，或临时覆盖）
+#   ② 本地凭据文件 ~/.config/sb-framework/nuget-credentials（日常免手输）
+#   ③ BaGet 的历史默认值（仅 BaGet 有；nuget.org **没有**内置默认值）
+#
+# ## 为什么用"凭据文件"而不是写进 ~/.bashrc
+#
+#   · 环境变量会对**所有子进程**可见（包括不该看到它的构建脚本）；
+#   · 写进 shell 配置会被 dotfiles 备份、被 `env` 打印、易随终端会话泄露；
+#   · 独立文件能单独设 600 权限、单独轮换，且**不进 git**（下面有意不放进仓库）。
+#
+# ⚠️ NuGet 自己的 `setapikey` 是**明文**存在 NuGet.Config 里，并不更安全；
+#    本项目选独立文件，是为了"既能免输、又能一眼看出它存在哪"。
+CRED_FILE="${SB_NUGET_CREDENTIALS:-$HOME/.config/sb-framework/nuget-credentials}"
+
+# 从凭据文件读一个 KEY（文件不存在/无该键 → 输出空，不报错）
+read_cred() {
+  local key="$1"
+  [ -f "$CRED_FILE" ] || return 0
+  # 只取形如 KEY=VALUE 的行；忽略注释与空行；值两边的引号去掉
+  sed -n "s/^[[:space:]]*${key}[[:space:]]*=[[:space:]]*//p" "$CRED_FILE" \
+    | head -1 | sed -E 's/^"(.*)"$/\1/; s/^'"'"'(.*)'"'"'$/\1/' | tr -d '\r\n'
+}
+
+# 凭据文件权限检查：里面是明文密钥，权限必须收紧（组/其他可读就打警告）
+if [ -f "$CRED_FILE" ]; then
+  PERM=$(stat -c '%a' "$CRED_FILE" 2>/dev/null || stat -f '%Lp' "$CRED_FILE" 2>/dev/null || echo "")
+  case "$PERM" in
+    ""|600|400) ;;
+    *) echo "[pack-push] WARN 凭据文件权限过宽（$PERM）：$CRED_FILE" >&2
+       echo "[pack-push]      建议执行：chmod 600 $CRED_FILE" >&2 ;;
+  esac
+fi
+
+BAGET_API_KEY="${SB_BAGET_API_KEY:-$(read_cred SB_BAGET_API_KEY)}"
+[ -n "$BAGET_API_KEY" ] || BAGET_API_KEY="d77f86fba8cd73cee8e4bcb3938a9fb3"   # 历史默认值
+NUGET_API_KEY="${NUGET_ORG_API_KEY:-$(read_cred NUGET_ORG_API_KEY)}"
 
 NUPKG_OUT="$ROOT/dist/nupkgs"
 
