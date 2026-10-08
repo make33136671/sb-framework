@@ -10,7 +10,7 @@
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <RootNamespace>SB.Framework.Analyzers</RootNamespace>
     <AssemblyName>SB.Framework.Analyzers</AssemblyName>
-    <Version>0.5.0</Version>
+    <Version>0.5.1</Version>
     <Description>SB Framework Roslyn 分析器</Description>
     <!--
       关键：分析器包的 DLL 必须放在 analyzers/dotnet/cs/，Roslyn 才会当"分析器"加载。
