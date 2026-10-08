@@ -7,7 +7,7 @@
     <AssemblyName>SB.Framework.Services</AssemblyName>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <Description>SB Framework 基础应用服务 + 扩展点</Description>
   </PropertyGroup>
 

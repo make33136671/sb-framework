@@ -160,6 +160,8 @@ public static class SbFrameworkExtensions
             builder.Services.AddEmailServices();
             // 通用电子表格读取(xlsx/xls/csv)——框架自注册接口绑定,业务层注入 ISpreadsheetReader 即用
             builder.Services.AddScoped<SB.Framework.Services.ISpreadsheetReader, SB.Framework.Services.NpoiSpreadsheetReader>();
+            // 通用办公文档读取(Word docx/docm,及 txt/md)——业务层注入 IDocumentReader 即用
+            builder.Services.AddScoped<SB.Framework.Services.IDocumentReader, SB.Framework.Services.NpoiDocumentReader>();
             // 随机名称生成(中文人名 / 生活服务备注名)——业务层注入 IRandomNameGenerator 即用
             builder.Services.AddSingleton<SB.Framework.Services.IRandomNameGenerator, SB.Framework.Services.RandomNameGenerator>();
             builder.Services.AddQdrantService(configuration);
