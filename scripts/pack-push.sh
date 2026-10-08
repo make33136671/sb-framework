@@ -2,19 +2,27 @@
 # ============================================================================
 # SB Framework NuGet 打包 + 推送脚本 (pack-push.sh)
 #
-# 用途：把框架各子项目编译成 NuGet 包，推到 BaGet 私有源。
-#       这是"框架的编译"——派生项目(pm/admin 等)通过 NuGet 引用消费,改完框架必须走这步才能让
-#       派生项目 restore 到新版本。
+# 用途：把框架各子项目编译成 NuGet 包并推送。
+#       这是"框架的编译"——派生项目通过 NuGet 引用消费，改完框架必须走这步。
+#
+# 两个推送目标：
+#   --source nuget  （**默认**）公网 nuget.org —— 正式发布地，任何人可 restore
+#   --source baget            saibo 私有 BaGet —— 内网缓存/加速
+#
+# ⚠️ 定位不同，别再混为一谈：
+#   · nuget.org 是**唯一发布源**（唯一真相），包只从这里"出厂"；
+#   · BaGet 是**消费侧的缓存代理**，从 nuget.org 同步，不作为独立发布目标
+#     （双写会带来版本分叉：本地 0.5.5 / 公网 0.5.4，外部使用者 restore 失败）。
 #
 # 铁律(来自 CHANGELOG [0.4.3] 事故):
 #   每次发包必须 **删 bin/obj 干净重建**。否则包版本 bump 了但内部程序集版本没变,
 #   派生项目运行时 FileNotFoundException 崩溃。本脚本默认强制清理,不要关。
 #
 # 典型用法:
-#   ./pack-push.sh --project SB.Framework.WebApi --bump          # 只发 WebApi,patch +1 后推送
-#   ./pack-push.sh --bump                                        # 所有可打包项目 patch +1 后推送
-#   ./pack-push.sh --project SB.Framework.Core --version 0.5.0   # 指定版本号
-#   ./pack-push.sh --project SB.Framework.WebApi --no-push       # 只打包不推送(本地验证)
+#   NUGET_ORG_API_KEY=xxx ./pack-push.sh                          # 全部包发到 nuget.org
+#   ./pack-push.sh --project SB.Framework.WebApi --bump           # 只发 WebApi,patch +1
+#   ./pack-push.sh --source baget                                 # 发到私有 BaGet
+#   ./pack-push.sh --project SB.Framework.WebApi --no-push        # 只打包不推送(本地验证)
 # ============================================================================
 set -eo pipefail
 
@@ -33,11 +41,27 @@ ALL_PROJECTS=(
   SB.Feature.BackupReceive
 )
 
-# BaGet 源:默认走公网 HTTPS(nuget.saibo.club)。内网直连后端用 --source-http。
-SOURCE_HTTPS="https://nuget.saibo.club/v3/index.json"
-SOURCE_HTTP="http://192.168.10.68/v3/index.json"   # 内网后端(HTTP,需 allowInsecureConnections)
-# API key 优先取环境变量 SB_BAGET_API_KEY,否则用已知默认(见 docs/AI_BaGet_Feed.md)
-API_KEY="${SB_BAGET_API_KEY:-d77f86fba8cd73cee8e4bcb3938a9fb3}"
+# 推送目标（2026-10-08 新增 nuget.org）
+#
+#   baget  —— saibo 私有 BaGet（内网缓存/加速）。默认公网 HTTPS，--source-http 走内网直连。
+#   nuget  —— 公网 nuget.org（正式发布地，任何人可 restore）。
+#
+# ⚠️ 两者定位不同，别再混为一谈：
+#   · nuget.org 是**唯一发布源**（唯一真相）——包只从这里"出厂"；
+#   · BaGet 是**缓存代理**（消费侧的加速与兜底），按新架构它从 nuget.org 同步，
+#     不再作为独立发布目标（双写会带来版本分叉风险）。
+#   故 --source 默认从 baget 改为 **nuget**。
+SOURCE_BAGET_HTTPS="https://nuget.saibo.club/v3/index.json"
+SOURCE_BAGET_HTTP="http://192.168.10.68/v3/index.json"   # 内网后端(HTTP,需 allowInsecureConnections)
+SOURCE_NUGET="https://api.nuget.org/v3/index.json"
+
+# API key：
+#   · BaGet  —— 优先 SB_BAGET_API_KEY 环境变量；否则用文档里那个已知默认值
+#     （见 docs/AI_BaGet_Feed.md。**这是历史遗留的明文密钥**，建议尽快改成只读环境变量。）
+#   · nuget.org —— 必须由 NUGET_ORG_API_KEY 提供，**没有内置默认值**
+#     （公网发布凭据不该进代码库）。缺了会明确报错并告诉你去哪申请。
+BAGET_API_KEY="${SB_BAGET_API_KEY:-d77f86fba8cd73cee8e4bcb3938a9fb3}"
+NUGET_API_KEY="${NUGET_ORG_API_KEY:-}"
 
 NUPKG_OUT="$ROOT/dist/nupkgs"
 
@@ -47,9 +71,10 @@ BUMP=false
 VERSION=""
 PUSH=true
 USE_HTTP=false
+TARGET="nuget"      # baget | nuget（默认发公网）
 
 show_help() {
-  sed -n '2,28p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -59,8 +84,9 @@ while [ $# -gt 0 ]; do
     --bump)        BUMP=true; shift ;;
     --version)     VERSION="$2"; shift 2 ;;
     --no-push)     PUSH=false; shift ;;
+    --source)      TARGET="$2"; shift 2 ;;
     --source-http) USE_HTTP=true; shift ;;
-    --api-key)     API_KEY="$2"; shift 2 ;;
+    --api-key)     BAGET_API_KEY="$2"; shift 2 ;;
     -h|--help)     show_help ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
@@ -72,6 +98,7 @@ if [ ${#PROJECTS[@]} -eq 0 ]; then
 fi
 
 info()  { echo "[pack-push] $*"; }
+warn()  { echo "[pack-push] WARN $*" >&2; }
 error() { echo "[pack-push] ERROR $*" >&2; exit 1; }
 
 # 取/改 csproj 的 <Version>
@@ -90,13 +117,34 @@ bump_patch() {
 command -v dotnet >/dev/null || error "未找到 dotnet"
 command -v perl   >/dev/null || error "未找到 perl(用于改版本号)"
 
+# ---- 校验推送目标与凭据（在做任何构建之前就失败，别等打完包才发现没 key）----
+case "$TARGET" in
+  baget|nuget) ;;
+  *) error "--source 只能是 baget 或 nuget（收到：$TARGET）" ;;
+esac
+
+if [ "$PUSH" = true ]; then
+  if [ "$TARGET" = "nuget" ] && [ -z "$NUGET_API_KEY" ]; then
+    error "发布到 nuget.org 需要 API Key，但环境变量 NUGET_ORG_API_KEY 未设置。
+       申请：https://www.nuget.org/account/apikeys （Scope 选 Push new packages and package versions）
+       用法：NUGET_ORG_API_KEY=xxx ./scripts/pack-push.sh --source nuget"
+  fi
+fi
+
 rm -rf "$NUPKG_OUT"
 mkdir -p "$NUPKG_OUT"
+
+if [ "$TARGET" = "nuget" ]; then
+  TARGET_DESC="$SOURCE_NUGET"
+else
+  TARGET_DESC="$([ "$USE_HTTP" = true ] && echo "$SOURCE_BAGET_HTTP" || echo "$SOURCE_BAGET_HTTPS")"
+fi
 
 echo "============================================"
 echo "  SB Framework 打包"
 echo "  项目: ${PROJECTS[*]}"
-echo "  推送: $([ "$PUSH" = true ] && echo "是 → $([ "$USE_HTTP" = true ] && echo "$SOURCE_HTTP" || echo "$SOURCE_HTTPS")" || echo "否(--no-push)")"
+echo "  目标: $TARGET"
+echo "  推送: $([ "$PUSH" = true ] && echo "是 → $TARGET_DESC" || echo "否(--no-push)")"
 echo "============================================"
 
 declare -a PACKED_SUMMARY
@@ -137,31 +185,49 @@ ls -1 "$NUPKG_OUT"/*.nupkg | sed 's/^/  /'
 
 # ---- 推送 ----
 if [ "$PUSH" = true ]; then
-  if [ "$USE_HTTP" = true ]; then
-    SOURCE_URL="$SOURCE_HTTP"
+  if [ "$TARGET" = "nuget" ]; then
+    # 公网 nuget.org：直接用官方源，无需自定义 config
+    SOURCE_URL="$SOURCE_NUGET"
+    CONFIG_ARGS=(--source "$SOURCE_NUGET")
+    PUSH_KEY="$NUGET_API_KEY"
+  elif [ "$USE_HTTP" = true ]; then
+    # 内网 BaGet 后端是纯 HTTP，必须 allowInsecureConnections（否则 dotnet 拒绝推送）
+    SOURCE_URL="$SOURCE_BAGET_HTTP"
     PUSH_CONFIG="$(mktemp /tmp/baget-push.XXXXXX.config)"
     cat > "$PUSH_CONFIG" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <packageSources>
     <clear />
-    <add key="baget" value="$SOURCE_HTTP" allowInsecureConnections="true" />
+    <add key="baget" value="$SOURCE_BAGET_HTTP" allowInsecureConnections="true" />
   </packageSources>
 </configuration>
 XML
     CONFIG_ARGS=(--source baget --configfile "$PUSH_CONFIG")
+    PUSH_KEY="$BAGET_API_KEY"
   else
-    SOURCE_URL="$SOURCE_HTTPS"
-    CONFIG_ARGS=(--source "$SOURCE_HTTPS")
+    SOURCE_URL="$SOURCE_BAGET_HTTPS"
+    CONFIG_ARGS=(--source "$SOURCE_BAGET_HTTPS")
+    PUSH_KEY="$BAGET_API_KEY"
   fi
 
   echo ""
   info "推送到 $SOURCE_URL ..."
+  FAILED=0
   for pkg in "$NUPKG_OUT"/*.nupkg; do
     info "push $(basename "$pkg")"
-    dotnet nuget push "$pkg" "${CONFIG_ARGS[@]}" --api-key "$API_KEY" --skip-duplicate
+    # 不用 --skip-duplicate：同版本重复推送**静默跳过**会让人误以为发布成功。
+    # 让它报错、由人工确认是"确实已发布"还是"版本号忘了 bump"。
+    if ! dotnet nuget push "$pkg" "${CONFIG_ARGS[@]}" --api-key "$PUSH_KEY"; then
+      warn "  ✗ 推送失败：$(basename "$pkg")（版本已存在？还是凭据/网络问题？）"
+      FAILED=$((FAILED + 1))
+    fi
   done
   [ -n "${PUSH_CONFIG:-}" ] && rm -f "$PUSH_CONFIG"
+
+  if [ "$FAILED" -gt 0 ]; then
+    error "有 $FAILED 个包推送失败 —— 发布**未完成**。请逐个确认原因后重试。"
+  fi
 fi
 
 echo ""
