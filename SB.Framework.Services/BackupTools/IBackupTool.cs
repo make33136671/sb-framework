@@ -10,6 +10,13 @@ namespace SB.Framework.Services.BackupTools;
 /// </summary>
 public interface IBackupTool
 {
+    /// <summary>
+    /// 备份文件方言标识:"mysql" / "postgresql"。
+    /// 导入「外来备份文件」时用来判断脚本与当前数据库是否兼容 —— mysqldump 与 pg_dump 的 SQL 互不兼容,
+    /// 跨库直接导入会产生大量 SQL 错误(甚至半截恢复),必须在导入前拦截。
+    /// </summary>
+    string Dialect { get; }
+
     /// <summary>导出工具名(显示用,如 "mysqldump" / "pg_dump")</summary>
     string DumpToolName { get; }
 

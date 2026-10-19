@@ -15,6 +15,7 @@ public class PostgreSqlBackupTool : IBackupTool
 
     public PostgreSqlBackupTool(ILogger<PostgreSqlBackupTool>? logger = null) => _logger = logger;
 
+    public string Dialect => "postgresql";
     public string DumpToolName => "pg_dump";
     public string RestoreToolName => "psql";
 

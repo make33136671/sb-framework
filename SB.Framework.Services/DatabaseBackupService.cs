@@ -41,6 +41,187 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
+        /// 接收管理员上传的备份文件（.zip 内含 .sql，或裸 .sql），校验通过后落盘为可用备份：
+        ///   1. 体积/扩展名校验
+        ///   2. 解压取 .sql，按脚本头部判断方言（mysqldump / pg_dump）
+        ///   3. 方言与当前数据库不符 → 直接拒绝（跨库 SQL 互不兼容，导入会半截失败）
+        ///   4. 重命名成标准格式 &lt;dbName&gt;_&lt;yyyyMMdd_HHmmss&gt;.zip 落盘
+        ///   5. 写 DB 记录（含 MD5），随后即可在列表里「恢复」
+        /// 注意：这里**不执行导入**，导入是独立的高危操作，由 RestoreAsync 负责。
+        /// </summary>
+        /// <param name="stream">上传的文件流</param>
+        /// <param name="originalFileName">原始文件名（保留原始库名/时间信息用于展示）</param>
+        /// <param name="operatorName">操作人</param>
+        /// <param name="remark">备注</param>
+        /// <param name="ct">取消令牌</param>
+        public virtual async Task<Result> ImportBackupAsync(
+            Stream stream, string originalFileName, string operatorName,
+            string? remark = null, CancellationToken ct = default)
+        {
+            var db = AppGlobal.AppSettings.DbConfig;
+            var ext = Path.GetExtension(originalFileName ?? "").ToLowerInvariant();
+            if (ext != ".zip" && ext != ".sql")
+                return Result.Fail("只接受 .zip（内含 .sql 备份）或 .sql 文件");
+
+            Directory.CreateDirectory(BackupDir);
+
+            var tempDir = Path.Combine(Path.GetTempPath(), $"sb_import_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempDir);
+            var uploadPath = Path.Combine(tempDir, $"upload{ext}");
+
+            try
+            {
+                // 1. 落到临时目录（边写边算 MD5，供记录与完整性校验）
+                string sourceMd5;
+                long uploadedSize;
+                await using (var fs = new FileStream(uploadPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var md5 = System.Security.Cryptography.MD5.Create())
+                {
+                    await using var crypto = new System.Security.Cryptography.CryptoStream(
+                        fs, md5, System.Security.Cryptography.CryptoStreamMode.Write);
+                    await stream.CopyToAsync(crypto, ct);
+                    await crypto.FlushFinalBlockAsync(ct);
+                    uploadedSize = fs.Length;
+                    sourceMd5 = Convert.ToHexString(md5.Hash!);
+                }
+
+                if (uploadedSize == 0)
+                    return Result.Fail("上传文件为空");
+
+                // 2. 取出 .sql 内容（zip 解压 / 裸 sql 直接用）
+                var sqlPath = Path.Combine(tempDir, "content.sql");
+                if (ext == ".zip")
+                {
+                    using var zip = ZipFile.OpenRead(uploadPath);
+                    var entry = zip.Entries.FirstOrDefault(e =>
+                        !string.IsNullOrEmpty(e.Name) &&
+                        e.Name.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
+                    if (entry == null)
+                        return Result.Fail("zip 内未找到 .sql 备份文件，请上传系统导出的备份包");
+                    entry.ExtractToFile(sqlPath, overwrite: true);
+                }
+                else
+                {
+                    File.Copy(uploadPath, sqlPath, overwrite: true);
+                }
+
+                if (!File.Exists(sqlPath) || new FileInfo(sqlPath).Length == 0)
+                    return Result.Fail("备份内的 .sql 文件为空");
+
+                // 3. 方言校验（跨库导入必然失败，提前拦截并说明原因）
+                var detected = DetectSqlDialect(sqlPath);
+                if (detected == "unknown")
+                    return Result.Fail("无法识别备份文件的数据库方言，请确认是 mysqldump 或 pg_dump 导出的备份");
+                if (!string.Equals(detected, _backupTool.Dialect, StringComparison.OrdinalIgnoreCase))
+                    return Result.Fail(
+                        $"备份文件是 {detected} 格式，当前数据库是 {_backupTool.Dialect}，" +
+                        $"两者 SQL 不兼容，无法恢复。请用 {_backupTool.DumpToolName} 导出的备份。");
+
+                // 4. 以标准命名落盘：<dbName>_<yyyyMMdd_HHmmss>.zip
+                // 时间优先取原文件名里的时间戳（保留「备份是什么时候产生的」），取不到再看文件系统时间
+                var ts = ParseFromFileName(originalFileName ?? "").Timestamp
+                         ?? File.GetLastWriteTime(sqlPath);
+                var stamp = ts.ToString("yyyyMMdd_HHmmss");
+                var zipFileName = $"{db.Database}_{stamp}.zip";
+                var zipFullPath = Path.Combine(BackupDir, zipFileName);
+
+                // 同一秒重复上传 → 加序号，绝不覆盖已有备份（覆盖等于丢数据）
+                var seq = 1;
+                while (File.Exists(zipFullPath))
+                {
+                    zipFileName = $"{db.Database}_{stamp}_{seq++}.zip";
+                    zipFullPath = Path.Combine(BackupDir, zipFileName);
+                }
+
+                var innerSqlName = $"{db.Database}_{stamp}.sql";
+                using (var zipOut = ZipFile.Open(zipFullPath, ZipArchiveMode.Create))
+                {
+                    zipOut.CreateEntryFromFile(sqlPath, innerSqlName, CompressionLevel.Optimal);
+                }
+
+                // 5. 重新计算落盘 zip 的 MD5（与上传的源文件不同：可能只是重新打包）
+                string zipMd5;
+                using (var md5 = System.Security.Cryptography.MD5.Create())
+                using (var fs = File.OpenRead(zipFullPath))
+                {
+                    zipMd5 = Convert.ToHexString(md5.ComputeHash(fs));
+                }
+
+                var fi = new FileInfo(zipFullPath);
+                var record = new DatabaseBackup
+                {
+                    DatabaseName = db.Database,
+                    FileName = zipFileName,
+                    FilePath = $"/storage/db/{zipFileName}",
+                    FileSize = fi.Length,
+                    Duration = 0,
+                    CreatedBy = operatorName,
+                    Remark = string.IsNullOrWhiteSpace(remark)
+                        ? $"上传导入（原始文件名 {originalFileName}，方言 {detected}）"
+                        : remark,
+                    Md5 = zipMd5,
+                };
+                Insert(record);
+
+                _logger.LogInformation(
+                    "备份文件导入成功: {FileName}，原始名 {Original}，大小 {Size}bytes，方言 {Dialect}，操作人 {Operator}",
+                    zipFileName, originalFileName, fi.Length, detected, operatorName);
+
+                return Result.Success(new
+                {
+                    record.Id,
+                    record.FileName,
+                    record.FilePath,
+                    record.FileSize,
+                    record.CreatedBy,
+                    record.CreatedTime,
+                    record.Md5,
+                    detectedDialect = detected,
+                    sourceMd5,
+                    message = "备份已导入备份记录，可在列表中点击「恢复」执行还原",
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "备份文件导入异常: {Original}", originalFileName);
+                return Result.Fail($"备份导入失败: {ex.Message}");
+            }
+            finally
+            {
+                try { Directory.Delete(tempDir, true); } catch { /* 临时目录清理失败不影响结果 */ }
+            }
+        }
+
+        /// <summary>
+        /// 识别 SQL 脚本来自哪种工具。只读文件头部若干 KB，足够覆盖注释/初始化语句区。
+        /// MySQL: mysqldump 会写 `-- MySQL dump`；PG: pg_dump 写 `-- PostgreSQL database dump` 或 SET/SELECT pg_catalog 语句。
+        /// </summary>
+        private static string DetectSqlDialect(string sqlPath)
+        {
+            string head;
+            using (var reader = new StreamReader(sqlPath, System.Text.Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+            {
+                var buffer = new char[16 * 1024];
+                var read = reader.ReadBlock(buffer, 0, buffer.Length);
+                head = new string(buffer, 0, read);
+            }
+
+            if (head.Contains("PostgreSQL database dump", StringComparison.OrdinalIgnoreCase) ||
+                head.Contains("pg_catalog", StringComparison.OrdinalIgnoreCase) ||
+                head.Contains("SELECT pg_catalog.set_config", StringComparison.OrdinalIgnoreCase))
+                return "postgresql";
+
+            if (head.Contains("MySQL dump", StringComparison.OrdinalIgnoreCase) ||
+                head.Contains("/*!40101", StringComparison.Ordinal) ||
+                head.Contains("LOCK TABLES", StringComparison.OrdinalIgnoreCase) ||
+                head.Contains("ENGINE=", StringComparison.OrdinalIgnoreCase))
+                return "mysql";
+
+            // 兜底：没有任何方言指纹，交给调用方拒绝
+            return "unknown";
+        }
+
+        /// <summary>
         /// 完整备份流程（统一入口，定时任务 / Admin 手动 / 访问令牌 API 都调它）：
         ///   1. CreateBackup 本地 dump + zip + insert
         ///   2. 启用了云端备份 → UploadLatestAsync 推到 CloudConfig.ServerUrl 并落 RemoteUpload* 字段
@@ -432,6 +613,105 @@ namespace SB.Framework.Services
         }
 
         /// <summary>
+        /// 生成本次导入实际使用的 sql 文件。
+        /// - PostgreSQL: pg_dump 用 --clean --if-exists 导出，脚本自带 DROP，直接原样导入。
+        /// - MySQL: mysqldump 不生成 DROP TABLE，直接导入已有同名表会主键冲突/整批失败。
+        ///   这里把脚本头的 DROP 语句换成「先查 information_schema 动态删掉当前库所有表」，
+        ///   从而无论备份来自哪个版本、哪些表，都能干净覆盖当前库。
+        /// 返回的路径可能与入参不同（MySQL 情况会写临时文件），调用方负责删除。
+        /// </summary>
+        private async Task<(string Path, bool Temp)> PrepareSqlForRestoreAsync(string sqlPath, string tempDir, CancellationToken ct)
+        {
+            if (_backupTool.Dialect != "mysql") return (sqlPath, false);
+
+            var content = await File.ReadAllTextAsync(sqlPath, ct);
+            // 备份脚本自身已经带 DROP TABLE（例如手工导出的 --add-drop-table）就不重复注入
+            if (content.Contains("DROP TABLE IF EXISTS", StringComparison.OrdinalIgnoreCase))
+                return (sqlPath, false);
+
+            var db = AppGlobal.AppSettings.DbConfig;
+            var prefix = string.Join(Environment.NewLine, new[]
+            {
+                "-- SB Framework: 导入前清空当前库所有表（外来备份可能不含 DROP TABLE）",
+                "SET FOREIGN_KEY_CHECKS=0;",
+                "SET @sb_drop = NULL;",
+                "SELECT GROUP_CONCAT(CONCAT('DROP TABLE IF EXISTS `', table_name, '`;') SEPARATOR ' ')",
+                $"  INTO @sb_drop FROM information_schema.tables WHERE table_schema = '{db.Database.Replace("'", "''")}';",
+                "SET @sb_drop = IFNULL(@sb_drop, 'SELECT 1;');",
+                "PREPARE sb_stmt FROM @sb_drop;",
+                "EXECUTE sb_stmt;",
+                "DEALLOCATE PREPARE sb_stmt;",
+                "SET FOREIGN_KEY_CHECKS=1;",
+                "",
+            });
+
+            var prepared = Path.Combine(tempDir, "restore_prepared.sql");
+            await File.WriteAllTextAsync(prepared, prefix + content, ct);
+            _logger.LogInformation("MySQL 导入前已注入清表语句（原脚本无 DROP TABLE）");
+            return (prepared, true);
+        }
+
+        /// <summary>
+        /// 试运行校验（只读，不碰数据库）：上传后的备份在真正恢复之前先确认「能解开、方言对、脚本非空」。
+        /// 之所以需要：恢复是覆盖整库的高危操作，等到恢复那一刻才发现文件是坏的/方言不对，
+        /// 此时自动安全备份已经跑完，用户白等一轮。提前校验能把问题挡在上传阶段。
+        /// </summary>
+        public virtual async Task<Result> ValidateBackupFileAsync(int id, CancellationToken ct = default)
+        {
+            var entity = Select.Where(c => c.Id == id).First();
+            if (entity == null) return Result.Fail("备份记录不存在");
+
+            var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot",
+                entity.FilePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(fullPath)) return Result.Fail("备份文件不存在");
+
+            var tempDir = Path.Combine(Path.GetTempPath(), $"sb_validate_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                string sqlPath;
+                using (var zip = ZipFile.OpenRead(fullPath))
+                {
+                    var entry = zip.Entries.FirstOrDefault(e =>
+                        !string.IsNullOrEmpty(e.Name) &&
+                        e.Name.EndsWith(".sql", StringComparison.OrdinalIgnoreCase));
+                    if (entry == null) return Result.Fail("备份 zip 内未找到 .sql 文件");
+                    sqlPath = Path.Combine(tempDir, entry.Name);
+                    entry.ExtractToFile(sqlPath, overwrite: true);
+                }
+
+                var size = new FileInfo(sqlPath).Length;
+                if (size == 0) return Result.Fail("备份内的 .sql 文件为空");
+
+                var detected = DetectSqlDialect(sqlPath);
+                if (detected == "unknown") return Result.Fail("无法识别备份的数据库方言");
+                if (!string.Equals(detected, _backupTool.Dialect, StringComparison.OrdinalIgnoreCase))
+                    return Result.Fail($"备份是 {detected} 格式，当前数据库是 {_backupTool.Dialect}，不兼容");
+
+                var restoreToolOk = await _backupTool.CheckRestoreToolAsync(ct);
+                return Result.Success(new
+                {
+                    id,
+                    fileName = entity.FileName,
+                    sqlSize = size,
+                    dialect = detected,
+                    restoreToolName = _backupTool.RestoreToolName,
+                    restoreToolAvailable = restoreToolOk,
+                    message = "校验通过，可以执行恢复",
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "备份文件校验异常: {Id}", id);
+                return Result.Fail($"校验失败: {ex.Message}");
+            }
+            finally
+            {
+                try { Directory.Delete(tempDir, true); } catch { /* ignore */ }
+            }
+        }
+
+        /// <summary>
         /// 从备份恢复数据库（支持 DB 记录或 disk_only 文件）
         /// 流程：先自动备份当前库（用作回退）→ 解压 zip 取 sql → mysql 客户端导入
         /// 注意：此操作覆盖目标库全部数据，调用方需做二次确认
@@ -498,9 +778,11 @@ namespace SB.Framework.Services
                 }
 
                 // 4. 导入(MySQL=mysql / PG=psql)
+                //    MySQL 备份不含 DROP TABLE，这里补一层清表前缀，保证覆盖当前库而不是撞主键
                 var db = AppGlobal.AppSettings.DbConfig;
+                var (effectiveSql, _) = await PrepareSqlForRestoreAsync(sqlPath!, tempDir, ct);
                 var sw = Stopwatch.StartNew();
-                var (ok, stderr) = await _backupTool.RestoreAsync(db, sqlPath, ct);
+                var (ok, stderr) = await _backupTool.RestoreAsync(db, effectiveSql, ct);
                 sw.Stop();
 
                 if (!ok)

@@ -15,6 +15,7 @@ public class MySqlBackupTool : IBackupTool
 
     public MySqlBackupTool(ILogger<MySqlBackupTool>? logger = null) => _logger = logger;
 
+    public string Dialect => "mysql";
     public string DumpToolName => "mysqldump";
     public string RestoreToolName => "mysql";
 

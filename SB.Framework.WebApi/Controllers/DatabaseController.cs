@@ -1,4 +1,5 @@
 using FreeSql;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using SB.Framework.Core;
@@ -59,6 +60,30 @@ namespace SB.Framework.WebApi.Controllers
         [HttpPost]
         public Task<Result> Restore([FromForm] int id, [FromForm] string? filePath = null, CancellationToken ct = default)
             => _service.RestoreAsync(id, User.Username(), filePath, ct);
+
+        /// <summary>
+        /// 上传并导入备份文件（.zip 内含 .sql，或裸 .sql）。
+        /// 只落盘 + 建记录，不执行导入；导入仍需走 Restore（高危操作需二次确认）。
+        /// </summary>
+        [HttpPost]
+        [RequestSizeLimit(2L * 1024 * 1024 * 1024)] // 2 GB 单文件上限
+        [RequestFormLimits(MultipartBodyLengthLimit = 2L * 1024 * 1024 * 1024)]
+        public async Task<Result> Import(IFormFile file, [FromForm] string? remark, CancellationToken ct)
+        {
+            if (file == null || file.Length == 0)
+                return Result.Fail("请选择要上传的备份文件");
+
+            await using var stream = file.OpenReadStream();
+            return await _service.ImportBackupAsync(
+                stream, file.FileName, User.Username(), remark, ct);
+        }
+
+        /// <summary>
+        /// 试运行校验一份备份（只读）：确认能解开、方言匹配、恢复工具可用
+        /// </summary>
+        [HttpPost]
+        public Task<Result> Validate([FromForm] int id, CancellationToken ct)
+            => _service.ValidateBackupFileAsync(id, ct);
 
         /// <summary>
         /// 触发数据库备份（自动化/定时 API,走 JwtAdmin:FullAccess 访问令牌或密码 JWT）

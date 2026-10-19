@@ -2,6 +2,26 @@
 
 本仓库遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/) 和 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [Unreleased]
+
+## [0.5.6] - 2026-10-13
+
+> 数据库备份补齐「恢复」的另一半：此前只能备份/下载，无法把外部备份文件导回系统。`SB.Framework.Services 0.5.3` + `SB.Framework.WebApi 0.5.6` 配套发布。
+
+### Added
+
+- **备份文件上传导入**（`POST /Database/Import`）：支持系统导出的 `.zip` 备份包（内含 `.sql`）或裸 `.sql`，落盘后写入备份记录，随即可在列表中点「恢复」。
+  - 上传只做**导入**，不直接覆盖数据库 —— 覆盖仍是独立的高危操作，需在列表中二次确认（输入库名）。
+  - 导入后自动做一次**试运行校验**（解开压缩包、核对方言、检查恢复工具），把「文件坏了/方言不对」挡在恢复之前，而不是等安全备份跑完才失败。
+  - 同一时间戳重复上传自动加序号，绝不覆盖已有备份。
+- **方言识别与阻断**：按脚本头识别 mysqldump / pg_dump，跨库（MySQL ↔ PostgreSQL）的备份直接拒绝并说明原因 —— 两者 SQL 互不兼容，硬导会半截失败。
+- **`POST /Database/Validate`**：对任意备份记录做只读校验（不触碰数据库）。
+
+### Fixed
+
+- **MySQL 恢复撞主键**（上传文件恢复场景暴露）：`mysqldump` 默认不生成 `DROP TABLE`（PG 的 `pg_dump --clean` 有），导入已有同名表的库会主键冲突/整批失败。现恢复 MySQL 备份时注入「按 information_schema 动态清空当前库表」前缀，脚本自身已带 `DROP TABLE` 时不重复注入。
+- `IBackupTool` 新增 `Dialect` 属性（`mysql` / `postgresql`），供方言判断复用。
+
 ## [0.5.4] - 2026-09-04
 
 > Swagger 全量回归后暴露的三处修复;SB.Framework.Services 0.5.1 与 WebApi 0.5.2~0.5.4 配套发布,tgvault-api 已在 PG 真库完成 183 端点全量 API 测试(0 个 5xx)。
